@@ -131,7 +131,13 @@ struct Kundinnehåll: View {
         } message: { v in
             Text("\(v.inspelning.titel) med ljud och transkript flyttas till papperskorgen. Du kan ta tillbaka den därifrån.")
         }
-        .onAppear(perform: läsOm)
+        .onAppear {
+            läsOm()
+            // Indexet hålls aktuellt från start — inte först när ett mejl
+            // råkar hämtas eller chatten öppnas. Ändringskontrollen gör att
+            // ett aktuellt index kostar nästan ingenting att bekräfta.
+            indexeraIBakgrunden()
+        }
         // Ett avslutat möte — och senare arkivtranskriptet, rösterna och
         // sammanfattningen — ska dyka upp utan att appen startas om.
         .onChange(of: arkiv.sparningar) { läsOm() }
@@ -642,6 +648,7 @@ struct Kundinnehåll: View {
         Task.detached(priority: .utility) {
             guard let bank = try? await Kunskapsbank(kund: kund) else { return }
             try? await Indexering.kör(för: kund, bank: bank)
+            await Inbäddare.kör(bank: bank)
         }
     }
 }

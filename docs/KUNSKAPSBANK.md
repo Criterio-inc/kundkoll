@@ -141,3 +141,35 @@ Kundkoll --prov-chatt                    # den valda leverantören
 Kundkoll --prov-chatt anthropic          # en annan
 Kundkoll --prov-chatt lokal llama3.1:8b  # mot en modell på datorn
 ```
+
+## Betydelsesökning — mätningen bakom hybriden
+
+Uppmätt 2026-09-01 på det riktiga kundindexet (106 stycken: transkript,
+bilagor, mejl, kontakter), tolv facitfrågor där rätt källa var känd. bge-m3
+via Ollama, helt lokalt.
+
+| metod                      | rätt källa i topp 5 |
+|----------------------------|---------------------|
+| trunkerad BM25 (befintlig) | 9 av 12             |
+| enbart inbäddningar        | 9 av 12             |
+| **hybrid (RRF)**           | **11 av 12**        |
+
+De missar olika saker. BM25 kan aldrig ta svenska frågor mot engelska
+dokument — «vilket bolag sköter tullhanteringen» mot ett Statement of Work
+på engelska. Inbäddningarna ensamma tappar i stället rena nyckelord
+(«faktura belopp»). Sammanvägningen är RRF, 1/(60+rang) summerat över båda
+listorna: den jämför ordningar, aldrig BM25-tal mot cosinus.
+
+Därför: **hybrid när Ollama och bge-m3 finns, ren BM25 annars.** Vektorerna
+ligger i samma index.db (tabellen `vektorer`, Float32-blobbar), byggs i
+bakgrunden efter indexeringen och glöms tillsammans med sin källa. Inget
+lämnar datorn.
+
+## ⚠️ Bilagor glömdes aldrig vid omindexering
+
+Indexeringscykeln nycklas per källa, men bilagorna lades in under sina egna
+källvägar medan glömningen bara träffade mail.json. Varje mailhämtning la
+därför på ett varv till: uppmätt låg en faktura **28 gånger** i indexet —
+959 rader varav 132 unika — och kopiorna fyllde topplistan och skev
+BM25-statistiken. Numera glöms varje bilagas källa innan den läggs in igen,
+och provsviten Omindexering indexerar om tre gånger och kräver samma antal.

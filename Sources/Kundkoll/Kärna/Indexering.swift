@@ -103,6 +103,14 @@ enum Indexering {
                 }
                 // Bilagornas innehåll är ofta det som betyder något: en offert
                 // i en PDF eller en tabell i en skärmbild står sällan i mejlet.
+                //
+                // De ligger under sina egna källor och måste glömmas var för
+                // sig. Nycklade på mail.json glömdes de aldrig, och varje
+                // mailhämtning la på ett varv till — uppmätt låg en faktura
+                // 28 gånger i indexet, och kopiorna fyllde topplistan.
+                for källa in Set(cache.bilagor.map(\.fil)) {
+                    try bank.glöm(källa: källa)
+                }
                 for b in cache.bilagor {
                     guard let text = b.text, !text.isEmpty else { continue }
                     for (i, stycke) in dela(text).enumerated() {

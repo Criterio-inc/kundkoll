@@ -134,7 +134,7 @@ final class Liveinsikter: ObservableObject {
 
     private func svara(på id: UUID, fråga: String) async {
         guard let kund, let bank else { return }
-        let träffar = bank.sök(projekt.map { "\(fråga) \($0.namn)" } ?? fråga)
+        let träffar = await bank.bästaSök(projekt.map { "\(fråga) \($0.namn)" } ?? fråga)
         do {
             let svar = try await chatt.fråga(fråga, om: kund.namn, projekt: projekt?.namn,
                                              träffar: träffar, historik: [])

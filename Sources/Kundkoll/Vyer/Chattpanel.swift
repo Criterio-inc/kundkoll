@@ -408,6 +408,15 @@ struct Chattpanel: View {
                 : "\(b.antal) stycken ur transkript, anteckningar och mejl"
                     + (r.indexerade > 0 ? " · \(r.indexerade) nyindexerade" : "")
             if möte != nil { rader = "Hela mötet, och \(rader.lowercased())" }
+            if await Inbäddare.delad.tillgänglig {
+                rader += "\nSöker på både ord och betydelse"
+                // Nyindexerat bäddas in i bakgrunden, på en egen anslutning.
+                let kund = kund
+                Task.detached(priority: .utility) {
+                    guard let b = try? Kunskapsbank(kund: kund) else { return }
+                    await Inbäddare.kör(bank: b)
+                }
+            }
             if !mappar.isEmpty {
                 rader += "\nSöker också i \(mappar.map(\.visatNamn).joined(separator: ", "))"
             }
@@ -437,9 +446,6 @@ struct Chattpanel: View {
         // Projektets namn hjälper sökningen att hamna rätt när frågan gäller
         // ett projekt men är formulerad utan att nämna det.
         let sökt = projekt.map { "\(text) \($0.namn)" } ?? text
-        // Mötet först: frågan gäller det som sades där.
-        let träffar = (mötesträff.map { [$0] } ?? []) + extraUnderlag + bank.sök(sökt)
-        senasteTräffar = träffar
         let historik = samtal.meddelanden.dropLast()
 
         // Svaret strömmas in i en platshållare, så att de första orden syns
@@ -447,6 +453,11 @@ struct Chattpanel: View {
         let plats = Chatt.Meddelande(roll: .assistent, text: "")
         samtal.meddelanden.append(plats)
         Task {
+            // Mötet först: frågan gäller det som sades där. Sökningen sker
+            // här inne eftersom betydelsedelen behöver Ollama och är asynkron.
+            let träffar = (mötesträff.map { [$0] } ?? []) + extraUnderlag
+                + (await bank.bästaSök(sökt))
+            senasteTräffar = träffar
             do {
                 let svar = try await chatt.fråga(
                     text, om: kund.namn, projekt: projekt?.namn,

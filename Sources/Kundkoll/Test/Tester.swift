@@ -17,6 +17,8 @@ enum Tester {
         ström()
         palett()
         briefing()
+        omindexering()
+        betydelse()
         röster()
         kontakterOchKalender()
         mailen()
@@ -1630,6 +1632,88 @@ enum Tester {
         let siffror = möte("20260901", "2026-09-01")
         Prov.lika(Mötesserie.föregående(siffror.0, bland: alla + [möte("20260801", "2026-08-01")])?.0.id,
                   nil, "titlar av bara siffror kedjas aldrig")
+    }
+
+    // MARK: - Betydelsesökning
+
+    static func betydelse() {
+        Prov.svit("Betydelsesökning")
+
+        // RRF: det som ligger högt i båda listorna vinner.
+        Prov.lika(Kunskapsbank.rrf(ord: [1, 2, 3], betydelse: [3, 4, 1]).first, 1,
+                  "hög placering i båda listorna vinner")
+        Prov.lika(Kunskapsbank.rrf(ord: [1], betydelse: []), [1],
+                  "en tom lista fäller ingenting")
+        Prov.lika(Kunskapsbank.rrf(ord: [], betydelse: [7]), [7],
+                  "och åt andra hållet")
+        Prov.kolla(Kunskapsbank.rrf(ord: [1, 2], betydelse: [9, 8]).count == 4,
+                   "alla kandidater finns kvar i ordningen")
+
+        let rot = FileManager.default.temporaryDirectory
+            .appending(path: "kundkoll-test-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: rot) }
+        let arkiv = Arkivet(rot: rot)
+        let kund = try! arkiv.skapaKund(namn: "Acme")
+        let bank = try! Kunskapsbank(kund: kund)
+        try! bank.läggTill(titel: "Avstämning", text: "Vi pratade om leveranstiden",
+                           typ: "transkript", källa: "/a", tid: nil)
+        try! bank.läggTill(titel: "Offert", text: "Pris per pallställ",
+                           typ: "bilaga", källa: "/b", tid: nil)
+
+        Prov.lika(bank.utanVektor().count, 2, "nya stycken saknar vektor")
+        let rader = bank.utanVektor()
+        try! bank.sparaVektor(rader[0].id, [1, 0, 0])
+        try! bank.sparaVektor(rader[1].id, [0, 1, 0])
+        Prov.lika(bank.utanVektor().count, 0, "inbäddade stycken frågas inte om")
+        Prov.lika(bank.vektorer().count, 2, "vektorerna går att läsa tillbaka")
+        Prov.lika(bank.vektorer().first(where: { $0.id == rader[0].id })?.vektor,
+                  [1, 0, 0], "och innehållet är intakt")
+
+        // Frågevektorn pekar mot offerten — den ska upp, trots att orden
+        // i frågan inte finns i texten.
+        let träffar = bank.hybrid("vad kostar det", vektor: [0, 1, 0])
+        Prov.lika(träffar.first?.titel, "Offert",
+                  "betydelsen hittar det orden missar")
+
+        Prov.lika(bank.hybrid("leveranstid", vektor: nil).first?.titel, "Avstämning",
+                  "utan vektor är hybriden vanlig ordsökning")
+
+        try! bank.glöm(källa: "/b")
+        Prov.lika(bank.vektorer().count, 1, "en glömd källa tar sina vektorer med sig")
+    }
+
+    // MARK: - Omindexering
+
+    static func omindexering() {
+        Prov.svit("Omindexering")
+        let rot = FileManager.default.temporaryDirectory
+            .appending(path: "kundkoll-test-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: rot) }
+        let arkiv = Arkivet(rot: rot)
+        let kund = try! arkiv.skapaKund(namn: "Acme")
+
+        // Ett mejl med en bilaga som redan har utläst text.
+        let mejl = Mailen.Mejl(datum: Date(), datumText: "", avsändare: "Anna <anna@acme.se>",
+                               ämne: "Offert", meddelandeID: "id1", konto: "a",
+                               låda: "INBOX", riktning: "från", text: "Här är offerten.")
+        let bilagefil = kund.mailmapp.appending(path: "Bilagor/offert.pdf").path
+        let bilaga = Bilagor.Bilaga(ämne: "Offert", namn: "offert.pdf", fil: bilagefil,
+                                    storlek: 1000,
+                                    text: "Offert på pallställ, 2 400 kr per enhet")
+        try! arkiv.sparaMail([mejl], bilagor: [bilaga], för: kund)
+
+        let bank = try! Kunskapsbank(kund: kund)
+        _ = try! Indexering.kör(för: kund, bank: bank)
+        let efterEn = bank.antal
+
+        // Mailcachen skrivs om — som efter varje hämtning — och indexeras om.
+        try! arkiv.sparaMail([mejl], bilagor: [bilaga], för: kund)
+        _ = try! Indexering.kör(för: kund, bank: bank)
+        _ = try! Indexering.kör(för: kund, bank: bank)
+
+        Prov.lika(bank.antal, efterEn,
+                  "att indexera om ger inga dubbletter (\(bank.antal) mot \(efterEn))")
+        Prov.kolla(!bank.sök("pallställ").isEmpty, "och bilagan är fortfarande sökbar")
     }
 
     // MARK: - Briefing
