@@ -90,7 +90,23 @@ lovade att göra. Allt hamnar i `Transkript.md`, så det syns i Obsidian.
 Att öppna ett möte ger därför inte en vägg av text. Vyn har tre flikar —
 sammanfattning, transkript, att göra — och en chattpanel där hela samtalet
 ligger som underlag vid sidan av kunskapsbanken. Åtagandena är mötets egna
-kort på tavlan, inte en kopia: bockar man av ett här syns det där.
+kort på tavlan, inte en kopia: bockar man av ett här syns det där. Varje
+transkriptrad har en spelknapp — transkriptet är whispers ord, ljudet är
+facit. En knapp skriver ett uppföljningsmejl som utkast i Mail, och när
+efterbearbetningen blir klar i bakgrunden säger en notis till.
+
+Chattens svar strömmar in medan de skrivs, hos alla fem leverantörerna.
+
+## Inför mötet
+
+En kvart före varje kundmatchat möte kommer en notis; klicket öppnar briefen —
+förra mötet i samma serie med kärna och obesvarade frågor, tavlans öppna
+åtaganden och mejlen sedan sist. Samma sida nås med «Förbered» på mötesraden.
+Briefen byggs helt ur det som redan finns: ingen modell, ingen väntan.
+
+Återkommande möten kedjas till **serier** på titeln med siffrorna bortplockade.
+Mötesvyn visar «Förra gången», och mötets chatt får förra sammanfattningen som
+stående underlag.
 
 ## Att göra
 
@@ -102,11 +118,26 @@ Korten dras mellan spalterna och öppnas med ett klick — det mesta är utplock
 av en modell, och en modell formulerar sig inte alltid som man själv skulle ha
 gjort. Tavlan skrivs som `Att göra.md` i kundens valv så den syns i Obsidian.
 
+Modellen räknar också ut **riktiga datum**: «före fredag» sagt en onsdag blir
+fredagens datum, och det som passerats utan att bli klart rödmarkeras. En
+uppgift kan läggas i macOS Påminnelser — envägs: tavlan är sanningen och
+påminnelsen en spegel. **Min vecka** i sidopanelen samlar allt öppet hos alla
+kunder, försenat först.
+
 ## Söka
 
 ⇧⌘F söker i allt material hos alla kunder samtidigt — transkript,
 sammanfattningar, anteckningar, mejl och bilagor. Träffarna grupperas per kund,
 och orden kapas automatiskt så att «leverans» hittar «leveranstiden».
+
+⌘K öppnar paletten: skriv några bokstäver, hoppa till kund, projekt, möte
+eller uppgift.
+
+Chatten söker dessutom på **betydelse**: bge-m3 via Ollama bäddar in allt
+lokalt, och en hybrid av BM25 och cosinus väger ihop listorna. Uppmätt tog
+hybriden 11 av 12 facitfrågor mot 9 för vardera ensam — det ordsökning aldrig
+kan ta är svenska frågor mot engelska dokument. Utan Ollama söker appen som
+förut; inget lämnar datorn. Mätningen står i `docs/KUNSKAPSBANK.md`.
 
 ## Insikter under samtal
 
@@ -217,7 +248,7 @@ fönstret först, gör flera försök, och faller tillbaka på hela skärmen.
 
 ```bash
 ./scripts/bygg-app.sh                                        # dist/Kundkoll.app
-.build/arm64-apple-macosx/debug/Kundkoll --test              # 430 enhetstester
+.build/arm64-apple-macosx/debug/Kundkoll --test              # 500 enhetstester
 .build/arm64-apple-macosx/debug/Kundkoll --prov-ljud f.wav   # hela kedjan skarpt
 .build/arm64-apple-macosx/debug/Kundkoll --prov-röst ljud.wav w.json facit.json
 .build/arm64-apple-macosx/debug/Kundkoll --prov-import fil.mp4 fil.m4a
@@ -226,6 +257,7 @@ fönstret först, gör flera försök, och faller tillbaka på hela skärmen.
 .build/arm64-apple-macosx/debug/Kundkoll --prov-omröst <inspelningsmapp> [antal]
 .build/arm64-apple-macosx/debug/Kundkoll --prov-kodagent <mapp> "<fråga>"
 .build/arm64-apple-macosx/debug/Kundkoll --prov-insikter [modell …]
+.build/arm64-apple-macosx/debug/Kundkoll --prov-datum   # relativa uttryck → riktiga datum
 ```
 
 Xcode behövs inte — Command Line Tools räcker. Appen signeras med Developer ID
