@@ -22,6 +22,7 @@ struct Huvudvy: View {
 
     /// Vad som är valt i sidopanelen.
     enum Val: Hashable {
+        case minVecka
         case kund(Kund)
         case projekt(Projekt)
 
@@ -72,7 +73,7 @@ struct Huvudvy: View {
         switch val {
         case .kund(let k): k
         case .projekt(let p): arkiv.kunder.first { $0.namn == p.kundnamn }
-        case nil: nil
+        case .minVecka, nil: nil
         }
     }
 
@@ -80,6 +81,8 @@ struct Huvudvy: View {
 
     private var sidopanel: some View {
         List(selection: $val) {
+            Label("Min vecka", systemImage: "calendar.badge.checkmark")
+                .tag(Val.minVecka)
             ForEach(arkiv.kunder) { kund in
                 let projekt = arkiv.projekt(för: kund)
                 if projekt.isEmpty {
@@ -144,6 +147,8 @@ struct Huvudvy: View {
                 Projektinnehåll(kund: kund, projekt: projekt)
                     .id(projekt.id)
             }
+        case .minVecka:
+            Minveckavy()
         case nil:
             ContentUnavailableView("Välj en kund", systemImage: "person.2")
         }
