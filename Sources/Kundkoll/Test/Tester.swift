@@ -1557,6 +1557,17 @@ enum Tester {
             Prov.kolla(c.senasteNivå < 0.1, "men ligger stilla vid tystnad (\(c.senasteNivå))")
         }
 
+        do {   // uppspelning: rätt spår för rätt röst
+            let mitt = Yttrande(röst: .jag, text: "x", start: 0, slut: 1)
+            let deras = Yttrande(röst: .motpart, text: "x", start: 0, slut: 1)
+            Prov.lika(Yttrandespelare.fil(för: mitt, enspårig: false), "jag.wav",
+                      "mitt yttrande spelas ur mitt spår")
+            Prov.lika(Yttrandespelare.fil(för: deras, enspårig: false), "motpart.wav",
+                      "motpartens ur deras")
+            Prov.lika(Yttrandespelare.fil(för: mitt, enspårig: true), "motpart.wav",
+                      "i en importerad fil ligger allt i motpart.wav")
+        }
+
         do {   // nedräkning
             // Omräknaren har en intern fördröjning och håller tillbaka en bit
             // av första bufferten. Det som spelar roll är att inget försvinner

@@ -22,6 +22,8 @@ struct Transkriptvy: View {
     @State private var ny = ""
     @State private var sammanfattar = false
     @State private var fel: String?
+    @StateObject private var spelare = Yttrandespelare()
+    @State private var hovrad: UUID?
 
     private enum Flik: String, CaseIterable, Identifiable {
         case sammanfattning, transkript, attGöra
@@ -78,6 +80,7 @@ struct Transkriptvy: View {
         }
         .frame(height: 660)
         .onAppear(perform: läsUppgifter)
+        .onDisappear { spelare.sluta() }
         .sheet(isPresented: $visaRöster) {
             Röstvy(kund: kund, mapp: mapp, inspelning: inspelning) { inspelning = $0 }
         }
@@ -206,15 +209,33 @@ struct Transkriptvy: View {
                             Text(y.tidsstämpel)
                                 .font(.caption.monospacedDigit())
                                 .foregroundStyle(.tertiary)
+                            // Transkriptet är whispers ord; ljudet är facit.
+                            Button {
+                                spelare.växla(y, i: mapp, enspårig: inspelning.enspårig)
+                            } label: {
+                                Image(systemName: spelare.spelar == y.id
+                                      ? "stop.fill" : "play.fill")
+                                    .font(.system(size: 9))
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(spelare.spelar == y.id
+                                             ? Color.accentColor : Color.secondary)
+                            .opacity(spelare.spelar == y.id || hovrad == y.id ? 1 : 0)
+                            .help("Hör vad som faktiskt sades")
                         }
                         Text(y.text)
                             .textSelection(.enabled)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(6)
+                    .background(spelare.spelar == y.id
+                                ? Color.accentColor.opacity(0.08) : Color.clear,
+                                in: .rect(cornerRadius: 6))
+                    .onHover { över in hovrad = över ? y.id : (hovrad == y.id ? nil : hovrad) }
                 }
             }
-            .padding(20)
+            .padding(14)
         }
     }
 
