@@ -19,6 +19,19 @@ struct Huvudvy: View {
     @State private var visaNyckel = false
     @State private var utfällda: Set<String> = []
     @State private var visaSök = false
+    @State private var visaPalett = false
+    /// Möte respektive uppgift öppnad från paletten.
+    @State private var palettMöte: Palettmöte?
+    @State private var palettUppgift: Palettuppgift?
+
+    struct Palettmöte: Identifiable {
+        let kund: Kund, inspelning: Inspelning, mapp: URL
+        var id: UUID { inspelning.id }
+    }
+    struct Palettuppgift: Identifiable {
+        let kund: Kund, uppgift: Uppgift
+        var id: UUID { uppgift.id }
+    }
 
     /// Vad som är valt i sidopanelen.
     enum Val: Hashable {
@@ -59,6 +72,29 @@ struct Huvudvy: View {
         .sheet(isPresented: $visaSök) {
             Sökvy { kund in val = .kund(kund) }
         }
+        .sheet(isPresented: $visaPalett) {
+            Kommandopalett { träff in
+                switch träff.slag {
+                case .kund(let k): val = .kund(k)
+                case .projekt(let p, _): val = .projekt(p)
+                case .minVecka: val = .minVecka
+                case .inspelning(let i, let mapp, let kund):
+                    val = .kund(kund)
+                    palettMöte = Palettmöte(kund: kund, inspelning: i, mapp: mapp)
+                case .uppgift(let u, let kund):
+                    val = .kund(kund)
+                    palettUppgift = Palettuppgift(kund: kund, uppgift: u)
+                }
+            }
+        }
+        .sheet(item: $palettMöte) { v in
+            Transkriptvy(kund: v.kund, inspelning: v.inspelning, mapp: v.mapp)
+        }
+        .sheet(item: $palettUppgift) { v in
+            Uppgiftsredigering(uppgift: v.uppgift, kund: v.kund,
+                               projekt: arkiv.projekt(för: v.kund), vidSparat: {})
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .palett)) { _ in visaPalett = true }
         .sheet(isPresented: $visaNyKund) { nyKundBlad }
         .sheet(isPresented: $visaNyckel) { Modellvy() }
         .onReceive(NotificationCenter.default.publisher(for: .nyKund)) { _ in visaNyKund = true }

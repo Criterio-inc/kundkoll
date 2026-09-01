@@ -136,6 +136,8 @@ struct Kundkoll: App {
             CommandGroup(after: .toolbar) {
                 Button("Sök …") { NotificationCenter.default.post(name: .sök, object: nil) }
                     .keyboardShortcut("f", modifiers: [.command, .shift])
+                Button("Hoppa till …") { NotificationCenter.default.post(name: .palett, object: nil) }
+                    .keyboardShortcut("k", modifiers: .command)
             }
             CommandGroup(after: .appSettings) {
                 Button("AI-modell och nyckel …") {
@@ -151,4 +153,5 @@ extension Notification.Name {
     static let nyKund = Notification.Name("kundkoll.nyKund")
     static let visaNyckel = Notification.Name("kundkoll.visaNyckel")
     static let sök = Notification.Name("kundkoll.sök")
+    static let palett = Notification.Name("kundkoll.palett")
 }
