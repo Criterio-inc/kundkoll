@@ -13,6 +13,9 @@ struct Chattpanel: View {
     /// med som underlag, och samtalen hör till mötet i stället för till kunden.
     var möte: Inspelning?
     var mötesmapp: URL?
+    /// Källor som alltid ska med, utöver det sökningen hittar — till exempel
+    /// förra mötets sammanfattning i en mötesserie.
+    var extraUnderlag: [Kunskapsbank.Träff] = []
 
     @EnvironmentObject private var arkiv: Arkivet
 
@@ -424,7 +427,7 @@ struct Chattpanel: View {
         // ett projekt men är formulerad utan att nämna det.
         let sökt = projekt.map { "\(text) \($0.namn)" } ?? text
         // Mötet först: frågan gäller det som sades där.
-        let träffar = (mötesträff.map { [$0] } ?? []) + bank.sök(sökt)
+        let träffar = (mötesträff.map { [$0] } ?? []) + extraUnderlag + bank.sök(sökt)
         senasteTräffar = träffar
         let historik = samtal.meddelanden.dropLast()
 

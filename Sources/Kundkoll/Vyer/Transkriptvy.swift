@@ -10,7 +10,7 @@ import AppKit
 struct Transkriptvy: View {
     let kund: Kund
     @State var inspelning: Inspelning
-    let mapp: URL
+    @State var mapp: URL
     @Environment(\.dismiss) private var stäng
     @EnvironmentObject private var arkiv: Arkivet
 
@@ -24,6 +24,10 @@ struct Transkriptvy: View {
     @State private var fel: String?
     @StateObject private var spelare = Yttrandespelare()
     @State private var hovrad: UUID?
+    /// Närmast föregående möte i samma serie, när det finns ett.
+    @State private var förra: (Inspelning, URL)?
+    /// Åtaganden från förra mötet som fortfarande är öppna.
+    @State private var kvarSedanSist = 0
 
     private enum Flik: String, CaseIterable, Identifiable {
         case sammanfattning, transkript, attGöra
@@ -74,7 +78,9 @@ struct Transkriptvy: View {
 
             if visaChatt {
                 Divider()
-                Chattpanel(kund: kund, projekt: projekt, möte: inspelning, mötesmapp: mapp)
+                Chattpanel(kund: kund, projekt: projekt, möte: inspelning, mötesmapp: mapp,
+                           extraUnderlag: förraSomUnderlag)
+                    .id(inspelning.id)
                     .frame(width: 400)
             }
         }
@@ -144,6 +150,7 @@ struct Transkriptvy: View {
     private var sammanfattningsflik: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                if förra != nil { förraGången }
                 if let s = inspelning.sammanfattning, !s.tom || !s.kärna.isEmpty {
                     if !s.kärna.isEmpty {
                         Text(s.kärna)
@@ -174,6 +181,48 @@ struct Transkriptvy: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(20)
         }
+    }
+
+    /// Serien binder ihop återkommande möten: samma titel så när som på
+    /// siffrorna. Det man vill veta inför och efter ett 1:1 är nästan alltid
+    /// vad som sades på förra.
+    @ViewBuilder
+    private var förraGången: some View {
+        if let (f, _) = förra {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Label("Förra gången · \(DateFormatter.dag.string(from: f.inledd))",
+                          systemImage: "clock.arrow.circlepath")
+                        .font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Button("Öppna") { if let förra { visa(förra) } }
+                        .buttonStyle(.link)
+                }
+                if let kärna = f.sammanfattning?.kärna, !kärna.isEmpty {
+                    Text(kärna)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if kvarSedanSist > 0 {
+                    Text(kvarSedanSist == 1
+                         ? "1 åtagande därifrån är fortfarande öppet"
+                         : "\(kvarSedanSist) åtaganden därifrån är fortfarande öppna")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+            .padding(12)
+            .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 10))
+        }
+    }
+
+    /// Byter till ett annat möte i samma vy — bläddring i serien.
+    private func visa(_ annat: (Inspelning, URL)) {
+        spelare.sluta()
+        inspelning = annat.0
+        mapp = annat.1
+        läsUppgifter()
     }
 
     private var saknasSammanfattning: some View {
@@ -325,6 +374,26 @@ struct Transkriptvy: View {
         uppgifter = arkiv.uppgifter(för: kund)
             .filter { Uppgiftssamling.hör($0, till: mapp, titel: inspelning.titel) }
             .sorted { $0.skapad < $1.skapad }
+        förra = Mötesserie.föregående(inspelning, bland: arkiv.inspelningar(för: kund))
+        kvarSedanSist = förra.map { f in
+            arkiv.uppgifter(för: kund)
+                .filter { Uppgiftssamling.hör($0, till: f.1, titel: f.0.titel) }
+                .filter { $0.läge != .klart }
+                .count
+        } ?? 0
+    }
+
+    /// Förra mötets sammanfattning som underlag åt chatten, så att "vad sa
+    /// vi förra gången?" har något att stå på även utan sökträff.
+    private var förraSomUnderlag: [Kunskapsbank.Träff] {
+        guard let (f, m) = förra, let s = f.sammanfattning, !s.kärna.isEmpty else { return [] }
+        var text = s.kärna
+        if !s.beslut.isEmpty { text += "\nBeslut: " + s.beslut.joined(separator: "; ") }
+        if !s.öppet.isEmpty { text += "\nÖppet: " + s.öppet.joined(separator: "; ") }
+        return [Kunskapsbank.Träff(
+            id: -2, typ: "sammanfattning", titel: "Förra mötet · \(f.titel)",
+            text: text, källa: m.appending(path: "möte.json").path,
+            tid: f.inledd, poäng: 0)]
     }
 
     private func bocka(_ u: Uppgift) {
