@@ -85,8 +85,12 @@ som bara behöver automationsbehörighet.
 Ett fyrtio minuter långt samtal blir fyra hundra rader transkript. Det man
 behöver därifrån är tre saker, och de skrivs automatiskt efter
 efterbearbetningen: vad mötet handlade om, vad som beslutades, och vad någon
-lovade att göra. Åtagandena är bockbara och ligger kvar i `Transkript.md`, så
-de syns som en checklista i Obsidian.
+lovade att göra. Allt hamnar i `Transkript.md`, så det syns i Obsidian.
+
+Att öppna ett möte ger därför inte en vägg av text. Vyn har tre flikar —
+sammanfattning, transkript, att göra — och en chattpanel där hela samtalet
+ligger som underlag vid sidan av kunskapsbanken. Åtagandena är mötets egna
+kort på tavlan, inte en kopia: bockar man av ett här syns det där.
 
 ## Att göra
 
@@ -94,8 +98,9 @@ de syns som en checklista i Obsidian.
 Mötets sammanfattning bidrar med sina, och nya mejl gås igenom när de hämtas.
 Samma sak nämnd i både ett möte och ett mejl blir ett kort, inte två.
 
-Korten dras mellan spalterna, och tavlan skrivs som `Att göra.md` i kundens
-valv så den syns i Obsidian.
+Korten dras mellan spalterna och öppnas med ett klick — det mesta är utplockat
+av en modell, och en modell formulerar sig inte alltid som man själv skulle ha
+gjort. Tavlan skrivs som `Att göra.md` i kundens valv så den syns i Obsidian.
 
 ## Söka
 
@@ -138,8 +143,8 @@ Sökningen är SQLite FTS5 med trunkerade sökord; svenskans böjningar gör att
 sökning bara träffar i ett fall av fyra. Mätningen står i
 `docs/KUNSKAPSBANK.md`.
 
-Modellen kan köras hos OpenRouter, Anthropic, OpenAI, Azure eller lokalt
-(Ollama, LM Studio). Chatten är det enda i appen som går ut på nätet, och bara
+Modellen väljs med ⌘, och kan köras hos OpenRouter, Anthropic, OpenAI, Azure
+eller lokalt (Ollama, LM Studio). Chatten är det enda i appen som går ut på nätet, och bara
 när du ställer en fråga — väljer du en lokal modell lämnar ingenting datorn.
 Nyckeln sparas i macOS nyckelring.
 
@@ -212,7 +217,7 @@ fönstret först, gör flera försök, och faller tillbaka på hela skärmen.
 
 ```bash
 ./scripts/bygg-app.sh                                        # dist/Kundkoll.app
-.build/arm64-apple-macosx/debug/Kundkoll --test              # 406 enhetstester
+.build/arm64-apple-macosx/debug/Kundkoll --test              # 430 enhetstester
 .build/arm64-apple-macosx/debug/Kundkoll --prov-ljud f.wav   # hela kedjan skarpt
 .build/arm64-apple-macosx/debug/Kundkoll --prov-röst ljud.wav w.json facit.json
 .build/arm64-apple-macosx/debug/Kundkoll --prov-import fil.mp4 fil.m4a
