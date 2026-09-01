@@ -89,7 +89,7 @@ struct Sökvy: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(10)
-                .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
+                .kort(hörn: Stil.radhörn)
             }
         }
     }

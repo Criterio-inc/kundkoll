@@ -62,6 +62,7 @@ struct Projektinnehåll: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+        .background(Stil.botten)
         .navigationTitle(projekt.namn)
         .navigationSubtitle(kund.namn)
         .sheet(item: $öppnad) { v in
@@ -132,7 +133,7 @@ struct Projektinnehåll: View {
                         if i < kopplade.count - 1 { Divider() }
                     }
                 }
-                .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
+                .kort(hörn: Stil.radhörn)
             }
         }
     }

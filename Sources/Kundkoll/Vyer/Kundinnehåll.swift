@@ -94,6 +94,7 @@ struct Kundinnehåll: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+        .background(Stil.botten)
         .navigationTitle(kund.namn)
         .onDrop(of: [.fileURL], isTargeted: nil) { leverantörer in
             guard let l = leverantörer.first else { return false }
@@ -203,10 +204,7 @@ struct Kundinnehåll: View {
                         }
                         Spacer()
                         if m.pågår {
-                            Text("pågår")
-                                .font(.caption)
-                                .padding(.horizontal, 6).padding(.vertical, 2)
-                                .background(.red.opacity(0.2), in: .capsule)
+                            Märke(text: "pågår", färg: .red)
                         }
                         if let länk = m.möteslänk {
                             Button { NSWorkspace.shared.open(länk) } label: {
@@ -230,7 +228,7 @@ struct Kundinnehåll: View {
                     if i < min(5, möten.count) - 1 { Divider() }
                 }
             }
-            .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
+            .kort(hörn: Stil.radhörn)
             }
         }
     }
@@ -273,7 +271,7 @@ struct Kundinnehåll: View {
                                 Spacer()
                             }
                             .padding(10)
-                            .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 8))
+                            .kort(hörn: Stil.radhörn)
                         }
                         .buttonStyle(.plain)
                     }
@@ -300,7 +298,7 @@ struct Kundinnehåll: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(10)
-                        .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 8))
+                        .kort(hörn: Stil.radhörn)
                     }
                 }
             }
@@ -435,7 +433,7 @@ struct Kundinnehåll: View {
                             if i < min(25, mejl.count) - 1 { Divider() }
                         }
                     }
-                    .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
+                    .kort(hörn: Stil.radhörn)
                 }
             }
         }
@@ -479,7 +477,7 @@ struct Kundinnehåll: View {
                     if i < bilagor.count - 1 { Divider() }
                 }
             }
-            .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
+            .kort(hörn: Stil.radhörn)
             .padding(.top, 8)
         } label: {
             Text("Bilagor · \(lästa.count) av \(bilagor.count) sökbara").font(.headline)
@@ -499,7 +497,7 @@ struct Kundinnehåll: View {
                                   @ViewBuilder _ innehåll: () -> I) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text(rubrik).font(.headline)
+                Avsnittsrubrik(rubrik)
                 Spacer()
                 if let knapp { Button(knapp.0, action: knapp.1).buttonStyle(.link) }
             }
@@ -686,7 +684,7 @@ struct Inspelningslista: View {
                 if i < rader.count - 1 { Divider() }
             }
         }
-        .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
+        .kort(hörn: Stil.radhörn)
     }
 
     private func innehåll(_ i: Inspelning, mapp: URL) -> some View {
@@ -703,7 +701,7 @@ struct Inspelningslista: View {
                         ProgressView().controlSize(.mini)
                         Text(steg).foregroundStyle(.orange)
                     } else if !i.efterbearbetad {
-                        Text("· live").foregroundStyle(.orange)
+                        Märke(text: "live", färg: .orange)
                     }
                 }
                 .font(.caption)

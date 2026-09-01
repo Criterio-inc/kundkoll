@@ -110,6 +110,6 @@ struct Insiktspanel: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 10))
+        .kort()
     }
 }

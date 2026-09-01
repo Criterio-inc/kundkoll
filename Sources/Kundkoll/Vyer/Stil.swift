@@ -16,7 +16,9 @@ enum Stil {
     static let radhörn: CGFloat = 8
 
     /// Sidans botten — snäppet mörkare än korten, så att de lyfter.
-    static var botten: Color { Color(nsColor: .underPageBackgroundColor) }
+    /// windowBackgroundColor är systemets egna inställningsgrå; under-
+    /// varianten såg ut som betong i ett aktivt fönster.
+    static var botten: Color { Color(nsColor: .windowBackgroundColor) }
     /// Kortens yta.
     static var yta: Color { Color(nsColor: .controlBackgroundColor) }
 }

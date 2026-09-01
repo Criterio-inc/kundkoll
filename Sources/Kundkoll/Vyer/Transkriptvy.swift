@@ -107,10 +107,7 @@ struct Transkriptvy: View {
             }
             Spacer()
             if !inspelning.efterbearbetad {
-                Text("live")
-                    .font(.caption)
-                    .padding(.horizontal, 6).padding(.vertical, 2)
-                    .background(.orange.opacity(0.2), in: .capsule)
+                Märke(text: "live", färg: .orange)
             }
             if inspelning.yttranden.contains(where: { $0.röstgrupp != nil }) {
                 Button {

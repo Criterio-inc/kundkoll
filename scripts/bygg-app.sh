@@ -19,6 +19,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Kundkoll"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+cp Resources/Kundkoll.icns "$APP/Contents/Resources/Kundkoll.icns"
 # Röstanalysen körs som en Pythonprocess; skriptet måste följa med appen.
 cp scripts/rostanalys.py "$APP/Contents/Resources/rostanalys.py"
 cp Resources/mail-sok.applescript "$APP/Contents/Resources/mail-sok.applescript"

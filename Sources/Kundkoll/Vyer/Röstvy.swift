@@ -140,7 +140,7 @@ struct Röstvy: View {
             }
         }
         .padding(12)
-        .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
+        .kort(hörn: Stil.radhörn)
     }
 
     /// Kör om uppdelningen med ett angivet antal röster.

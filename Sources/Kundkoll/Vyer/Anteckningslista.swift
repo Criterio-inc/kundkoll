@@ -42,7 +42,7 @@ struct Anteckningslista: View {
                         if i < anteckningar.count - 1 { Divider() }
                     }
                 }
-                .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
+                .kort(hörn: Stil.radhörn)
             }
         }
         .sheet(item: $öppen) { a in

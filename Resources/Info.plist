@@ -12,6 +12,7 @@
     <key>LSMinimumSystemVersion</key><string>26.0</string>
     <key>LSApplicationCategoryType</key><string>public.app-category.business</string>
     <key>NSHighResolutionCapable</key><true/>
+    <key>CFBundleIconFile</key><string>Kundkoll</string>
     <key>NSHumanReadableCopyright</key><string>Brattoo AB</string>
 
     <key>NSMicrophoneUsageDescription</key>

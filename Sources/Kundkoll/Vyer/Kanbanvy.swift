@@ -26,7 +26,7 @@ struct Kanbanvy: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("Att göra").font(.headline)
+                Avsnittsrubrik("Att göra")
                 Spacer()
                 if Obsidian.finns {
                     Button("Öppna i Obsidian") {
@@ -127,7 +127,7 @@ struct Kanbanvy: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(9)
-        .background(.background, in: .rect(cornerRadius: 8))
+        .kort(hörn: Stil.radhörn)
         .contentShape(.rect(cornerRadius: 8))
         .draggable(u.id.uuidString)
         .onTapGesture { redigerad = u }

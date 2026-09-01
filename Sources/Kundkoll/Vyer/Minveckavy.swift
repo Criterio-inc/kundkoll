@@ -27,7 +27,7 @@ struct Minveckavy: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 HStack {
-                    Text("Min vecka").font(.headline)
+                    Avsnittsrubrik("Min vecka")
                     Spacer()
                     Text(sammanfattning)
                         .font(.caption)
@@ -47,6 +47,7 @@ struct Minveckavy: View {
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .background(Stil.botten)
         .onAppear(perform: läsOm)
         .sheet(item: $redigerad) { v in
             Uppgiftsredigering(uppgift: v.uppgift, kund: v.kund,
@@ -81,7 +82,7 @@ struct Minveckavy: View {
                     if i < ivarje.count - 1 { Divider() }
                 }
             }
-            .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
+            .kort(hörn: Stil.radhörn)
         }
     }
 

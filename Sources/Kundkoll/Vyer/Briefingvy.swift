@@ -117,7 +117,7 @@ struct Briefingvy: View {
             }
         }
         .padding(12)
-        .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 10))
+        .kort()
     }
 
     private func åtaganden(_ uppgifter: [Uppgift]) -> some View {

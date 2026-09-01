@@ -132,6 +132,15 @@ struct Huvudvy: View {
         }
     }
 
+    /// Kundens rad: sigillet gör att samma kund ser likadan ut överallt.
+    private func kundrad(_ kund: Kund) -> some View {
+        HStack(spacing: 8) {
+            Sigill(namn: kund.namn, sida: 22)
+            Text(kund.namn)
+        }
+        .padding(.vertical, 2)
+    }
+
     /// Bokar briefingnotiser för alla kundmatchade möten den närmaste veckan.
     private func planeraBriefingar() {
         guard kalender.harTillgång else { return }
@@ -165,8 +174,7 @@ struct Huvudvy: View {
             ForEach(arkiv.kunder) { kund in
                 let projekt = arkiv.projekt(för: kund)
                 if projekt.isEmpty {
-                    Label(kund.namn, systemImage: "person.2")
-                        .tag(Val.kund(kund))
+                    kundrad(kund).tag(Val.kund(kund))
                 } else {
                     DisclosureGroup(isExpanded: bindning(för: kund)) {
                         ForEach(projekt) { p in
@@ -174,8 +182,7 @@ struct Huvudvy: View {
                                 .tag(Val.projekt(p))
                         }
                     } label: {
-                        Label(kund.namn, systemImage: "person.2")
-                            .tag(Val.kund(kund))
+                        kundrad(kund).tag(Val.kund(kund))
                     }
                 }
             }
