@@ -148,6 +148,7 @@ actor Import {
             if let s = klar.sammanfattning {
                 Uppgiftssamling.frånMöte(s, inspelning: klar, mapp: mapp)
             }
+            Notiser.mötetKlart(klar)
         }
         lyckades = true
         return (inspelning, mapp)
@@ -210,6 +211,7 @@ actor Import {
             if let s = klar.sammanfattning {
                 Uppgiftssamling.frånMöte(s, inspelning: klar, mapp: mapp)
             }
+            Notiser.mötetKlart(klar)
         }
         return inspelning
     }

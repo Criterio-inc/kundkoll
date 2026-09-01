@@ -643,13 +643,14 @@ struct Inspelningslista: View {
     var öppna: (Inspelning, URL) -> Void
     var kasta: (Inspelning, URL) -> Void
 
+    @EnvironmentObject private var session: Inspelningssession
     @State private var hovrad: Int?
 
     var body: some View {
         VStack(spacing: 0) {
             ForEach(Array(rader.enumerated()), id: \.offset) { i, rad in
                 ZStack(alignment: .trailing) {
-                    Button { öppna(rad.0, rad.1) } label: { innehåll(rad.0) }
+                    Button { öppna(rad.0, rad.1) } label: { innehåll(rad.0, mapp: rad.1) }
                         .buttonStyle(.plain)
                     if hovrad == i {
                         Button { kasta(rad.0, rad.1) } label: {
@@ -672,7 +673,7 @@ struct Inspelningslista: View {
         .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
     }
 
-    private func innehåll(_ i: Inspelning) -> some View {
+    private func innehåll(_ i: Inspelning, mapp: URL) -> some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(i.titel)
@@ -682,7 +683,12 @@ struct Inspelningslista: View {
                     if i.enspårig { Text("· importerad") }
                     let namn = Set(i.röstnamn.values).sorted()
                     if !namn.isEmpty { Text("· \(namn.joined(separator: ", "))").lineLimit(1) }
-                    if !i.efterbearbetad { Text("· live").foregroundStyle(.orange) }
+                    if let steg = pågår(mapp) {
+                        ProgressView().controlSize(.mini)
+                        Text(steg).foregroundStyle(.orange)
+                    } else if !i.efterbearbetad {
+                        Text("· live").foregroundStyle(.orange)
+                    }
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -694,5 +700,16 @@ struct Inspelningslista: View {
         }
         .padding(.horizontal, 12).padding(.vertical, 9)
         .contentShape(.rect)
+    }
+
+    /// Var bearbetningen står, för raden vars inspelning just nu jobbas på.
+    private func pågår(_ mapp: URL) -> String? {
+        guard session.bearbetadMapp == mapp else { return nil }
+        if session.sammanfattar { return "Sammanfattar …" }
+        if session.analyserarRöster { return "Delar upp röster …" }
+        if session.efterbearbetar {
+            return "Transkriberar \(Int(session.efterbearbetningsandel * 100)) % …"
+        }
+        return nil
     }
 }

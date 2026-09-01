@@ -35,6 +35,9 @@ final class Inspelningssession: ObservableObject {
     @Published private(set) var efterbearbetningsandel: Double = 0
     /// Det senast transkriberade, så att man ser att det rör sig.
     @Published private(set) var senasteArkivrad = ""
+    /// Mappen vars inspelning just nu efterbearbetas, så att raden i listan
+    /// kan visa var arbetet står.
+    @Published private(set) var bearbetadMapp: URL?
     @Published private(set) var röstnamn: [Int: String] = [:]
 
     /// Lyssnar efter frågeställningar medan samtalet pågår.
@@ -80,6 +83,7 @@ final class Inspelningssession: ObservableObject {
                 throw Enkeltfel("Datorljudet kräver behörigheten Skärminspelning. Ge den i Systeminställningar → Integritet och säkerhet → Skärminspelning och starta om appen.")
             }
 
+            Notiser.begär()
             läge = .förbereder("Laddar KB-Whisper …")
             try await whisper.startaServer()
 
@@ -199,6 +203,7 @@ final class Inspelningssession: ObservableObject {
         let i = inspelning
         let kund = Arkivet.shared.kunder.first { $0.namn == i.kund }
         efterbearbetar = true
+        bearbetadMapp = mapp
         Task { [weak self] in
             guard let self else { return }
             var rader: [Yttrande] = []
@@ -220,7 +225,10 @@ final class Inspelningssession: ObservableObject {
                 }
             }
             guard !rader.isEmpty else {
-                await MainActor.run { self.efterbearbetar = false }
+                await MainActor.run {
+                    self.efterbearbetar = false
+                    self.bearbetadMapp = nil
+                }
                 return
             }
             rader.sort { $0.start < $1.start }
@@ -261,6 +269,8 @@ final class Inspelningssession: ObservableObject {
             await MainActor.run {
                 self.sammanfattar = false
                 self.efterbearbetar = false
+                self.bearbetadMapp = nil
+                Notiser.mötetKlart(uppdaterad)
             }
         }
     }
