@@ -1,137 +1,281 @@
 import SwiftUI
 import AppKit
 
+/// Ett möte, efter mötet.
+///
+/// Transkriptet är sällan det man vill läsa. Det man vill veta är vad mötet
+/// landade i, vad någon lovade, och svaret på den fråga man kom hit med —
+/// därför ligger sammanfattningen först, uppgifterna bredvid och en chatt som
+/// har hela samtalet som underlag i panelen till höger.
 struct Transkriptvy: View {
     let kund: Kund
     @State var inspelning: Inspelning
     let mapp: URL
     @Environment(\.dismiss) private var stäng
+    @EnvironmentObject private var arkiv: Arkivet
+
     @State private var visaRöster = false
+    @State private var visaChatt = Inställningar.mötesChattPå
+    @State private var flik: Flik = .sammanfattning
+    @State private var uppgifter: [Uppgift] = []
+    @State private var redigerad: Uppgift?
+    @State private var ny = ""
+    @State private var sammanfattar = false
+    @State private var fel: String?
 
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(inspelning.titel).font(.headline)
-                    Text("\(DateFormatter.klocka.string(from: inspelning.inledd)) · \(formateraLängd(inspelning.längd))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                if !inspelning.efterbearbetad {
-                    Text("live")
-                        .font(.caption)
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(.orange.opacity(0.2), in: .capsule)
-                }
-                if inspelning.yttranden.contains(where: { $0.röstgrupp != nil }) {
-                    Button {
-                        visaRöster = true
-                    } label: {
-                        Label("Vem är vem", systemImage: "person.wave.2")
-                    }
-                }
-                if Obsidian.finns {
-                    Button {
-                        Obsidian.öppna(mapp.appending(path: "Transkript.md"), valvrot: kund.mapp)
-                    } label: {
-                        Image(systemName: "book.closed")
-                    }
-                    .help("Öppna transkriptet i Obsidian")
-                }
-                Button {
-                    NSWorkspace.shared.open(mapp)
-                } label: {
-                    Image(systemName: "folder")
-                }
-                .help("Visa i Finder")
+    private enum Flik: String, CaseIterable, Identifiable {
+        case sammanfattning, transkript, attGöra
+        var id: String { rawValue }
+        var namn: String {
+            switch self {
+            case .sammanfattning: "Sammanfattning"
+            case .transkript: "Transkript"
+            case .attGöra: "Att göra"
             }
-            .padding(16)
-
-            Divider()
-
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 12) {
-                    if let sam = inspelning.sammanfattning, !sam.tom {
-                        sammanfattning(sam)
-                        Divider().padding(.vertical, 6)
-                    }
-                    ForEach(inspelning.yttranden) { y in
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack(spacing: 6) {
-                                Text(y.etikett(inspelning.röstnamn, enspårig: inspelning.enspårig))
-                                    .font(.caption.weight(.medium))
-                                    .foregroundStyle(färg(y))
-                                Text(y.tidsstämpel)
-                                    .font(.caption.monospacedDigit())
-                                    .foregroundStyle(.tertiary)
-                            }
-                            Text(y.text)
-                                .textSelection(.enabled)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-                .padding(20)
-            }
-
-            Divider()
-            HStack {
-                Spacer()
-                Button("Stäng") { stäng() }.keyboardShortcut(.defaultAction)
-            }
-            .padding(16)
-        }
-        .frame(width: 700, height: 620)
-        .sheet(isPresented: $visaRöster) {
-            Röstvy(kund: kund, mapp: mapp, inspelning: inspelning) { inspelning = $0 }
         }
     }
 
-    /// Vad mötet landade i, före transkriptet.
-    @ViewBuilder
-    private func sammanfattning(_ s: Mötessammanfattning) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            if !s.kärna.isEmpty {
-                Text(s.kärna)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            if !s.åtaganden.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Att göra").font(.subheadline.weight(.semibold))
-                    ForEach(Array(s.åtaganden.enumerated()), id: \.element.id) { i, å in
-                        HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            Button {
-                                bocka(i)
-                            } label: {
-                                Image(systemName: å.klart ? "checkmark.circle.fill" : "circle")
-                                    .foregroundStyle(å.klart ? Color.green : Color.secondary)
-                            }
-                            .buttonStyle(.plain)
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(å.vad)
-                                    .strikethrough(å.klart)
-                                    .foregroundStyle(å.klart ? .secondary : .primary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                if å.vem != nil || å.när != nil {
-                                    Text([å.vem, å.när].compactMap { $0 }.joined(separator: " · "))
-                                        .font(.caption).foregroundStyle(.secondary)
-                                }
-                            }
-                        }
+    var body: some View {
+        HStack(spacing: 0) {
+            VStack(spacing: 0) {
+                rubrik
+                Divider()
+                Picker("", selection: $flik) {
+                    ForEach(Flik.allCases) { f in
+                        Text(f == .attGöra && !uppgifter.isEmpty
+                             ? "\(f.namn) \(uppgifter.count)" : f.namn).tag(f)
                     }
                 }
-            }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                Divider()
 
-            if !s.beslut.isEmpty { punktlista("Beslut", s.beslut) }
-            if !s.öppet.isEmpty { punktlista("Öppna frågor", s.öppet) }
+                switch flik {
+                case .sammanfattning: sammanfattningsflik
+                case .transkript: transkriptflik
+                case .attGöra: uppgiftsflik
+                }
+
+                Divider()
+                HStack {
+                    if let fel {
+                        Text(fel).font(.caption).foregroundStyle(.red).lineLimit(2)
+                    }
+                    Spacer()
+                    Button("Stäng") { stäng() }.keyboardShortcut(.defaultAction)
+                }
+                .padding(16)
+            }
+            .frame(width: 700)
+
+            if visaChatt {
+                Divider()
+                Chattpanel(kund: kund, projekt: projekt, möte: inspelning, mötesmapp: mapp)
+                    .frame(width: 400)
+            }
+        }
+        .frame(height: 660)
+        .onAppear(perform: läsUppgifter)
+        .sheet(isPresented: $visaRöster) {
+            Röstvy(kund: kund, mapp: mapp, inspelning: inspelning) { inspelning = $0 }
+        }
+        .sheet(item: $redigerad) { u in
+            Uppgiftsredigering(uppgift: u, kund: kund, vidSparat: läsUppgifter)
+        }
+    }
+
+    // MARK: - Rubrik
+
+    private var rubrik: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(inspelning.titel).font(.headline)
+                Text("\(DateFormatter.klocka.string(from: inspelning.inledd)) · \(formateraLängd(inspelning.längd))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if !inspelning.efterbearbetad {
+                Text("live")
+                    .font(.caption)
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(.orange.opacity(0.2), in: .capsule)
+            }
+            if inspelning.yttranden.contains(where: { $0.röstgrupp != nil }) {
+                Button {
+                    visaRöster = true
+                } label: {
+                    Label("Vem är vem", systemImage: "person.wave.2")
+                }
+            }
+            if Obsidian.finns {
+                Button {
+                    Obsidian.öppna(mapp.appending(path: "Transkript.md"), valvrot: kund.mapp)
+                } label: {
+                    Image(systemName: "book.closed")
+                }
+                .help("Öppna transkriptet i Obsidian")
+            }
+            Button {
+                NSWorkspace.shared.open(mapp)
+            } label: {
+                Image(systemName: "folder")
+            }
+            .help("Visa i Finder")
+            Button {
+                visaChatt.toggle()
+                Inställningar.mötesChattPå = visaChatt
+            } label: {
+                Image(systemName: "bubble.left.and.text.bubble.right")
+            }
+            .help(visaChatt ? "Dölj chatten" : "Fråga om mötet")
+        }
+        .padding(16)
+    }
+
+    // MARK: - Flikar
+
+    @ViewBuilder
+    private var sammanfattningsflik: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                if let s = inspelning.sammanfattning, !s.tom || !s.kärna.isEmpty {
+                    if !s.kärna.isEmpty {
+                        Text(s.kärna)
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if !s.beslut.isEmpty { punktlista("Beslut", s.beslut) }
+                    if !s.öppet.isEmpty { punktlista("Öppna frågor", s.öppet) }
+                    if !s.beslut.isEmpty || !s.öppet.isEmpty || !uppgifter.isEmpty {
+                        Divider()
+                    }
+                    if !uppgifter.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Att göra").font(.subheadline.weight(.semibold))
+                            Text("\(uppgifter.count) på tavlan")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    Button(sammanfattar ? "Skriver om …" : "Skriv om sammanfattningen") {
+                        Task { await sammanfatta() }
+                    }
+                    .disabled(sammanfattar)
+                    .buttonStyle(.link)
+                } else {
+                    saknasSammanfattning
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+        }
+    }
+
+    private var saknasSammanfattning: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Ingen sammanfattning än")
+                .font(.subheadline.weight(.semibold))
+            Text("En modell läser igenom mötet och skriver vad det handlade om, "
+                 + "vad som beslutades och vad någon lovade att göra. "
+                 + "Åtagandena hamnar på tavlan.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button(sammanfattar ? "Sammanfattar …" : "Sammanfatta mötet") {
+                Task { await sammanfatta() }
+            }
+            .disabled(sammanfattar || inspelning.yttranden.isEmpty)
+            if sammanfattar { ProgressView().controlSize(.small) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
+        .padding(16)
         .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 10))
+    }
+
+    private var transkriptflik: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                ForEach(inspelning.yttranden) { y in
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 6) {
+                            Text(y.etikett(inspelning.röstnamn, enspårig: inspelning.enspårig))
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(färg(y))
+                            Text(y.tidsstämpel)
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.tertiary)
+                        }
+                        Text(y.text)
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .padding(20)
+        }
+    }
+
+    private var uppgiftsflik: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    if uppgifter.isEmpty {
+                        Text(inspelning.sammanfattning == nil
+                             ? "Åtagandena plockas ut när mötet sammanfattas."
+                             : "Mötet gav inga åtaganden.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .padding(.vertical, 8)
+                    }
+                    ForEach(uppgifter) { u in uppgiftsrad(u) }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(20)
+            }
+            Divider()
+            HStack(spacing: 8) {
+                TextField("Lägg till något ur mötet", text: $ny)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(läggTill)
+                Button("Lägg till", action: läggTill)
+                    .disabled(ny.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            .padding(16)
+        }
+    }
+
+    private func uppgiftsrad(_ u: Uppgift) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Button {
+                bocka(u)
+            } label: {
+                Image(systemName: u.läge == .klart ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(u.läge == .klart ? Color.green : Color.secondary)
+            }
+            .buttonStyle(.plain)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(u.vad)
+                    .strikethrough(u.läge == .klart)
+                    .foregroundStyle(u.läge == .klart ? .secondary : .primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if u.vem != nil || u.när != nil {
+                    Text([u.vem, u.när].compactMap { $0 }.joined(separator: " · "))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            if u.läge == .pågår {
+                Text("Pågår").font(.caption2).foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(.quaternary.opacity(0.3), in: .rect(cornerRadius: 8))
+        .contentShape(.rect(cornerRadius: 8))
+        .onTapGesture { redigerad = u }
     }
 
     private func punktlista(_ rubrik: String, _ rader: [String]) -> some View {
@@ -146,13 +290,52 @@ struct Transkriptvy: View {
         }
     }
 
-    /// Bockar av ett åtagande. Sparas direkt, så att det står kvar i markdown
-    /// och syns i Obsidian.
-    private func bocka(_ i: Int) {
-        guard var sam = inspelning.sammanfattning, i < sam.åtaganden.count else { return }
-        sam.åtaganden[i].klart.toggle()
-        inspelning.sammanfattning = sam
-        try? Arkivet.shared.spara(inspelning, i: mapp)
+    // MARK: - Handling
+
+    private var projekt: Projekt? {
+        inspelning.projekt.flatMap { namn in
+            arkiv.projekt(för: kund).first { $0.namn == namn }
+        }
+    }
+
+    /// Uppgifterna som kom ur det här mötet. Tavlan är sanningen — det som
+    /// står i sammanfattningen är en ögonblicksbild från när den skrevs.
+    private func läsUppgifter() {
+        uppgifter = arkiv.uppgifter(för: kund)
+            .filter { Uppgiftssamling.hör($0, till: mapp, titel: inspelning.titel) }
+            .sorted { $0.skapad < $1.skapad }
+    }
+
+    private func bocka(_ u: Uppgift) {
+        var ändrad = u
+        ändrad.läge = u.läge == .klart ? .attGöra : .klart
+        try? arkiv.uppdatera(ändrad, för: kund)
+        läsUppgifter()
+    }
+
+    private func läggTill() {
+        let text = ny.trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty else { return }
+        try? arkiv.läggTill([Uppgift(vad: text, ursprung: .möte, källa: mapp.path,
+                                     källtitel: inspelning.titel,
+                                     projekt: inspelning.projekt)], för: kund)
+        ny = ""
+        läsUppgifter()
+    }
+
+    private func sammanfatta() async {
+        sammanfattar = true
+        fel = nil
+        defer { sammanfattar = false }
+        do {
+            let s = try await Sammanfattare().skriv(för: inspelning, kund: kund.namn)
+            inspelning.sammanfattning = s
+            try arkiv.spara(inspelning, i: mapp)
+            Uppgiftssamling.frånMöte(s, inspelning: inspelning, mapp: mapp)
+            läsUppgifter()
+        } catch {
+            fel = error.localizedDescription
+        }
     }
 
     /// Egen färg per röst, så att man ser talarbyten utan att läsa namnen.

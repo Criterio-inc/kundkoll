@@ -143,6 +143,12 @@ enum Inställningar {
         set { UserDefaults.standard.set(newValue, forKey: "kundkoll.insikterPå") }
     }
 
+    /// Om chatten ska ligga uppfälld i transkriptvyn.
+    static var mötesChattPå: Bool {
+        get { UserDefaults.standard.object(forKey: "kundkoll.mötesChattPå") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "kundkoll.mötesChattPå") }
+    }
+
     /// Om en röst som lärts in hos en kund ska kännas igen hos andra.
     ///
     /// Av som standard: profilerna ligger hos kunden med flit, och samma

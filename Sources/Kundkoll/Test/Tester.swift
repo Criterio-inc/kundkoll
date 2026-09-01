@@ -9,6 +9,7 @@ enum Tester {
         ljud()
         whisper()
         liveinsikter()
+        mötesuppgifter()
         röster()
         kontakterOchKalender()
         mailen()
@@ -389,6 +390,19 @@ enum Tester {
 
             try! arkiv.taBort(två, för: kund)
             Prov.lika(arkiv.samtal(för: kund, projekt: nil).count, 1, "samtal går att ta bort")
+
+            // Ett samtal om ett enskilt möte hör hemma i transkriptvyn och
+            // ska inte dyka upp i kundens allmänna chatt.
+            let mötesid = UUID().uuidString
+            var omMötet = Samtal(möte: mötesid)
+            omMötet.meddelanden = [.init(roll: .människa, text: "Vad sa vi om priset?")]
+            try! arkiv.spara(omMötet, för: kund)
+            Prov.lika(arkiv.samtal(för: kund, projekt: nil).count, 1,
+                      "ett mötessamtal syns inte i kundens chatt")
+            Prov.lika(arkiv.samtal(för: kund, projekt: nil, möte: mötesid).count, 1,
+                      "men i mötets egen")
+            Prov.lika(arkiv.samtal(för: kund, projekt: nil, möte: UUID().uuidString).count, 0,
+                      "och inte i ett annat mötes")
 
             Prov.lika(Samtal.titel(ur: []), "Nytt samtal", "ett tomt samtal får ett namn ändå")
             let lång = String(repeating: "ord ", count: 40)
@@ -1560,6 +1574,31 @@ enum Tester {
             Prov.kolla(abs(summa - 5 * 16_000) < 1_100,
                        "48 kHz stereo blir 16 kHz mono utan att ljud tappas (\(summa) av 80 000 prov)")
         }
+    }
+
+    // MARK: - Uppgifter ur möten
+
+    static func mötesuppgifter() {
+        Prov.svit("Uppgifter ur möten")
+        let mapp = URL(fileURLWithPath: "/Kunder/Acme/Samtal/2026-09-01 0900 Avstämning")
+        let annan = URL(fileURLWithPath: "/Kunder/Acme/Samtal/2026-09-02 0900 Uppföljning")
+
+        let ur = Uppgift(vad: "Skicka offerten", ursprung: .möte,
+                         källa: mapp.path, källtitel: "Avstämning")
+        Prov.kolla(Uppgiftssamling.hör(ur, till: mapp, titel: "Avstämning"),
+                   "uppgiften hör till mötet den kom ur")
+        Prov.kolla(!Uppgiftssamling.hör(ur, till: annan, titel: "Uppföljning"),
+                   "men inte till ett annat möte")
+
+        // Uppgifter som lades upp innan mappen började sparas har bara titeln.
+        let gammal = Uppgift(vad: "Skicka offerten", ursprung: .möte, källtitel: "Avstämning")
+        Prov.kolla(Uppgiftssamling.hör(gammal, till: mapp, titel: "Avstämning"),
+                   "äldre uppgifter känns igen på titeln")
+
+        let urMejl = Uppgift(vad: "Skicka offerten", ursprung: .mejl,
+                             källa: mapp.path, källtitel: "Avstämning")
+        Prov.kolla(!Uppgiftssamling.hör(urMejl, till: mapp, titel: "Avstämning"),
+                   "en uppgift ur ett mejl hör inte till mötet")
     }
 
     // MARK: - Liveinsikter

@@ -255,7 +255,7 @@ final class Inspelningssession: ObservableObject {
                     // Mötets åtaganden hamnar på tavlan. De är redan
                     // utplockade av sammanfattningen, så ingen extra runda
                     // behövs här.
-                    Uppgiftssamling.frånMöte(s, inspelning: inspelning)
+                    Uppgiftssamling.frånMöte(s, inspelning: inspelning, mapp: mapp)
                 }
             }
             await MainActor.run {

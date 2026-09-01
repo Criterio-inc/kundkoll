@@ -183,6 +183,9 @@ struct Huvudvy: View {
                             Obsidian.öppna(kund.mapp, valvrot: kund.mapp)
                         }
                     }
+                    Divider()
+                    Button("AI-modell och nyckel …") { visaNyckel = true }
+                        .keyboardShortcut(",", modifiers: .command)
                 } label: {
                     Label("Mer", systemImage: "ellipsis.circle")
                 }

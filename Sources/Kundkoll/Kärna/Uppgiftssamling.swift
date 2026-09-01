@@ -8,18 +8,28 @@ import Foundation
 enum Uppgiftssamling {
 
     /// Mötets åtaganden till tavlan.
-    static func frånMöte(_ sammanfattning: Mötessammanfattning, inspelning: Inspelning) {
+    static func frånMöte(_ sammanfattning: Mötessammanfattning,
+                         inspelning: Inspelning, mapp: URL?) {
         guard let kund = Arkivet.shared.kunder.first(where: { $0.namn == inspelning.kund })
         else { return }
         let nya = sammanfattning.åtaganden.map {
             Uppgift(vad: $0.vad, vem: $0.vem, när: $0.när,
                     läge: $0.klart ? .klart : .attGöra,
                     ursprung: .möte,
+                    källa: mapp?.path,
                     källtitel: inspelning.titel,
                     projekt: inspelning.projekt,
                     skapad: inspelning.inledd)
         }
         try? Arkivet.shared.läggTill(nya, för: kund)
+    }
+
+    /// Om en uppgift kom ur ett visst möte. Mappen är det säkra kännetecknet;
+    /// titeln finns kvar för uppgifter som lades upp innan mappen sparades.
+    static func hör(_ uppgift: Uppgift, till mapp: URL, titel: String) -> Bool {
+        guard uppgift.ursprung == .möte else { return false }
+        if let källa = uppgift.källa { return källa == mapp.path }
+        return uppgift.källtitel == titel
     }
 
     /// Letar åtaganden i nyhämtade mejl.

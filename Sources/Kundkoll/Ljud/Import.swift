@@ -140,7 +140,15 @@ actor Import {
 
         inspelning.sammanfattning = try? await Sammanfattare()
             .skriv(för: inspelning, kund: placering.kundnamn)
-        try await MainActor.run { try Arkivet.shared.spara(inspelning, i: mapp) }
+        let klar = inspelning
+        try await MainActor.run {
+            try Arkivet.shared.spara(klar, i: mapp)
+            // En importerad inspelning ska ge uppgifter på tavlan precis som
+            // ett möte som spelats in i appen.
+            if let s = klar.sammanfattning {
+                Uppgiftssamling.frånMöte(s, inspelning: klar, mapp: mapp)
+            }
+        }
         lyckades = true
         return (inspelning, mapp)
     }
@@ -196,7 +204,13 @@ actor Import {
 
         inspelning.sammanfattning = try? await Sammanfattare()
             .skriv(för: inspelning, kund: placering.kundnamn)
-        try await MainActor.run { try Arkivet.shared.spara(inspelning, i: mapp) }
+        let klar = inspelning
+        try await MainActor.run {
+            try Arkivet.shared.spara(klar, i: mapp)
+            if let s = klar.sammanfattning {
+                Uppgiftssamling.frånMöte(s, inspelning: klar, mapp: mapp)
+            }
+        }
         return inspelning
     }
 

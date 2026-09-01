@@ -131,9 +131,10 @@ struct Kundkoll: App {
                     .keyboardShortcut("f", modifiers: [.command, .shift])
             }
             CommandGroup(after: .appSettings) {
-                Button("Modell och nyckel …") {
+                Button("AI-modell och nyckel …") {
                     NotificationCenter.default.post(name: .visaNyckel, object: nil)
                 }
+                .keyboardShortcut(",", modifiers: .command)
             }
         }
     }

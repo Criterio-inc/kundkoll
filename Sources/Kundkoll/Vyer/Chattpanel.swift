@@ -9,6 +9,10 @@ struct Chattpanel: View {
     let kund: Kund
     /// Sätt när chatten gäller ett enskilt projekt.
     var projekt: Projekt?
+    /// Sätt när chatten gäller ett enskilt möte. Då ligger hela transkriptet
+    /// med som underlag, och samtalen hör till mötet i stället för till kunden.
+    var möte: Inspelning?
+    var mötesmapp: URL?
 
     @EnvironmentObject private var arkiv: Arkivet
 
@@ -57,7 +61,9 @@ struct Chattpanel: View {
                     }
                 } label: {
                     HStack(spacing: 4) {
-                        Text(samtal.tomt ? (projekt?.namn ?? kund.namn) : samtal.titel)
+                        Text(samtal.tomt
+                             ? (möte?.titel ?? projekt?.namn ?? kund.namn)
+                             : samtal.titel)
                             .font(.headline)
                             .lineLimit(1)
                         Image(systemName: "chevron.down").font(.caption2)
@@ -149,7 +155,8 @@ struct Chattpanel: View {
 
             Divider()
             HStack(spacing: 10) {
-                TextField("Fråga om \(projekt?.namn ?? kund.namn) …", text: $fråga, axis: .vertical)
+                TextField(möte == nil ? "Fråga om \(projekt?.namn ?? kund.namn) …" : "Fråga om mötet …",
+                          text: $fråga, axis: .vertical)
                     .textFieldStyle(.plain)
                     .lineLimit(1...5)
                     .padding(.horizontal, 12)
@@ -177,15 +184,21 @@ struct Chattpanel: View {
 
     private var tomtLäge: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Fråga om det som sagts och skrivits")
+            Text(möte == nil ? "Fråga om det som sagts och skrivits" : "Fråga om mötet")
                 .font(.title3.weight(.semibold))
-            Text("Svaren byggs på transkript, anteckningar, mejlämnen och kontakter hos \(kund.namn) — inget annat.")
+            Text(möte == nil
+                 ? "Svaren byggs på transkript, anteckningar, mejlämnen och kontakter hos \(kund.namn) — inget annat."
+                 : "Hela samtalet ligger som underlag, tillsammans med det övriga materialet hos \(kund.namn).")
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             FlödandeRad(mellanrum: 8) {
-                ForEach(["Vad lovade vi senast?",
-                         "Vilka frågor är obesvarade?",
-                         "Vad sa de om priset?"], id: \.self) { f in
+                ForEach(möte == nil
+                        ? ["Vad lovade vi senast?",
+                           "Vilka frågor är obesvarade?",
+                           "Vad sa de om priset?"]
+                        : ["Vad landade vi i?",
+                           "Vad ska jag göra?",
+                           "Vad lämnades obesvarat?"], id: \.self) { f in
                     Button {
                         fråga = f
                         skicka()
@@ -332,12 +345,37 @@ struct Chattpanel: View {
 
     // MARK: - Handling
 
+    /// Ett tomt samtal med rätt hemvist.
+    private func tomtSamtal() -> Samtal {
+        Samtal(projekt: projekt?.namn, möte: möte?.id.uuidString)
+    }
+
+    /// Hela mötet som en källa. Frågan gäller det som sades, så transkriptet
+    /// ska med oavsett vad sökningen tycker om orden i frågan.
+    private var mötesträff: Kunskapsbank.Träff? {
+        guard let möte else { return nil }
+        var text = möte.yttranden.map { y in
+            "[\(y.tidsstämpel)] \(y.etikett(möte.röstnamn, enspårig: möte.enspårig)): \(y.text)"
+        }.joined(separator: "\n")
+        // Ett långt möte får inte tränga ut allt annat ur kontextfönstret.
+        if text.count > 40_000 {
+            text = String(text.prefix(20_000)) + "\n\n[…]\n\n" + String(text.suffix(20_000))
+        }
+        return Kunskapsbank.Träff(
+            id: -1, typ: "transkript", titel: möte.titel, text: text,
+            källa: mötesmapp?.appending(path: "möte.json").path ?? "",
+            tid: möte.inledd, poäng: 0)
+    }
+
     private func förbered() async {
-        tidigare = arkiv.samtal(för: kund, projekt: projekt?.namn)
-        samtal = tidigare.first ?? Samtal(projekt: projekt?.namn)
-        // En projektchatt söker i projektets mappar; kundchatten i alla
-        // projektens, men bara några, annars blir det för många agenter.
-        if let projekt {
+        tidigare = arkiv.samtal(för: kund, projekt: projekt?.namn, möte: möte?.id.uuidString)
+        samtal = tidigare.first ?? tomtSamtal()
+        // En mötschatt håller sig till mötet. En projektchatt söker i
+        // projektets mappar; kundchatten i alla projektens, men bara några,
+        // annars blir det för många agenter.
+        if möte != nil {
+            mappar = []
+        } else if let projekt {
             mappar = arkiv.kopplade(för: projekt).filter(\.finns)
         } else {
             mappar = Array(arkiv.projekt(för: kund)
@@ -355,6 +393,7 @@ struct Chattpanel: View {
                 ? "Inget material att söka i än"
                 : "\(b.antal) stycken ur transkript, anteckningar och mejl"
                     + (r.indexerade > 0 ? " · \(r.indexerade) nyindexerade" : "")
+            if möte != nil { rader = "Hela mötet, och \(rader.lowercased())" }
             if !mappar.isEmpty {
                 rader += "\nSöker också i \(mappar.map(\.visatNamn).joined(separator: ", "))"
             }
@@ -384,7 +423,8 @@ struct Chattpanel: View {
         // Projektets namn hjälper sökningen att hamna rätt när frågan gäller
         // ett projekt men är formulerad utan att nämna det.
         let sökt = projekt.map { "\(text) \($0.namn)" } ?? text
-        let träffar = bank.sök(sökt)
+        // Mötet först: frågan gäller det som sades där.
+        let träffar = (mötesträff.map { [$0] } ?? []) + bank.sök(sökt)
         senasteTräffar = träffar
         let historik = samtal.meddelanden.dropLast()
 
@@ -438,9 +478,9 @@ struct Chattpanel: View {
     private func nyttSamtal() {
         guard !samtal.tomt else { return }
         spara()
-        samtal = Samtal(projekt: projekt?.namn)
+        samtal = tomtSamtal()
         fel = nil
-        tidigare = arkiv.samtal(för: kund, projekt: projekt?.namn)
+        tidigare = arkiv.samtal(för: kund, projekt: projekt?.namn, möte: möte?.id.uuidString)
     }
 
     private func byt(till annat: Samtal) {
@@ -452,14 +492,14 @@ struct Chattpanel: View {
 
     private func taBort() {
         try? arkiv.taBort(samtal, för: kund)
-        tidigare = arkiv.samtal(för: kund, projekt: projekt?.namn)
-        samtal = tidigare.first ?? Samtal(projekt: projekt?.namn)
+        tidigare = arkiv.samtal(för: kund, projekt: projekt?.namn, möte: möte?.id.uuidString)
+        samtal = tidigare.first ?? tomtSamtal()
     }
 
     private func spara() {
         guard !samtal.tomt else { return }
         try? arkiv.spara(samtal, för: kund)
-        tidigare = arkiv.samtal(för: kund, projekt: projekt?.namn)
+        tidigare = arkiv.samtal(för: kund, projekt: projekt?.namn, möte: möte?.id.uuidString)
         // Titeln sätts vid sparning; hämta tillbaka den.
         if let uppdaterad = tidigare.first(where: { $0.id == samtal.id }) {
             samtal.titel = uppdaterad.titel

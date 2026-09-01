@@ -457,8 +457,9 @@ final class Arkivet: ObservableObject {
         kund.mapp.appending(path: ".kundkoll/samtal")
     }
 
-    /// Kundens samtal, nyast först. Ett projekt ser bara sina egna.
-    func samtal(för kund: Kund, projekt: String?) -> [Samtal] {
+    /// Kundens samtal, nyast först. Ett projekt ser bara sina egna, och ett
+    /// möte bara de som ställts om just det mötet.
+    func samtal(för kund: Kund, projekt: String?, möte: String? = nil) -> [Samtal] {
         let mapp = samtalsmappen(kund)
         guard let filer = try? fm.contentsOfDirectory(
             at: mapp, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
@@ -472,7 +473,7 @@ final class Arkivet: ObservableObject {
                 guard let data = try? Data(contentsOf: url) else { return nil }
                 return try? JSONDecoder.kundkoll.decode(Samtal.self, from: data)
             }
-            .filter { $0.projekt == projekt }
+            .filter { $0.möte == möte && ($0.möte != nil || $0.projekt == projekt) }
             .sorted { $0.ändrad > $1.ändrad }
     }
 
