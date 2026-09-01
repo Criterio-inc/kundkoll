@@ -10,6 +10,12 @@ final class Arkivet: ObservableObject {
 
     let rot: URL
     @Published private(set) var kunder: [Kund] = []
+    /// Räknas upp varje gång en inspelning skrivits till disk — när den
+    /// stoppas, och sedan igen när arkivtranskriptet, rösterna och
+    /// sammanfattningen blir klara i bakgrunden. Vyer som listar inspelningar
+    /// läser om när talet ändras; annars syns ett avslutat möte först när
+    /// appen startas om.
+    @Published private(set) var sparningar = 0
 
     private let fm = FileManager.default
 
@@ -660,6 +666,7 @@ final class Arkivet: ObservableObject {
         try data.write(to: mapp.appending(path: "möte.json"), options: .atomic)
         try markdown(för: inspelning, mapp: mapp)
             .write(to: mapp.appending(path: "Transkript.md"), atomically: true, encoding: .utf8)
+        sparningar += 1
     }
 
     private func markdown(för i: Inspelning, mapp: URL) -> String {

@@ -125,6 +125,9 @@ struct Kundinnehåll: View {
             Text("\(v.inspelning.titel) med ljud och transkript flyttas till papperskorgen. Du kan ta tillbaka den därifrån.")
         }
         .onAppear(perform: läsOm)
+        // Ett avslutat möte — och senare arkivtranskriptet, rösterna och
+        // sammanfattningen — ska dyka upp utan att appen startas om.
+        .onChange(of: arkiv.sparningar) { läsOm() }
         .task(id: kund.id) { await hämtaMöten() }
         .task(id: kund.id) { await visaMejl() }
         // Ett nyinbokat eller flyttat möte ska synas direkt.

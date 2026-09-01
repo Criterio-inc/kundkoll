@@ -83,6 +83,7 @@ struct Projektinnehåll: View {
             Text("\(v.inspelning.titel) med ljud och transkript flyttas till papperskorgen.")
         }
         .onAppear(perform: läsIn)
+        .onChange(of: arkiv.sparningar) { läsIn() }
     }
 
     /// Mappar utanför kundmappen som hör till projektet.

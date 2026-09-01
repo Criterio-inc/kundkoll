@@ -14,7 +14,9 @@ struct Kanbanvy: View {
     @EnvironmentObject private var arkiv: Arkivet
     @State private var uppgifter: [Uppgift] = []
     @State private var ny = ""
-    @State private var dras: Uppgift?
+    /// Spalten kortet just nu hålls över, för att visa var det landar.
+    @State private var mål: Uppgift.Läge?
+    @State private var redigerad: Uppgift?
 
     private var synliga: [Uppgift] {
         guard let projekt else { return uppgifter }
@@ -50,6 +52,11 @@ struct Kanbanvy: View {
             }
         }
         .onAppear(perform: läsOm)
+        .sheet(item: $redigerad) { u in
+            Uppgiftsredigering(uppgift: u, kund: kund,
+                               projekt: projekt == nil ? arkiv.projekt(för: kund) : [],
+                               vidSparat: läsOm)
+        }
     }
 
     private func spalt(_ läge: Uppgift.Läge) -> some View {
@@ -64,27 +71,30 @@ struct Kanbanvy: View {
                 Spacer()
             }
             ForEach(ivarje) { u in kort(u) }
-            if ivarje.isEmpty {
-                Text(läge == .attGöra ? "Inget här än" : " ")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 8)
-            }
+            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        // Spalterna är lika höga. En tom spalt som bara var så hög som sin
+        // rubrik gav en centimeter att sikta på, och då gick korten inte att
+        // flytta.
+        .frame(maxWidth: .infinity, minHeight: 320, alignment: .topLeading)
         .padding(10)
-        .background(.quaternary.opacity(0.3), in: .rect(cornerRadius: 10))
+        .background(.quaternary.opacity(mål == läge ? 0.7 : 0.3), in: .rect(cornerRadius: 10))
         // Släpp ett kort i spalten för att flytta det dit.
-        .onDrop(of: [.text], isTargeted: nil) { _ in
-            guard let dras, dras.läge != läge else { return false }
-            var flyttad = dras
-            flyttad.läge = läge
-            try? arkiv.uppdatera(flyttad, för: kund)
-            self.dras = nil
-            läsOm()
-            return true
+        .dropDestination(for: String.self) { id, _ in
+            flytta(id.first, till: läge)
+        } isTargeted: { över in
+            mål = över ? läge : (mål == läge ? nil : mål)
         }
+    }
+
+    private func flytta(_ id: String?, till läge: Uppgift.Läge) -> Bool {
+        guard let id, let u = uppgifter.first(where: { $0.id.uuidString == id }),
+              u.läge != läge else { return false }
+        var flyttad = u
+        flyttad.läge = läge
+        try? arkiv.uppdatera(flyttad, för: kund)
+        läsOm()
+        return true
     }
 
     private func kort(_ u: Uppgift) -> some View {
@@ -112,10 +122,9 @@ struct Kanbanvy: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(9)
         .background(.background, in: .rect(cornerRadius: 8))
-        .onDrag {
-            dras = u
-            return NSItemProvider(object: u.id.uuidString as NSString)
-        }
+        .contentShape(.rect(cornerRadius: 8))
+        .draggable(u.id.uuidString)
+        .onTapGesture { redigerad = u }
         .contextMenu {
             ForEach(Uppgift.Läge.allCases) { läge in
                 if läge != u.läge {
