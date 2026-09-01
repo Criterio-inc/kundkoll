@@ -32,6 +32,7 @@ struct Kundinnehåll: View {
     @State private var öppnad: Öppnad?
     @State private var attKasta: Öppnad?
     @State private var ofullständiga: [(mapp: URL, storlek: Int)] = []
+    @State private var briefing: Kalendern.Möte?
     @State private var slutför: URL?
     @State private var slutförsteg = ""
 
@@ -110,6 +111,11 @@ struct Kundinnehåll: View {
         .sheet(item: $öppnad) { v in
             Transkriptvy(kund: kund, inspelning: v.inspelning, mapp: v.mapp)
                 .onDisappear(perform: läsOm)
+        }
+        .sheet(item: $briefing) { m in
+            Briefingvy(kund: kund, möte: m) { i, mapp in
+                öppnad = Öppnad(inspelning: i, mapp: mapp)
+            }
         }
         .confirmationDialog(
             "Flytta inspelningen till papperskorgen?",
@@ -203,6 +209,9 @@ struct Kundinnehåll: View {
                             .buttonStyle(.borderless)
                             .help("Öppna mötet")
                         }
+                        Button("Förbered") { briefing = m }
+                            .buttonStyle(.borderless)
+                            .help("Senaste mötet, öppna åtaganden och nya mejl — läsningen inför mötet")
                         Button("Spela in") {
                             // Mötet bär titel och deltagare, och mikrofonen är
                             // den som användes sist. Inget att fylla i.

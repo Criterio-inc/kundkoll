@@ -33,6 +33,55 @@ enum Notiser {
                                   content: innehåll, trigger: nil))
     }
 
+    /// Bokar en påminnelse en kvart före varje kundmöte, så att briefen
+    /// hinner läsas innan mötet börjar. Gamla bokningar rensas först —
+    /// flyttade och avbokade möten ska inte spöka.
+    static func planeraBriefingar(för möten: [(kund: String, möte: Kalendern.Möte)]) {
+        guard kanNotisa else { return }
+        let central = UNUserNotificationCenter.current()
+        central.getPendingNotificationRequests { väntande in
+            central.removePendingNotificationRequests(
+                withIdentifiers: väntande.map(\.identifier).filter { $0.hasPrefix("brief-") })
+            for (kund, m) in möten {
+                let när = m.start.addingTimeInterval(-15 * 60)
+                guard när > Date() else { continue }
+                let innehåll = UNMutableNotificationContent()
+                innehåll.title = "Om en kvart: \(m.titel)"
+                innehåll.body = "Läs på inför mötet — senaste mötet, öppna åtaganden "
+                    + "och nya mejl hos \(kund)."
+                innehåll.userInfo = ["kund": kund, "möte": m.id]
+                let delar = Calendar.current.dateComponents(
+                    [.year, .month, .day, .hour, .minute], from: när)
+                central.add(UNNotificationRequest(
+                    identifier: "brief-\(m.id)",
+                    content: innehåll,
+                    trigger: UNCalendarNotificationTrigger(dateMatching: delar, repeats: false)))
+            }
+        }
+    }
+
+    /// Tar emot klick på notiser och skickar dem vidare in i appen.
+    static func startaMottagning() {
+        guard kanNotisa else { return }
+        UNUserNotificationCenter.current().delegate = Mottagare.delad
+    }
+
+    final class Mottagare: NSObject, UNUserNotificationCenterDelegate {
+        static let delad = Mottagare()
+
+        func userNotificationCenter(_ central: UNUserNotificationCenter,
+                                    didReceive svar: UNNotificationResponse) async {
+            let info = svar.notification.request.content.userInfo
+            guard let kund = info["kund"] as? String else { return }
+            let möte = info["möte"] as? String
+            await MainActor.run {
+                NotificationCenter.default.post(
+                    name: .öppnaKund, object: kund,
+                    userInfo: möte.map { ["möte": $0] } ?? [:])
+            }
+        }
+    }
+
     /// Vad ett färdigbearbetat möte är värt att säga.
     static func mötetKlart(_ inspelning: Inspelning) {
         let antal = inspelning.sammanfattning?.åtaganden.count ?? 0

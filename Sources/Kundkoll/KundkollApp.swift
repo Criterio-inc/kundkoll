@@ -117,6 +117,7 @@ struct Kundkoll: App {
                 .environmentObject(kalender)
                 .frame(minWidth: 900, minHeight: 560)
                 .task {
+                    Notiser.startaMottagning()
                     // Kalendern frågas direkt: mötena är det första man vill
                     // se. Kontakter och Mail frågas först när de används.
                     if kalender.behörighet == .notDetermined {
@@ -154,4 +155,7 @@ extension Notification.Name {
     static let visaNyckel = Notification.Name("kundkoll.visaNyckel")
     static let sök = Notification.Name("kundkoll.sök")
     static let palett = Notification.Name("kundkoll.palett")
+    /// Skickas när ett notisklick vill öppna en kund; objektet är kundnamnet
+    /// och userInfo kan bära mötets id för en briefing.
+    static let öppnaKund = Notification.Name("kundkoll.öppnaKund")
 }

@@ -11,6 +11,7 @@ import AppKit
 struct Huvudvy: View {
     @EnvironmentObject private var arkiv: Arkivet
     @EnvironmentObject private var session: Inspelningssession
+    @EnvironmentObject private var kalender: Kalendern
 
     @State private var val: Val?
     @State private var visaChatt = false
@@ -31,6 +32,12 @@ struct Huvudvy: View {
     struct Palettuppgift: Identifiable {
         let kund: Kund, uppgift: Uppgift
         var id: UUID { uppgift.id }
+    }
+    @State private var briefing: Briefingval?
+    struct Briefingval: Identifiable {
+        let kund: Kund
+        let möte: Kalendern.Möte?
+        var id: String { möte?.id ?? kund.namn }
     }
 
     /// Vad som är valt i sidopanelen.
@@ -95,6 +102,26 @@ struct Huvudvy: View {
                                projekt: arkiv.projekt(för: v.kund), vidSparat: {})
         }
         .onReceive(NotificationCenter.default.publisher(for: .palett)) { _ in visaPalett = true }
+        .sheet(item: $briefing) { v in
+            Briefingvy(kund: v.kund, möte: v.möte) { i, mapp in
+                palettMöte = Palettmöte(kund: v.kund, inspelning: i, mapp: mapp)
+            }
+        }
+        // Ett klick på en briefingnotis landar här: rätt kund väljs och
+        // briefen öppnas.
+        .onReceive(NotificationCenter.default.publisher(for: .öppnaKund)) { n in
+            guard let namn = n.object as? String,
+                  let kund = arkiv.kunder.first(where: { $0.namn == namn }) else { return }
+            val = .kund(kund)
+            if let mid = n.userInfo?["möte"] as? String {
+                let möte = kalender.möten(tillDagar: 7).first { $0.id == mid }
+                briefing = Briefingval(kund: kund, möte: möte)
+            }
+        }
+        // Påminnelserna en kvart före kundmöten bokas om varje gång kalendern
+        // ändras, så att flyttade möten följer med och avbokade tystnar.
+        .task { planeraBriefingar() }
+        .onChange(of: kalender.ändringar) { planeraBriefingar() }
         .sheet(isPresented: $visaNyKund) { nyKundBlad }
         .sheet(isPresented: $visaNyckel) { Modellvy() }
         .onReceive(NotificationCenter.default.publisher(for: .nyKund)) { _ in visaNyKund = true }
@@ -103,6 +130,22 @@ struct Huvudvy: View {
         .onAppear {
             if val == nil, let första = arkiv.kunder.first { val = .kund(första) }
         }
+    }
+
+    /// Bokar briefingnotiser för alla kundmatchade möten den närmaste veckan.
+    private func planeraBriefingar() {
+        guard kalender.harTillgång else { return }
+        let möten = kalender.möten(tillDagar: 7)
+        var par: [(kund: String, möte: Kalendern.Möte)] = []
+        for kund in arkiv.kunder {
+            let kontakter = arkiv.kontakter(för: kund)
+            for m in möten where Kalendern.hör(m, till: kund, kontakter: kontakter) {
+                par.append((kund.namn, m))
+            }
+        }
+        guard !par.isEmpty else { return }
+        Notiser.begär()
+        Notiser.planeraBriefingar(för: par)
     }
 
     private var valdKund: Kund? {
