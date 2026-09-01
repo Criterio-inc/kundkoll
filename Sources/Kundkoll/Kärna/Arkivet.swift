@@ -1,0 +1,843 @@
+import Foundation
+
+/// Läser och skriver mappstrukturen under ~/Documents/Kunder.
+///
+/// Ingen databas. Det som ligger på disk är sanningen, så att kunder och
+/// projekt kan skapas lika gärna i Finder eller Obsidian som i appen.
+@MainActor
+final class Arkivet: ObservableObject {
+    static let shared = Arkivet()
+
+    let rot: URL
+    @Published private(set) var kunder: [Kund] = []
+
+    private let fm = FileManager.default
+
+    init(rot: URL? = nil) {
+        self.rot = rot ?? fm.homeDirectoryForCurrentUser
+            .appending(path: "Documents")
+            .appending(path: "Kunder")
+        try? fm.createDirectory(at: self.rot, withIntermediateDirectories: true)
+        läsOm()
+    }
+
+    // MARK: - Läsa
+
+    func läsOm() {
+        kunder = mappar(i: rot)
+            .map { Kund(namn: $0.lastPathComponent, mapp: $0) }
+            .sorted { $0.namn.localizedStandardCompare($1.namn) == .orderedAscending }
+    }
+
+    func projekt(för kund: Kund) -> [Projekt] {
+        mappar(i: kund.projektmapp)
+            .map { Projekt(namn: $0.lastPathComponent, mapp: $0, kundnamn: kund.namn) }
+            .sorted { $0.namn.localizedStandardCompare($1.namn) == .orderedAscending }
+    }
+
+    /// Alla inspelningar för en kund, nyast först. Läser möte.json i varje
+    /// inspelningsmapp, både under Samtal/ och under varje projekt.
+    func inspelningar(för kund: Kund) -> [(Inspelning, URL)] {
+        var rötter = [kund.samtalsmapp]
+        rötter += projekt(för: kund).map(\.inspelningsmapp)
+        return rötter
+            .flatMap { mappar(i: $0) }
+            .compactMap { mapp in
+                guard let data = try? Data(contentsOf: mapp.appending(path: "möte.json")),
+                      let i = try? JSONDecoder.kundkoll.decode(Inspelning.self, from: data)
+                else { return nil }
+                return (i, mapp)
+            }
+            .sorted { $0.0.inledd > $1.0.inledd }
+    }
+
+    /// Inspelningsmappar som saknar möte.json.
+    ///
+    /// De uppstår om appen stängs eller importen faller mitt i. Ljudet finns
+    /// men ingen metadata, så mappen syns inte i listan — och blir liggande
+    /// osynlig i Finder om den inte visas någonstans.
+    func ofullständiga(för kund: Kund) -> [(mapp: URL, storlek: Int)] {
+        var rötter = [kund.samtalsmapp]
+        rötter += projekt(för: kund).map(\.inspelningsmapp)
+        return rötter
+            .flatMap { mappar(i: $0) }
+            .filter { !fm.fileExists(atPath: $0.appending(path: "möte.json").path) }
+            .filter { mapp in
+                // Bara mappar som faktiskt innehåller ljud är värda att visa.
+                (try? fm.contentsOfDirectory(atPath: mapp.path))?
+                    .contains { $0.hasSuffix(".wav") } ?? false
+            }
+            .map { ($0, storlek(av: $0)) }
+            .sorted { $0.0.lastPathComponent > $1.0.lastPathComponent }
+    }
+
+    private func storlek(av mapp: URL) -> Int {
+        guard let filer = try? fm.contentsOfDirectory(
+            at: mapp, includingPropertiesForKeys: [.fileSizeKey]) else { return 0 }
+        return filer.reduce(0) {
+            $0 + ((try? $1.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+        }
+    }
+
+    private func mappar(i url: URL) -> [URL] {
+        guard let innehåll = try? fm.contentsOfDirectory(
+            at: url, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]
+        ) else { return [] }
+        return innehåll.filter {
+            (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+        }
+    }
+
+    // MARK: - Skapa
+
+    @discardableResult
+    func skapaKund(namn: String) throws -> Kund {
+        let namn = städa(namn)
+        let mapp = rot.appending(path: namn)
+        let kund = Kund(namn: namn, mapp: mapp)
+        for m in [mapp, kund.projektmapp, kund.samtalsmapp, kund.kontaktmapp,
+                  kund.mailmapp, kund.anteckningsmapp] {
+            try fm.createDirectory(at: m, withIntermediateDirectories: true)
+        }
+        try skapaValv(i: mapp, namn: namn)
+        try skrivOmSaknas(kund.mapp.appending(path: "\(namn).md"), kundöversikt(namn))
+        läsOm()
+        return kund
+    }
+
+    @discardableResult
+    func skapaProjekt(namn: String, hos kund: Kund) throws -> Projekt {
+        let namn = städa(namn)
+        let mapp = kund.projektmapp.appending(path: namn)
+        let p = Projekt(namn: namn, mapp: mapp, kundnamn: kund.namn)
+        for m in [mapp, p.inspelningsmapp, p.dokumentmapp, p.anteckningsmapp] {
+            try fm.createDirectory(at: m, withIntermediateDirectories: true)
+        }
+        try skrivOmSaknas(mapp.appending(path: "\(namn).md"), projektöversikt(namn, kund: kund.namn))
+        return p
+    }
+
+    /// Gör mappen till en Obsidian-vault. Obsidian känner igen en mapp på att
+    /// .obsidian finns; resten av inställningarna skapar den själv vid behov.
+    private func skapaValv(i mapp: URL, namn: String) throws {
+        let konf = mapp.appending(path: ".obsidian")
+        guard !fm.fileExists(atPath: konf.path) else { return }
+        try fm.createDirectory(at: konf, withIntermediateDirectories: true)
+        let app = """
+        {
+          "alwaysUpdateLinks": true,
+          "newLinkFormat": "shortest",
+          "useMarkdownLinks": false,
+          "attachmentFolderPath": "./"
+        }
+        """
+        try app.write(to: konf.appending(path: "app.json"), atomically: true, encoding: .utf8)
+    }
+
+    /// Grupperar om rösterna i en färdig inspelning, med ett angivet antal.
+    ///
+    /// Behövs för att gissningen ibland blir fel: hur lika två avtryck av
+    /// samma person är beror på mikrofon och rum, och den som var med i
+    /// samtalet vet hur många som talade.
+    func grupperaOm(_ inspelning: Inspelning, i mapp: URL, antal: Int?) async throws -> Inspelning {
+        let fil = mapp.appending(path: "motpart.wav")
+        guard fm.fileExists(atPath: fil.path) else { throw Enkeltfel("Ljudspåret saknas.") }
+
+        let kund = kunder.first { $0.namn == inspelning.kund }
+        let uppdelning = await Röstanalys().delaUpp(
+            fil: fil, yttranden: inspelning.yttranden, antal: antal,
+            profiler: kund.map { röstprofiler(för: $0) } ?? [])
+
+        var ut = inspelning
+        ut.arkivYttranden = uppdelning.yttranden
+        ut.röstnamn = uppdelning.namn
+        try spara(ut, i: mapp)
+        return ut
+    }
+
+    /// Flyttar en hel inspelning till papperskorgen.
+    ///
+    /// Papperskorgen och inte radering: ett samtal går inte att spela in igen,
+    /// och den som råkar trycka fel ska kunna ta tillbaka det.
+    func kastaInspelning(i mapp: URL) throws {
+        try fm.trashItem(at: mapp, resultingItemURL: nil)
+    }
+
+    // MARK: - Uppgifter
+
+    private func uppgiftsfil(_ kund: Kund) -> URL {
+        kund.mapp.appending(path: "uppgifter.json")
+    }
+
+    func uppgifter(för kund: Kund) -> [Uppgift] {
+        guard let data = try? Data(contentsOf: uppgiftsfil(kund)),
+              let u = try? JSONDecoder.kundkoll.decode([Uppgift].self, from: data)
+        else { return [] }
+        return u
+    }
+
+    func sparaUppgifter(_ uppgifter: [Uppgift], för kund: Kund) throws {
+        let data = try JSONEncoder.kundkoll.encode(uppgifter)
+        try data.write(to: uppgiftsfil(kund), options: .atomic)
+        try skrivUppgiftsnot(uppgifter, hos: kund)
+    }
+
+    /// Lägger till nya uppgifter utan att skapa dubbletter av sådant som redan
+    /// står där. Samma åtagande nämns ofta i både ett möte och ett mejl.
+    @discardableResult
+    func läggTill(_ nya: [Uppgift], för kund: Kund) throws -> [Uppgift] {
+        var alla = uppgifter(för: kund)
+        var tillagda = 0
+        for ny in nya where !alla.contains(where: { $0.liknar(ny) }) {
+            alla.append(ny)
+            tillagda += 1
+        }
+        guard tillagda > 0 else { return alla }
+        try sparaUppgifter(alla, för: kund)
+        return alla
+    }
+
+    func uppdatera(_ uppgift: Uppgift, för kund: Kund) throws {
+        var alla = uppgifter(för: kund)
+        guard let i = alla.firstIndex(where: { $0.id == uppgift.id }) else { return }
+        var ändrad = uppgift
+        ändrad.ändrad = Date()
+        alla[i] = ändrad
+        try sparaUppgifter(alla, för: kund)
+    }
+
+    func taBort(_ uppgift: Uppgift, för kund: Kund) throws {
+        try sparaUppgifter(uppgifter(för: kund).filter { $0.id != uppgift.id }, för: kund)
+    }
+
+    /// Tavlan som markdown, så att den syns i Obsidian.
+    private func skrivUppgiftsnot(_ uppgifter: [Uppgift], hos kund: Kund) throws {
+        var text = """
+        ---
+        typ: uppgifter
+        kund: "\(kund.namn)"
+        ---
+
+        # Att göra — \(kund.namn)
+
+        [[\(kund.namn)]]
+
+        """
+        for läge in Uppgift.Läge.allCases {
+            let ivarje = uppgifter.filter { $0.läge == läge }
+            guard !ivarje.isEmpty else { continue }
+            text += "\n## \(läge.namn)\n\n"
+            for u in ivarje.sorted(by: { $0.skapad < $1.skapad }) {
+                let vem = u.vem.map { "**\($0)** " } ?? ""
+                let när = u.när.map { " *(\($0))*" } ?? ""
+                let varifrån = u.källtitel.map { " — \($0)" } ?? ""
+                text += "- [\(läge == .klart ? "x" : " ")] \(vem)\(u.vad)\(när)\(varifrån)\n"
+            }
+        }
+        try text.write(to: kund.mapp.appending(path: "Att göra.md"),
+                       atomically: true, encoding: .utf8)
+    }
+
+    // MARK: - Kopplade mappar
+
+    private func kopplingsfil(_ projekt: Projekt) -> URL {
+        projekt.mapp.appending(path: "kopplade-mappar.json")
+    }
+
+    func kopplade(för projekt: Projekt) -> [Kopplad] {
+        guard let data = try? Data(contentsOf: kopplingsfil(projekt)),
+              let k = try? JSONDecoder.kundkoll.decode([Kopplad].self, from: data)
+        else { return [] }
+        return k
+    }
+
+    func sparaKopplade(_ mappar: [Kopplad], för projekt: Projekt) throws {
+        let data = try JSONEncoder.kundkoll.encode(mappar)
+        try data.write(to: kopplingsfil(projekt), options: .atomic)
+    }
+
+    @discardableResult
+    func koppla(_ mapp: URL, till projekt: Projekt) throws -> [Kopplad] {
+        var alla = kopplade(för: projekt)
+        let väg = mapp.standardizedFileURL.path
+        guard !alla.contains(where: { $0.väg == väg }) else { return alla }
+        alla.append(Kopplad(väg: väg))
+        try sparaKopplade(alla, för: projekt)
+        return alla
+    }
+
+    @discardableResult
+    func koppla(bort mapp: Kopplad, från projekt: Projekt) throws -> [Kopplad] {
+        let kvar = kopplade(för: projekt).filter { $0.väg != mapp.väg }
+        try sparaKopplade(kvar, för: projekt)
+        return kvar
+    }
+
+    // MARK: - Anteckningar
+
+    /// Anteckningar i en mapp, nyast ändrad först.
+    func anteckningar(i mapp: URL) -> [Anteckning] {
+        guard let filer = try? fm.contentsOfDirectory(
+            at: mapp, includingPropertiesForKeys: [.contentModificationDateKey],
+            options: [.skipsHiddenFiles]) else { return [] }
+        return filer
+            .filter { $0.pathExtension == "md" }
+            .compactMap { url in
+                guard let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+                let ändrad = (try? url.resourceValues(forKeys: [.contentModificationDateKey])
+                    .contentModificationDate) ?? .distantPast
+                return Anteckning(titel: url.deletingPathExtension().lastPathComponent,
+                                  text: text, ändrad: ändrad ?? .distantPast, fil: url)
+            }
+            .sorted { $0.ändrad > $1.ändrad }
+    }
+
+    /// Skapar en anteckning. Titeln blir filnamnet.
+    func nyAnteckning(i mapp: URL, titel: String) throws -> Anteckning {
+        try fm.createDirectory(at: mapp, withIntermediateDirectories: true)
+        let rent = städa(titel.isEmpty ? "Anteckning" : titel)
+        var namn = rent
+        var url = mapp.appending(path: "\(namn).md")
+        var n = 2
+        while fm.fileExists(atPath: url.path) {
+            namn = "\(rent) \(n)"
+            url = mapp.appending(path: "\(namn).md")
+            n += 1
+        }
+        let text = "# \(namn)\n\n"
+        try text.write(to: url, atomically: true, encoding: .utf8)
+        return Anteckning(titel: namn, text: text, ändrad: Date(), fil: url)
+    }
+
+    func spara(_ anteckning: Anteckning) throws {
+        try anteckning.text.write(to: anteckning.fil, atomically: true, encoding: .utf8)
+    }
+
+    func taBort(_ anteckning: Anteckning) throws {
+        try fm.removeItem(at: anteckning.fil)
+    }
+
+    /// Byter namn på anteckningen och därmed på filen.
+    func döpOm(_ anteckning: Anteckning, till titel: String) throws -> Anteckning {
+        let rent = städa(titel)
+        guard !rent.isEmpty, rent != anteckning.titel else { return anteckning }
+        let ny = anteckning.fil.deletingLastPathComponent().appending(path: "\(rent).md")
+        guard !fm.fileExists(atPath: ny.path) else { return anteckning }
+        try fm.moveItem(at: anteckning.fil, to: ny)
+        var ut = anteckning
+        ut.titel = rent
+        ut.fil = ny
+        return ut
+    }
+
+    /// Sparar en bild bredvid anteckningarna och ger namnet att länka med.
+    func sparaBild(_ data: Data, ändelse: String, i mapp: URL) throws -> String {
+        let bildmapp = mapp.appending(path: Anteckning.bildmapp)
+        try fm.createDirectory(at: bildmapp, withIntermediateDirectories: true)
+        let namn = "\(DateFormatter.bildnamn.string(from: Date())).\(ändelse)"
+        try data.write(to: bildmapp.appending(path: namn), options: .atomic)
+        return "\(Anteckning.bildmapp)/\(namn)"
+    }
+
+    // MARK: - Kontakter
+
+    func kontakter(för kund: Kund) -> [Kontakt] {
+        let url = kund.kontaktmapp.appending(path: "kontakter.json")
+        guard let data = try? Data(contentsOf: url),
+              let k = try? JSONDecoder.kundkoll.decode([Kontakt].self, from: data)
+        else { return [] }
+        return k.sorted { $0.namn.localizedStandardCompare($1.namn) == .orderedAscending }
+    }
+
+    func sparaKontakter(_ kontakter: [Kontakt], för kund: Kund) throws {
+        try fm.createDirectory(at: kund.kontaktmapp, withIntermediateDirectories: true)
+        let data = try JSONEncoder.kundkoll.encode(kontakter)
+        try data.write(to: kund.kontaktmapp.appending(path: "kontakter.json"), options: .atomic)
+        for k in kontakter { try skrivKontaktnot(k, hos: kund) }
+    }
+
+    @discardableResult
+    func läggTill(_ kontakt: Kontakt, hos kund: Kund) throws -> [Kontakt] {
+        var alla = kontakter(för: kund)
+        // Samma person två gånger blir lätt av att både adressboken och ett
+        // kalendermöte föreslår hen.
+        if let i = alla.firstIndex(where: {
+            ($0.systemID != nil && $0.systemID == kontakt.systemID)
+                || $0.namn.caseInsensitiveCompare(kontakt.namn) == .orderedSame
+        }) {
+            var ihop = alla[i]
+            ihop.roll = ihop.roll ?? kontakt.roll
+            ihop.systemID = ihop.systemID ?? kontakt.systemID
+            for e in kontakt.epost where !ihop.epost.contains(e) { ihop.epost.append(e) }
+            for t in kontakt.telefon where !ihop.telefon.contains(t) { ihop.telefon.append(t) }
+            alla[i] = ihop
+        } else {
+            alla.append(kontakt)
+        }
+        try sparaKontakter(alla, för: kund)
+        return alla
+    }
+
+    func taBort(_ kontakt: Kontakt, hos kund: Kund) throws {
+        try sparaKontakter(kontakter(för: kund).filter { $0.id != kontakt.id }, för: kund)
+    }
+
+    /// En not per kontakt, så att Obsidian kan länka till personen från
+    /// transkript och anteckningar.
+    ///
+    /// Uppgifterna ligger i frontmatter och brödtexten är användarens egen.
+    /// Då kan uppgifterna uppdateras utan att anteckningar skrivs över.
+    private func skrivKontaktnot(_ k: Kontakt, hos kund: Kund) throws {
+        let url = kund.kontaktmapp.appending(path: "\(städa(k.namn)).md")
+
+        var huvud = """
+        ---
+        typ: kontakt
+        kund: "\(kund.namn)"
+        """
+        if let roll = k.roll { huvud += "\nroll: \"\(roll)\"" }
+        if !k.epost.isEmpty {
+            huvud += "\nepost:\n" + k.epost.map { "  - \($0)" }.joined(separator: "\n")
+        }
+        if !k.telefon.isEmpty {
+            huvud += "\ntelefon:\n" + k.telefon.map { "  - \"\($0)\"" }.joined(separator: "\n")
+        }
+        huvud += "\n---\n"
+
+        let brödtext: String
+        if let gammal = try? String(contentsOf: url, encoding: .utf8) {
+            brödtext = Self.utanFrontmatter(gammal)
+        } else {
+            brödtext = "\n# \(k.namn)\n\n[[\(kund.namn)]]\n"
+        }
+        try (huvud + brödtext).write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    /// Allt efter frontmatter-blocket. Filer utan frontmatter lämnas orörda.
+    static func utanFrontmatter(_ text: String) -> String {
+        guard text.hasPrefix("---\n") else { return text }
+        let efterStart = text.index(text.startIndex, offsetBy: 4)
+        guard let slut = text.range(of: "\n---\n", range: efterStart..<text.endIndex) else {
+            return text
+        }
+        return String(text[slut.upperBound...])
+    }
+
+    /// Ersätter en kontakt med samma id.
+    func uppdatera(_ kontakt: Kontakt, hos kund: Kund) throws {
+        var alla = kontakter(för: kund)
+        guard let i = alla.firstIndex(where: { $0.id == kontakt.id }) else {
+            try läggTill(kontakt, hos: kund)
+            return
+        }
+        // Namnbyte lämnar en föräldralös not efter sig.
+        let gammaltNamn = alla[i].namn
+        if gammaltNamn != kontakt.namn {
+            let gammalNot = kund.kontaktmapp.appending(path: "\(städa(gammaltNamn)).md")
+            let nyNot = kund.kontaktmapp.appending(path: "\(städa(kontakt.namn)).md")
+            if fm.fileExists(atPath: gammalNot.path), !fm.fileExists(atPath: nyNot.path) {
+                try? fm.moveItem(at: gammalNot, to: nyNot)
+            }
+        }
+        alla[i] = kontakt
+        try sparaKontakter(alla, för: kund)
+    }
+
+    // MARK: - Chatt
+
+    /// Samtalen ligger i en dold mapp, inte i valvet: de är en logg över
+    /// frågor, inte material man vill läsa i Obsidian.
+    private func samtalsmappen(_ kund: Kund) -> URL {
+        kund.mapp.appending(path: ".kundkoll/samtal")
+    }
+
+    /// Kundens samtal, nyast först. Ett projekt ser bara sina egna.
+    func samtal(för kund: Kund, projekt: String?) -> [Samtal] {
+        let mapp = samtalsmappen(kund)
+        guard let filer = try? fm.contentsOfDirectory(
+            at: mapp, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
+        else {
+            // Inget här än — kanske finns en chatt från tiden före samtalen.
+            return flyttaInGammalChatt(kund, projekt: projekt)
+        }
+        return filer
+            .filter { $0.pathExtension == "json" }
+            .compactMap { url -> Samtal? in
+                guard let data = try? Data(contentsOf: url) else { return nil }
+                return try? JSONDecoder.kundkoll.decode(Samtal.self, from: data)
+            }
+            .filter { $0.projekt == projekt }
+            .sorted { $0.ändrad > $1.ändrad }
+    }
+
+    func spara(_ samtal: Samtal, för kund: Kund) throws {
+        let mapp = samtalsmappen(kund)
+        try fm.createDirectory(at: mapp, withIntermediateDirectories: true)
+        var ut = samtal
+        ut.ändrad = Date()
+        if ut.titel == "Nytt samtal" || ut.titel.isEmpty {
+            ut.titel = Samtal.titel(ur: ut.meddelanden)
+        }
+        let data = try JSONEncoder.kundkoll.encode(ut)
+        try data.write(to: mapp.appending(path: "\(ut.id.uuidString).json"), options: .atomic)
+    }
+
+    func taBort(_ samtal: Samtal, för kund: Kund) throws {
+        let fil = samtalsmappen(kund).appending(path: "\(samtal.id.uuidString).json")
+        try? fm.removeItem(at: fil)
+    }
+
+    /// Tar hand om chattarna från tiden då varje kund hade exakt en.
+    @discardableResult
+    private func flyttaInGammalChatt(_ kund: Kund, projekt: String?) -> [Samtal] {
+        let gammal = projekt.map { kund.mapp.appending(path: ".kundkoll/chatt-\(städa($0)).json") }
+            ?? kund.mapp.appending(path: ".kundkoll/chatt.json")
+        guard let data = try? Data(contentsOf: gammal),
+              let meddelanden = try? JSONDecoder.kundkoll.decode([Chatt.Meddelande].self, from: data),
+              !meddelanden.isEmpty
+        else { return [] }
+
+        let samtal = Samtal(titel: Samtal.titel(ur: meddelanden), projekt: projekt,
+                            meddelanden: meddelanden,
+                            skapad: meddelanden.first?.tid ?? Date(),
+                            ändrad: meddelanden.last?.tid ?? Date())
+        try? spara(samtal, för: kund)
+        try? fm.removeItem(at: gammal)
+        return [samtal]
+    }
+
+    // MARK: - Mail
+
+    /// Det som senast hämtades ur Mail, sparat hos kunden.
+    ///
+    /// Sökningen tar sekunder och Mail behöver vara igång, så resultatet ska
+    /// inte gå förlorat bara för att appen startas om.
+    struct Mailcache: Codable {
+        var hämtad: Date
+        var mejl: [Mailen.Mejl]
+        /// Bilagor med den text som gick att få ut ur dem.
+        var bilagor: [Bilagor.Bilaga] = []
+
+        init(hämtad: Date, mejl: [Mailen.Mejl], bilagor: [Bilagor.Bilaga] = []) {
+            self.hämtad = hämtad
+            self.mejl = mejl
+            self.bilagor = bilagor
+        }
+
+        /// En cache sparad innan bilagorna fanns saknar det fältet.
+        init(from avkodare: Decoder) throws {
+            let c = try avkodare.container(keyedBy: CodingKeys.self)
+            hämtad = try c.decodeIfPresent(Date.self, forKey: .hämtad) ?? .distantPast
+            mejl = try c.decodeIfPresent([Mailen.Mejl].self, forKey: .mejl) ?? []
+            bilagor = try c.decodeIfPresent([Bilagor.Bilaga].self, forKey: .bilagor) ?? []
+        }
+
+        var ålder: TimeInterval { Date().timeIntervalSince(hämtad) }
+
+        /// Äldre än så här och det är värt att hämta om automatiskt.
+        var färsk: Bool { ålder < 15 * 60 }
+    }
+
+    func mailcache(för kund: Kund) -> Mailcache? {
+        let url = kund.mailmapp.appending(path: "mail.json")
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return try? JSONDecoder.kundkoll.decode(Mailcache.self, from: data)
+    }
+
+    func sparaMail(_ mejl: [Mailen.Mejl], bilagor: [Bilagor.Bilaga] = [],
+                   för kund: Kund) throws {
+        try fm.createDirectory(at: kund.mailmapp, withIntermediateDirectories: true)
+        let cache = Mailcache(hämtad: Date(), mejl: mejl, bilagor: bilagor)
+        let data = try JSONEncoder.kundkoll.encode(cache)
+        try data.write(to: kund.mailmapp.appending(path: "mail.json"), options: .atomic)
+        try skrivMailnot(cache, hos: kund)
+    }
+
+    /// Korrespondensen som markdown, så att den syns i Obsidian bredvid
+    /// transkript och anteckningar.
+    private func skrivMailnot(_ cache: Mailcache, hos kund: Kund) throws {
+        var text = """
+        ---
+        typ: mail
+        kund: "\(kund.namn)"
+        hämtad: \(DateFormatter.iso.string(from: cache.hämtad))
+        ---
+
+        # Mail — \(kund.namn)
+
+        [[\(kund.namn)]]
+
+        """
+        if !cache.bilagor.isEmpty {
+            text += "\n## Bilagor\n\n"
+            for b in cache.bilagor.sorted(by: { $0.ämne < $1.ämne }) {
+                let läst = b.text == nil ? "" : " · text inläst"
+                text += "- [[Bilagor/\(b.namn)]] — \(b.ämne)\(läst)\n"
+            }
+        }
+
+        var senasteDag = ""
+        for m in cache.mejl {
+            let dag = m.datum.map { DateFormatter.dag.string(from: $0) } ?? "Okänt datum"
+            if dag != senasteDag {
+                text += "\n## \(dag)\n\n"
+                senasteDag = dag
+            }
+            let vem = m.skickat ? "→ " : "← "
+            let klocka = m.datum.map { DateFormatter.timme.string(from: $0) } ?? ""
+            text += "- \(vem)**\(m.ämne)** · \(m.skickat ? "jag" : m.avsändarnamn) \(klocka)\n"
+        }
+        try text.write(to: kund.mailmapp.appending(path: "Mail.md"),
+                       atomically: true, encoding: .utf8)
+    }
+
+    // MARK: - Röstprofiler
+
+    /// Kända röster hos en kund. Ligger hos kunden och inte globalt: samma
+    /// person kan förekomma hos flera kunder, och profilerna ska inte läcka
+    /// mellan kundärenden.
+    func röstprofiler(för kund: Kund) -> [Röstprofil] {
+        var alla = egnaRöstprofiler(för: kund)
+        // Med delning påslagen räknas även andra kunders profiler, men kundens
+        // egna går först: samma namn där vinner.
+        if Inställningar.delaRöstprofiler {
+            let egna = Set(alla.map(\.namn))
+            for annan in kunder where annan.namn != kund.namn {
+                alla += egnaRöstprofiler(för: annan).filter { !egna.contains($0.namn) }
+            }
+        }
+        return alla.sorted { $0.namn.localizedStandardCompare($1.namn) == .orderedAscending }
+    }
+
+    private func egnaRöstprofiler(för kund: Kund) -> [Röstprofil] {
+        let url = kund.kontaktmapp.appending(path: "röstprofiler.json")
+        guard let data = try? Data(contentsOf: url),
+              let p = try? JSONDecoder.kundkoll.decode([Röstprofil].self, from: data)
+        else { return [] }
+        return p
+    }
+
+    func sparaRöstprofiler(_ profiler: [Röstprofil], för kund: Kund) throws {
+        try fm.createDirectory(at: kund.kontaktmapp, withIntermediateDirectories: true)
+        let data = try JSONEncoder.kundkoll.encode(profiler)
+        try data.write(to: kund.kontaktmapp.appending(path: "röstprofiler.json"), options: .atomic)
+    }
+
+    /// Lägger ett nytt avtryck till rätt person, eller skapar personen.
+    func lärDigRöst(namn: String, avtryck: Avtryck, hos kund: Kund) throws {
+        // Lärs alltid in hos den egna kunden, även när delning är påslagen.
+        var profiler = egnaRöstprofiler(för: kund)
+        if let i = profiler.firstIndex(where: { $0.namn == namn }) {
+            profiler[i].lärDig(avtryck)
+            profiler[i].samtal += 1
+        } else {
+            profiler.append(Röstprofil(namn: namn, avtryck: [avtryck],
+                                       uppdaterad: Date(), samtal: 1))
+        }
+        try sparaRöstprofiler(profiler, för: kund)
+    }
+
+    // MARK: - Skriva inspelning
+
+    /// Skapar mappen för en ny inspelning och returnerar den.
+    func nyInspelningsmapp(placering: Placering, titel: String, datum: Date) throws -> URL {
+        let stämpel = DateFormatter.mappnamn.string(from: datum)
+        var namn = "\(stämpel) \(städa(titel))"
+        var mapp = placering.inspelningsrot.appending(path: namn)
+        var n = 2
+        while fm.fileExists(atPath: mapp.path) {
+            namn = "\(stämpel) \(städa(titel)) \(n)"
+            mapp = placering.inspelningsrot.appending(path: namn)
+            n += 1
+        }
+        try fm.createDirectory(at: mapp, withIntermediateDirectories: true)
+        return mapp
+    }
+
+    /// Sparar metadata och det markdown Obsidian ska visa.
+    func spara(_ inspelning: Inspelning, i mapp: URL) throws {
+        let data = try JSONEncoder.kundkoll.encode(inspelning)
+        try data.write(to: mapp.appending(path: "möte.json"), options: .atomic)
+        try markdown(för: inspelning, mapp: mapp)
+            .write(to: mapp.appending(path: "Transkript.md"), atomically: true, encoding: .utf8)
+    }
+
+    private func markdown(för i: Inspelning, mapp: URL) -> String {
+        var ut = """
+        ---
+        typ: transkript
+        kund: "\(i.kund)"
+        \(i.projekt.map { "projekt: \"\($0)\"" } ?? "projekt:")
+        datum: \(DateFormatter.iso.string(from: i.inledd))
+        längd: \(formateraLängd(i.längd))
+        kvalitet: \(i.efterbearbetad ? "arkiv (KB-Whisper)" : "live (Apple)")
+        ---
+
+        # \(i.titel)
+
+        [[\(i.kund)]]\(i.projekt.map { " · [[\($0)]]" } ?? "")
+
+        """
+        if !i.efterbearbetad {
+            ut += "\n> Live-transkript. Efterbearbetning med KB-Whisper ger interpunktion och bättre egennamn.\n"
+        }
+        let deltagare = Set(i.röstnamn.values).sorted()
+        if !deltagare.isEmpty {
+            ut += "\nDeltagare: " + deltagare.map { "[[\($0)]]" }.joined(separator: ", ") + "\n"
+        }
+        if let s = i.sammanfattning, !s.tom {
+            if !s.kärna.isEmpty { ut += "\n\(s.kärna)\n" }
+            if !s.beslut.isEmpty {
+                ut += "\n## Beslut\n\n" + s.beslut.map { "- \($0)\n" }.joined()
+            }
+            if !s.åtaganden.isEmpty {
+                ut += "\n## Att göra\n\n"
+                for å in s.åtaganden {
+                    let vem = å.vem.map { "**\($0)** " } ?? ""
+                    let när = å.när.map { " *(\($0))*" } ?? ""
+                    ut += "- [\(å.klart ? "x" : " ")] \(vem)\(å.vad)\(när)\n"
+                }
+            }
+            if !s.öppet.isEmpty {
+                ut += "\n## Öppna frågor\n\n" + s.öppet.map { "- \($0)\n" }.joined()
+            }
+        }
+
+        ut += "\n## Transkript\n\n"
+        for y in i.yttranden {
+            ut += "**\(y.etikett(i.röstnamn))** `\(y.tidsstämpel)`\n\(y.text)\n\n"
+        }
+        return ut
+    }
+
+    // MARK: - Småsaker
+
+    /// Tar bort tecken som inte hör hemma i ett filnamn men behåller å ä ö.
+    private func städa(_ s: String) -> String {
+        let otillåtna = CharacterSet(charactersIn: "/\\:?%*|\"<>")
+        return s.components(separatedBy: otillåtna).joined(separator: "-")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func skrivOmSaknas(_ url: URL, _ innehåll: String) throws {
+        guard !fm.fileExists(atPath: url.path) else { return }
+        try innehåll.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    private func kundöversikt(_ namn: String) -> String {
+        """
+        ---
+        typ: kund
+        ---
+
+        # \(namn)
+
+        ## Projekt
+
+        ## Kontakter
+
+        ## Anteckningar
+
+        """
+    }
+
+    private func projektöversikt(_ namn: String, kund: String) -> String {
+        """
+        ---
+        typ: projekt
+        kund: "\(kund)"
+        ---
+
+        # \(namn)
+
+        [[\(kund)]]
+
+        ## Anteckningar
+
+        """
+    }
+}
+
+func formateraLängd(_ sekunder: Double) -> String {
+    let s = Int(sekunder.rounded())
+    return s >= 3600
+        ? String(format: "%d:%02d:%02d", s / 3600, (s % 3600) / 60, s % 60)
+        : String(format: "%02d:%02d", s / 60, s % 60)
+}
+
+extension DateFormatter {
+    static let mappnamn: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd HHmm"
+        return f
+    }()
+    static let iso: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd HH:mm"
+        return f
+    }()
+    static let bildnamn: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd HHmmss"
+        return f
+    }()
+    static let dag: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "d MMMM yyyy"
+        f.locale = Locale(identifier: "sv_SE")
+        return f
+    }()
+    static let timme: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return f
+    }()
+    static let klocka: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "d MMM yyyy, HH:mm"
+        f.locale = Locale(identifier: "sv_SE")
+        return f
+    }()
+}
+
+/// ISO 8601 med sekundbråk.
+///
+/// Utan bråkdelarna får två saker sparade inom samma sekund identiska
+/// tidsstämplar, och då blir sorteringen på tid godtycklig — två samtal i rad
+/// kunde hamna i vilken ordning som helst.
+private let isoMedBråk: ISO8601DateFormatter = {
+    let f = ISO8601DateFormatter()
+    f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    return f
+}()
+
+private let isoUtanBråk = ISO8601DateFormatter()
+
+extension JSONEncoder {
+    static let kundkoll: JSONEncoder = {
+        let e = JSONEncoder()
+        e.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        e.dateEncodingStrategy = .custom { datum, kodare in
+            var c = kodare.singleValueContainer()
+            try c.encode(isoMedBråk.string(from: datum))
+        }
+        return e
+    }()
+}
+
+extension JSONDecoder {
+    static let kundkoll: JSONDecoder = {
+        let d = JSONDecoder()
+        // Läser båda formen: filer sparade innan bråkdelarna infördes har
+        // fortfarande bara sekunder.
+        d.dateDecodingStrategy = .custom { avkodare in
+            let text = try avkodare.singleValueContainer().decode(String.self)
+            if let datum = isoMedBråk.date(from: text) { return datum }
+            if let datum = isoUtanBråk.date(from: text) { return datum }
+            throw DecodingError.dataCorrupted(.init(
+                codingPath: avkodare.codingPath,
+                debugDescription: "Kunde inte tolka datumet \(text)"))
+        }
+        return d
+    }()
+}

@@ -1,0 +1,224 @@
+import SwiftUI
+import AppKit
+
+/// Appens ram: kunder och projekt till vänster, deras innehåll i mitten, en
+/// chatt som kan fällas ut till höger, och en rad längst ned när en inspelning
+/// pågår.
+///
+/// Ingenting av det här är modalt. En inspelning kan pågå i sitt eget fönster
+/// medan man läser gamla transkript eller frågar chatten — det var hela
+/// poängen med att lämna bladen.
+struct Huvudvy: View {
+    @EnvironmentObject private var arkiv: Arkivet
+    @EnvironmentObject private var session: Inspelningssession
+
+    @State private var val: Val?
+    @State private var visaChatt = false
+    @State private var visaNyKund = false
+    @State private var nyttKundnamn = ""
+    @State private var visaNyckel = false
+    @State private var utfällda: Set<String> = []
+    @State private var visaSök = false
+
+    /// Vad som är valt i sidopanelen.
+    enum Val: Hashable {
+        case kund(Kund)
+        case projekt(Projekt)
+
+        var kund: Kund? {
+            if case .kund(let k) = self { return k }
+            return nil
+        }
+        var projekt: Projekt? {
+            if case .projekt(let p) = self { return p }
+            return nil
+        }
+    }
+
+    var body: some View {
+        NavigationSplitView {
+            sidopanel
+        } detail: {
+            HStack(spacing: 0) {
+                innehåll
+                if visaChatt, let kund = valdKund {
+                    Divider()
+                    Chattpanel(kund: kund, projekt: val?.projekt)
+                        .frame(width: 380)
+                        .transition(AnyTransition.move(edge: .trailing))
+                }
+            }
+            .toolbar { verktyg }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if session.pågår || session.efterbearbetar {
+                Inspelningsrad()
+            }
+        }
+        .sheet(isPresented: $visaSök) {
+            Sökvy { kund in val = .kund(kund) }
+        }
+        .sheet(isPresented: $visaNyKund) { nyKundBlad }
+        .sheet(isPresented: $visaNyckel) { Modellvy() }
+        .onReceive(NotificationCenter.default.publisher(for: .nyKund)) { _ in visaNyKund = true }
+        .onReceive(NotificationCenter.default.publisher(for: .sök)) { _ in visaSök = true }
+        .onReceive(NotificationCenter.default.publisher(for: .visaNyckel)) { _ in visaNyckel = true }
+        .onAppear {
+            if val == nil, let första = arkiv.kunder.first { val = .kund(första) }
+        }
+    }
+
+    private var valdKund: Kund? {
+        switch val {
+        case .kund(let k): k
+        case .projekt(let p): arkiv.kunder.first { $0.namn == p.kundnamn }
+        case nil: nil
+        }
+    }
+
+    // MARK: - Sidopanel
+
+    private var sidopanel: some View {
+        List(selection: $val) {
+            ForEach(arkiv.kunder) { kund in
+                let projekt = arkiv.projekt(för: kund)
+                if projekt.isEmpty {
+                    Label(kund.namn, systemImage: "person.2")
+                        .tag(Val.kund(kund))
+                } else {
+                    DisclosureGroup(isExpanded: bindning(för: kund)) {
+                        ForEach(projekt) { p in
+                            Label(p.namn, systemImage: "folder")
+                                .tag(Val.projekt(p))
+                        }
+                    } label: {
+                        Label(kund.namn, systemImage: "person.2")
+                            .tag(Val.kund(kund))
+                    }
+                }
+            }
+        }
+        .navigationSplitViewColumnWidth(min: 200, ideal: 240)
+        .overlay {
+            if arkiv.kunder.isEmpty {
+                ContentUnavailableView {
+                    Label("Inga kunder", systemImage: "person.2")
+                } description: {
+                    Text("Lägg till din första kund för att komma igång.")
+                } actions: {
+                    Button("Ny kund") { visaNyKund = true }
+                }
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            Button {
+                visaNyKund = true
+            } label: {
+                Label("Ny kund", systemImage: "plus")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .padding(10)
+        }
+    }
+
+    /// Kundens gren minns om den är utfälld.
+    private func bindning(för kund: Kund) -> Binding<Bool> {
+        Binding(
+            get: { utfällda.contains(kund.id) || val?.projekt?.kundnamn == kund.namn },
+            set: { utfälld in
+                if utfälld { utfällda.insert(kund.id) } else { utfällda.remove(kund.id) }
+            })
+    }
+
+    // MARK: - Innehåll
+
+    @ViewBuilder
+    private var innehåll: some View {
+        switch val {
+        case .kund(let kund):
+            Kundinnehåll(kund: kund, väljProjekt: { val = .projekt($0) })
+                .id(kund.id)
+        case .projekt(let projekt):
+            if let kund = valdKund {
+                Projektinnehåll(kund: kund, projekt: projekt)
+                    .id(projekt.id)
+            }
+        case nil:
+            ContentUnavailableView("Välj en kund", systemImage: "person.2")
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var verktyg: some ToolbarContent {
+        if let kund = valdKund {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    starta(kund: kund)
+                } label: {
+                    Label("Spela in", systemImage: "record.circle")
+                }
+                .disabled(session.pågår)
+                .help(session.pågår ? "En inspelning pågår redan" : "Spela in ett samtal")
+            }
+            ToolbarItem {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { visaChatt.toggle() }
+                } label: {
+                    Label("Chatt", systemImage: "bubble.left.and.text.bubble.right")
+                }
+                .help(visaChatt ? "Dölj chatten" : "Fråga om det som sagts och skrivits")
+            }
+            ToolbarItem {
+                Button { visaSök = true } label: {
+                    Label("Sök", systemImage: "magnifyingglass")
+                }
+                .help("Sök i allt material hos alla kunder")
+            }
+            ToolbarItem {
+                Menu {
+                    Button("Visa i Finder") { NSWorkspace.shared.open(kund.mapp) }
+                    if Obsidian.finns {
+                        Button("Öppna i Obsidian") {
+                            Obsidian.öppna(kund.mapp, valvrot: kund.mapp)
+                        }
+                    }
+                } label: {
+                    Label("Mer", systemImage: "ellipsis.circle")
+                }
+            }
+        }
+    }
+
+    private func starta(kund: Kund) {
+        Inspelningsfönster.öppna(kund: kund, projekt: val?.projekt, möte: nil)
+    }
+
+    // MARK: - Ny kund
+
+    private var nyKundBlad: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Ny kund").font(.headline)
+            TextField("Namn", text: $nyttKundnamn)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 300)
+                .onSubmit(skapa)
+            HStack {
+                Spacer()
+                Button("Avbryt") { visaNyKund = false; nyttKundnamn = "" }
+                Button("Skapa", action: skapa)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(nyttKundnamn.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .padding(20)
+    }
+
+    private func skapa() {
+        let namn = nyttKundnamn.trimmingCharacters(in: .whitespaces)
+        guard !namn.isEmpty else { return }
+        if let ny = try? arkiv.skapaKund(namn: namn) { val = .kund(ny) }
+        nyttKundnamn = ""
+        visaNyKund = false
+    }
+}

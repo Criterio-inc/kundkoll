@@ -1,0 +1,187 @@
+import SwiftUI
+
+/// Kundens kontaktlista. Personer kan hämtas ur macOS Kontakter eller skrivas
+/// upp för hand — alla man talar med finns inte i adressboken.
+struct Kontaktvy: View {
+    let kund: Kund
+    @EnvironmentObject private var arkiv: Arkivet
+    @EnvironmentObject private var adressbok: Adressboken
+    @Environment(\.dismiss) private var stäng
+
+    @State private var kontakter: [Kontakt] = []
+    @State private var sökning = ""
+    @State private var träffar: [Kontakt] = []
+    @State private var nyttNamn = ""
+    @State private var redigerar: Kontakt?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Kontakter hos \(kund.namn)").font(.headline)
+                Spacer()
+            }
+            .padding(16)
+            Divider()
+
+            HSplitView {
+                mina
+                adressboken
+            }
+
+            Divider()
+            HStack {
+                Spacer()
+                Button("Klar") { stäng() }.keyboardShortcut(.defaultAction)
+            }
+            .padding(16)
+        }
+        .frame(width: 760, height: 520)
+        .sheet(item: $redigerar) { k in
+            Kontaktredigering(kund: kund, kontakt: k) { _ in
+                kontakter = arkiv.kontakter(för: kund)
+            }
+        }
+        .onAppear {
+            kontakter = arkiv.kontakter(för: kund)
+            if adressbok.harTillgång && kontakter.isEmpty {
+                träffar = adressbok.hosOrganisation(kund.namn)
+            }
+        }
+    }
+
+    private var mina: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Hos kunden")
+                .font(.subheadline.weight(.medium))
+                .padding(.horizontal, 16).padding(.vertical, 10)
+
+            List {
+                ForEach(kontakter) { k in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(k.namn)
+                            if let e = k.förstaEpost {
+                                Text(e).font(.caption).foregroundStyle(.secondary)
+                            } else if let r = k.roll {
+                                Text(r).font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer()
+                        if k.systemID != nil {
+                            Image(systemName: "person.crop.circle.badge.checkmark")
+                                .foregroundStyle(.tertiary)
+                                .help("Finns i macOS Kontakter")
+                        }
+                        Button {
+                            try? arkiv.taBort(k, hos: kund)
+                            kontakter = arkiv.kontakter(för: kund)
+                        } label: {
+                            Image(systemName: "minus.circle")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Ta bort från kunden")
+                    }
+                    .contentShape(.rect)
+                    .onTapGesture { redigerar = k }
+                }
+            }
+            .overlay {
+                if kontakter.isEmpty {
+                    Text("Inga än").foregroundStyle(.secondary)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    TextField("Lägg till för hand", text: $nyttNamn)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit(läggTillFörHand)
+                    Button("Lägg till", action: läggTillFörHand)
+                        .disabled(nyttNamn.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                Text("Klicka på en kontakt för att fylla i uppgifter eller lägga upp den i Kontakter.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(12)
+        }
+        .frame(minWidth: 300)
+    }
+
+    private var adressboken: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("macOS Kontakter")
+                .font(.subheadline.weight(.medium))
+                .padding(.horizontal, 16).padding(.vertical, 10)
+
+            if !adressbok.harTillgång {
+                VStack(spacing: 12) {
+                    Text("Kundkoll har inte tillgång till dina kontakter.")
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                    Button("Ge tillgång") {
+                        Task {
+                            await adressbok.begärTillgång()
+                            if adressbok.harTillgång {
+                                träffar = adressbok.hosOrganisation(kund.namn)
+                            }
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(20)
+            } else {
+                TextField("Sök", text: $sökning)
+                    .textFieldStyle(.roundedBorder)
+                    .padding(.horizontal, 12)
+                    .onChange(of: sökning) {
+                        träffar = sökning.isEmpty
+                            ? adressbok.hosOrganisation(kund.namn)
+                            : adressbok.sök(sökning)
+                    }
+
+                List {
+                    ForEach(träffar) { k in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(k.namn)
+                                if let e = k.förstaEpost {
+                                    Text(e).font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                            Spacer()
+                            Button {
+                                kontakter = (try? arkiv.läggTill(k, hos: kund)) ?? kontakter
+                            } label: {
+                                Image(systemName: "plus.circle")
+                            }
+                            .buttonStyle(.borderless)
+                            .disabled(kontakter.contains { $0.systemID == k.systemID })
+                        }
+                    }
+                }
+                .overlay {
+                    if träffar.isEmpty {
+                        Text(sökning.isEmpty
+                             ? "Ingen i adressboken hör till \(kund.namn)."
+                             : "Inga träffar")
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding()
+                    }
+                }
+            }
+        }
+        .frame(minWidth: 300)
+    }
+
+    private func läggTillFörHand() {
+        let namn = nyttNamn.trimmingCharacters(in: .whitespaces)
+        guard !namn.isEmpty else { return }
+        let ny = Kontakt(namn: namn)
+        kontakter = (try? arkiv.läggTill(ny, hos: kund)) ?? kontakter
+        nyttNamn = ""
+        // Öppna direkt: den som just skrivit ett namn vill oftast fylla i mer.
+        redigerar = kontakter.first { $0.namn == namn }
+    }
+}

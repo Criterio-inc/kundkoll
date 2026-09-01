@@ -1,0 +1,1692 @@
+import Foundation
+import AVFoundation
+
+@MainActor
+enum Tester {
+
+    static func kör() -> Int32 {
+        arkivet()
+        ljud()
+        whisper()
+        liveinsikter()
+        röster()
+        kontakterOchKalender()
+        mailen()
+        anteckningar()
+        obsidian()
+        kunskapsbanken()
+        return Prov.sammanfatta()
+    }
+
+    // MARK: - Kunskapsbanken
+
+    static func kunskapsbanken() {
+        Prov.svit("Kunskapsbanken")
+
+        do {   // sökuttryck
+            let u = Kunskapsbank.sökuttryck("leveranstiden")
+            Prov.kolla(u.contains("*"), "orden söks som prefix, så böjningar fångas (\(u))")
+            Prov.kolla(!Kunskapsbank.sökuttryck("vad har vi sagt om priset").contains("\"vad\""),
+                       "stoppord sållas bort")
+            Prov.kolla(Kunskapsbank.sökuttryck("och att det som").isEmpty,
+                       "en fråga med bara stoppord ger inget uttryck")
+            Prov.kolla(Kunskapsbank.sökuttryck("").isEmpty, "tom fråga ger tomt uttryck")
+            Prov.kolla(Kunskapsbank.sökuttryck("DNV").contains("dnv"),
+                       "korta ord söks exakt, inte som prefix")
+        }
+
+        do {   // indexera och söka
+            let rot = FileManager.default.temporaryDirectory
+                .appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: rot) }
+            let arkiv = Arkivet(rot: rot)
+            let kund = try! arkiv.skapaKund(namn: "Acme")
+            let bank = try! Kunskapsbank(kund: kund)
+
+            try! bank.läggTill(titel: "Avstämning", text: "Bo undrade över leveranstiden till Göteborg",
+                               typ: "transkript", källa: "/a", tid: Date())
+            try! bank.läggTill(titel: "Prisdiskussion", text: "Vi gick igenom prisbilden på battericeller",
+                               typ: "transkript", källa: "/b", tid: Date())
+            Prov.lika(bank.antal, 2, "två stycken i banken")
+
+            // Det böjningsproblem trunkeringen finns till för
+            Prov.kolla(!bank.sök("leveranstid").isEmpty,
+                       "«leveranstid» hittar «leveranstiden»")
+            Prov.kolla(!bank.sök("batteri").isEmpty,
+                       "«batteri» hittar «battericeller»")
+            Prov.lika(bank.sök("leveranstid").first?.titel, "Avstämning",
+                      "rätt stycke kommer först")
+            Prov.kolla(bank.sök("segelbåtar").isEmpty, "det som inte finns ger inga träffar")
+
+            try! bank.glöm(källa: "/a")
+            Prov.lika(bank.antal, 1, "en källa går att glömma")
+            Prov.kolla(bank.sök("leveranstid").isEmpty, "och försvinner ur sökningen")
+        }
+
+        do {   // källor väger olika
+            let rot = FileManager.default.temporaryDirectory
+                .appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: rot) }
+            let arkiv = Arkivet(rot: rot)
+            let kund = try! arkiv.skapaKund(namn: "Acme")
+            let bank = try! Kunskapsbank(kund: kund)
+
+            // Ett gammalt chattsvar som sade att uppgiften saknades, och
+            // fakturan som faktiskt har den.
+            try! bank.läggTill(titel: "vad var fakturan på?",
+                               text: "Fråga: vad var fakturan på? Svar: Beloppet framgår inte.",
+                               typ: "chatt", källa: "/c", tid: nil)
+            try! bank.läggTill(titel: "1124 Acme AB.pdf",
+                               text: "Faktura fakturanr 1124 belopp 62 500,00 SEK",
+                               typ: "bilaga", källa: "/b", tid: nil)
+
+            let träffar = bank.sök("vad var fakturan på")
+            Prov.lika(träffar.first?.typ, "bilaga",
+                      "primärkällan går före ett tidigare chattsvar")
+            Prov.kolla(träffar.contains { $0.typ == "chatt" },
+                       "chatten finns kvar bland träffarna, bara längre ner")
+        }
+
+        do {   // svenska tecken i sökningen
+            let rot = FileManager.default.temporaryDirectory
+                .appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: rot) }
+            let arkiv = Arkivet(rot: rot)
+            let kund = try! arkiv.skapaKund(namn: "Ängsö")
+            let bank = try! Kunskapsbank(kund: kund)
+            try! bank.läggTill(titel: "Möte", text: "Vi besökte ÄNGSÖ och såg på pallställen",
+                               typ: "anteckning", källa: "/a", tid: nil)
+            Prov.kolla(!bank.sök("ängsö").isEmpty, "å ä ö söks utan hänsyn till skiftläge")
+            Prov.kolla(!bank.sök("pallställ").isEmpty, "och fungerar mitt i sammansatta ord")
+        }
+
+        do {   // styckning av transkript
+            var rader: [Yttrande] = []
+            for i in 0..<40 {
+                rader.append(Yttrande(röst: i % 2 == 0 ? .jag : .motpart,
+                                      text: String(repeating: "ord ", count: 12),
+                                      start: Double(i) * 5, slut: Double(i) * 5 + 4))
+            }
+            let i = Inspelning(titel: "Långt möte", inledd: Date(), längd: 200,
+                               kund: "Acme", projekt: nil, mikrofon: nil,
+                               liveYttranden: rader, arkivYttranden: nil)
+            let stycken = Indexering.stycken(av: i)
+            Prov.kolla(stycken.count > 1, "ett långt transkript delas i flera stycken (\(stycken.count))")
+            Prov.kolla(stycken.allSatisfy { $0.count < Indexering.styckestorlek + 200 },
+                       "inget stycke blir orimligt långt")
+            Prov.kolla(stycken.first?.contains("Jag:") == true,
+                       "talaren följer med in i texten")
+            Prov.kolla(stycken.first?.contains("[00:00]") == true,
+                       "och tidsstämpeln också, så svaret kan peka på rätt ställe")
+        }
+
+        do {   // styckning av text
+            let text = "Första stycket.\n\n" + String(repeating: "Fyllnad. ", count: 200)
+                + "\n\nSista stycket."
+            let delar = Indexering.dela(text, storlek: 400)
+            Prov.kolla(delar.count >= 2, "lång text delas (\(delar.count) delar)")
+            Prov.kolla(delar.first?.hasPrefix("Första stycket.") == true,
+                       "delningen sker vid styckegränser")
+            Prov.lika(Indexering.dela("", storlek: 400).count, 0, "tom text ger inga delar")
+        }
+
+        do {   // hänvisningar i svaret
+            func träff(_ titel: String) -> Kunskapsbank.Träff {
+                Kunskapsbank.Träff(id: 1, typ: "transkript", titel: titel, text: "",
+                                   källa: "", tid: nil, poäng: 0)
+            }
+            let träffar = [träff("Avstämning"), träff("Prisdiskussion"), träff("Uppstart")]
+            let använda = Chatt.använda(i: "Priset diskuterades [2] och nämndes igen [2].", av: träffar)
+            Prov.lika(använda.map(\.titel), ["Prisdiskussion"], "bara det svaret hänvisade till räknas")
+            Prov.lika(använda.first?.nummer, 2, "numret följer med, så det går att para ihop med texten")
+            Prov.lika(Chatt.använda(i: "Jag hittar inget om det.", av: träffar).count, 0,
+                      "ett svar utan hänvisningar ger inga källor")
+        }
+
+        do {   // leverantörer
+            for l in Leverantör.allCases {
+                Prov.kolla(URL(string: l.standardadress) != nil,
+                           "\(l.namn) har en giltig standardadress")
+            }
+            Prov.kolla(Leverantör.anthropic.talarAnthropic, "Anthropic har eget format")
+            Prov.kolla(!Leverantör.openai.talarAnthropic, "OpenAI följer sitt eget")
+            Prov.kolla(!Leverantör.openrouter.talarAnthropic,
+                       "OpenRouter talar OpenAI-formatet även för Claude-modeller")
+            Prov.kolla(!Leverantör.lokal.behöverNyckel, "en lokal modell behöver ingen nyckel")
+            Prov.kolla(Leverantör.azure.behöverEgenAdress, "Azure kräver egen adress")
+
+            var v = Modellval(leverantör: .lokal, modell: "llama3.1:8b", adress: "")
+            Prov.kolla(v.färdig, "en lokal modell är färdig utan nyckel")
+            Prov.lika(v.url?.host, "127.0.0.1", "och pekar på datorn")
+
+            v = Modellval(leverantör: .azure, modell: "", adress: "")
+            Prov.kolla(!v.färdig, "Azure utan adress är inte färdig")
+        }
+
+        do {   // svarsformat
+            let openai = """
+            {"choices":[{"message":{"role":"assistant","content":"Svaret är 42."}}]}
+            """.data(using: .utf8)!
+            Prov.lika(Chatt.läsOpenAI(openai), "Svaret är 42.", "OpenAI-svar tolkas")
+
+            let anthropic = """
+            {"content":[{"type":"thinking","text":"funderar"},{"type":"text","text":"Svaret är 42."}]}
+            """.data(using: .utf8)!
+            Prov.lika(Chatt.läsAnthropic(anthropic), "Svaret är 42.",
+                      "Anthropic-svar tolkas och tankeblock hoppas över")
+
+            Prov.kolla(Chatt.läsOpenAI(Data("{}".utf8)) == nil, "trasigt svar ger nil")
+            Prov.kolla(Chatt.läsAnthropic(Data("{}".utf8)) == nil, "detsamma för Anthropic")
+        }
+
+        do {   // systemtexten
+            let text = Chatt.systemtext(kund: "Acme", projekt: "Nytt lager", träffar: [])
+            Prov.kolla(text.contains("Acme"), "kunden nämns")
+            Prov.kolla(text.contains("Nytt lager"), "projektet nämns")
+            Prov.kolla(text.contains("inget underlag"),
+                       "utan underlag instrueras modellen att säga det")
+
+            let träff = Kunskapsbank.Träff(id: 1, typ: "transkript", titel: "Möte",
+                                           text: "Priset är 400 000.", källa: "", tid: nil, poäng: 0)
+            let med = Chatt.systemtext(kund: "Acme", projekt: nil, träffar: [träff])
+            Prov.kolla(med.contains("[1] TRANSKRIPT"), "underlaget numreras")
+            Prov.kolla(med.contains("400 000"), "och innehåller texten")
+        }
+
+        do {   // bilagor
+            Prov.kolla(Bilagor.ärIntressant("Offert.pdf"), "en PDF är värd att spara")
+            Prov.kolla(Bilagor.ärIntressant("Skärmbild 2026-07-09.png"), "en skärmbild också")
+            Prov.kolla(!Bilagor.ärIntressant("Mail Attachment.ics"),
+                       "kalenderfiler säger inget om kunden")
+            Prov.kolla(!Bilagor.ärIntressant("image001.png"),
+                       "inbäddade signaturbilder sorteras bort")
+            Prov.kolla(Bilagor.ärIntressant("image001-ritning.png"),
+                       "men en bild med riktigt namn behålls")
+            Prov.kolla(!Bilagor.ärIntressant("smime.p7s"), "signaturfiler sorteras bort")
+
+            let d = "\u{1F}"
+            let rader = [
+                "Offert våren\(d)Offert.pdf\(d)/tmp/Offert.pdf\(d)102400",
+                "Möte\(d)Mail Attachment.ics\(d)/tmp/x.ics\(d)4198",
+                "Ritningar\(d)plan.png\(d)/tmp/plan.png\(d)51200",
+            ].joined(separator: "\n")
+            let b = Bilagor.tolka(rader)
+            Prov.lika(b.count, 2, "ointressanta bilagor faller bort vid tolkningen")
+            Prov.lika(b.first?.namn, "Offert.pdf", "namnet kommer med")
+            Prov.lika(b.first?.storlek, 102400, "storleken tolkas")
+            Prov.lika(b.first?.ändelse, "pdf", "ändelsen plockas ur namnet")
+
+            Prov.lika(Bilagor.tolka("").count, 0, "tomt svar ger inga bilagor")
+        }
+
+        do {   // text ur kontorsfiler
+            let xml = "<w:p><w:r><w:t>Offerten g&amp;auml;ller</w:t></w:r><w:t>400 &lt;pallplatser&gt;</w:t></w:p>"
+            let text = Bilagor.strippaTaggar(xml)
+            Prov.kolla(text.contains("Offerten"), "texten mellan taggarna kommer med")
+            Prov.kolla(text.contains("400"), "och nästa stycke också")
+            Prov.kolla(!text.contains("<w:"), "taggarna följer inte med")
+            Prov.kolla(!text.contains("&lt;"), "XML-entiteter översätts")
+
+            // Bara filerna som bär text. Utan det kom rader som "Microsoft
+            // Office Word 0 406 248" med mitt i innehållet.
+            func url(_ v: String) -> URL { URL(fileURLWithPath: v) }
+            Prov.kolla(Bilagor.ärInnehåll(url("/t/word/document.xml")), "word/document.xml läses")
+            Prov.kolla(Bilagor.ärInnehåll(url("/t/ppt/slides/slide1.xml")), "presentationsbilder läses")
+            Prov.kolla(Bilagor.ärInnehåll(url("/t/xl/sharedStrings.xml")), "kalkylbladets texter läses")
+            Prov.kolla(!Bilagor.ärInnehåll(url("/t/docProps/app.xml")), "dokumentegenskaper hoppas över")
+            Prov.kolla(!Bilagor.ärInnehåll(url("/t/word/theme/theme1.xml")), "teman hoppas över")
+            Prov.kolla(!Bilagor.ärInnehåll(url("/t/word/settings.xml")), "inställningar hoppas över")
+        }
+
+        do {   // ofullständiga inspelningar
+            let rot = FileManager.default.temporaryDirectory
+                .appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: rot) }
+            let arkiv = Arkivet(rot: rot)
+            let kund = try! arkiv.skapaKund(namn: "Acme")
+            let fm = FileManager.default
+
+            // En mapp med ljud men utan möte.json, som en avbruten import
+            let halv = try! arkiv.nyInspelningsmapp(placering: .kund(kund),
+                                                    titel: "Avbruten", datum: Date())
+            fm.createFile(atPath: halv.appending(path: "motpart.wav").path,
+                          contents: Data(count: 5000))
+            // Och en tom mapp, som inte är värd att visa
+            let tom = try! arkiv.nyInspelningsmapp(placering: .kund(kund),
+                                                   titel: "Tom", datum: Date())
+            _ = tom
+
+            let ofullständiga = arkiv.ofullständiga(för: kund)
+            Prov.lika(ofullständiga.count, 1, "bara mappen med ljud räknas som påbörjad")
+            Prov.lika(ofullständiga.first?.storlek, 5000, "storleken räknas")
+            Prov.lika(arkiv.inspelningar(för: kund).count, 0,
+                      "den syns inte bland de färdiga")
+
+            // När den blir klar ska den försvinna ur listan
+            let i = Inspelning(titel: "Avbruten", inledd: Date(), längd: 1,
+                               kund: "Acme", projekt: nil, mikrofon: nil,
+                               liveYttranden: [], arkivYttranden: nil)
+            try! arkiv.spara(i, i: halv)
+            Prov.lika(arkiv.ofullständiga(för: kund).count, 0,
+                      "en färdigställd inspelning räknas inte längre som påbörjad")
+        }
+
+        do {   // kopplade mappar
+            Prov.kolla(Kopplademappar.hoppaÖver.contains("node_modules"),
+                       "node_modules läses inte igenom")
+            Prov.kolla(Kopplademappar.hoppaÖver.contains(".git"), "inte heller .git")
+            Prov.kolla(Kopplademappar.standardändelser.contains("swift"), "kodfiler tas med")
+            Prov.kolla(Kopplademappar.standardändelser.contains("pdf"), "och PDF")
+            Prov.kolla(!Kopplademappar.standardändelser.contains("png"),
+                       "bilder i en kodmapp är sällan innehåll")
+
+            let ä = Kopplademappar.standardändelser
+            Prov.kolla(Kopplademappar.ärIntressant(URL(fileURLWithPath: "/a/main.swift"), ändelser: ä),
+                       "en källfil är intressant")
+            Prov.kolla(!Kopplademappar.ärIntressant(URL(fileURLWithPath: "/a/.env"), ändelser: ä),
+                       "dolda filer hoppas över")
+            Prov.kolla(!Kopplademappar.ärIntressant(URL(fileURLWithPath: "/a/bild.png"), ändelser: ä),
+                       "bilder hoppas över")
+
+            let k = Kopplad(väg: "/tmp/kod")
+            Prov.lika(k.visatNamn, "kod", "mappens eget namn används när inget angetts")
+            Prov.lika(Kopplad(väg: "/tmp/kod", namn: "Källkod").visatNamn, "Källkod",
+                      "ett eget namn går före")
+        }
+
+        do {   // koppling sparas på projektet
+            let rot = FileManager.default.temporaryDirectory
+                .appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: rot) }
+            let arkiv = Arkivet(rot: rot)
+            let kund = try! arkiv.skapaKund(namn: "Acme")
+            let projekt = try! arkiv.skapaProjekt(namn: "Nytt lager", hos: kund)
+
+            let mapp = rot.appending(path: "extern-kod")
+            try! FileManager.default.createDirectory(at: mapp, withIntermediateDirectories: true)
+            try! arkiv.koppla(mapp, till: projekt)
+            Prov.lika(arkiv.kopplade(för: projekt).count, 1, "mappen kopplas till projektet")
+
+            try! arkiv.koppla(mapp, till: projekt)
+            Prov.lika(arkiv.kopplade(för: projekt).count, 1, "samma mapp två gånger ger ingen dubblett")
+
+            let k = arkiv.kopplade(för: projekt).first!
+            Prov.kolla(k.finns, "kopplingen ser att mappen finns")
+            try! arkiv.koppla(bort: k, från: projekt)
+            Prov.lika(arkiv.kopplade(för: projekt).count, 0, "den går att koppla bort")
+            Prov.kolla(FileManager.default.fileExists(atPath: mapp.path),
+                       "och mappen ligger kvar på disk — bara kopplingen försvann")
+        }
+
+        do {   // genomgång av en mapp
+            let rot = FileManager.default.temporaryDirectory
+                .appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: rot) }
+            let fm = FileManager.default
+            for väg in ["src", "node_modules/paket", ".git"] {
+                try! fm.createDirectory(at: rot.appending(path: väg), withIntermediateDirectories: true)
+            }
+            fm.createFile(atPath: rot.appending(path: "src/main.swift").path, contents: Data("kod".utf8))
+            fm.createFile(atPath: rot.appending(path: "README.md").path, contents: Data("text".utf8))
+            fm.createFile(atPath: rot.appending(path: "logo.png").path, contents: Data([0x89]))
+            fm.createFile(atPath: rot.appending(path: "node_modules/paket/index.js").path,
+                          contents: Data("skräp".utf8))
+            fm.createFile(atPath: rot.appending(path: ".git/config").path, contents: Data("x".utf8))
+
+            let filer = Kopplademappar.filer(i: Kopplad(väg: rot.path))
+            let namn = Set(filer.map(\.lastPathComponent))
+            Prov.kolla(namn.contains("main.swift"), "källfiler hittas i undermappar")
+            Prov.kolla(namn.contains("README.md"), "och dokument")
+            Prov.kolla(!namn.contains("logo.png"), "bilder hoppas över")
+            Prov.kolla(!namn.contains("index.js"),
+                       "node_modules gås inte igenom (\(namn.count) filer totalt)")
+            Prov.kolla(!namn.contains("config"), ".git gås inte igenom")
+        }
+
+        do {   // samtal
+            let rot = FileManager.default.temporaryDirectory
+                .appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: rot) }
+            let arkiv = Arkivet(rot: rot)
+            let kund = try! arkiv.skapaKund(namn: "Acme")
+            let projekt = try! arkiv.skapaProjekt(namn: "Nytt lager", hos: kund)
+
+            Prov.lika(arkiv.samtal(för: kund, projekt: nil).count, 0, "inga samtal från början")
+
+            var ett = Samtal(projekt: nil, meddelanden: [
+                .init(roll: .människa, text: "Vad kostade battericellerna?"),
+                .init(roll: .assistent, text: "2 400 kr per enhet."),
+            ])
+            try! arkiv.spara(ett, för: kund)
+            let sparade = arkiv.samtal(för: kund, projekt: nil)
+            Prov.lika(sparade.count, 1, "samtalet sparas")
+            Prov.lika(sparade.first?.titel, "Vad kostade battericellerna?",
+                      "titeln härleds ur första frågan")
+
+            // Ett andra samtal, och ett i projektet
+            let två = Samtal(meddelanden: [.init(roll: .människa, text: "Vem är kontaktperson?")])
+            try! arkiv.spara(två, för: kund)
+            try! arkiv.spara(Samtal(projekt: "Nytt lager",
+                                    meddelanden: [.init(roll: .människa, text: "Hur går bygget?")]),
+                             för: kund)
+            Prov.lika(arkiv.samtal(för: kund, projekt: nil).count, 2,
+                      "kundens samtal är två")
+            Prov.lika(arkiv.samtal(för: kund, projekt: "Nytt lager").count, 1,
+                      "projektet ser bara sitt eget")
+            _ = projekt
+
+            // Nyast först, så att man landar i det man höll på med
+            let ordning = arkiv.samtal(för: kund, projekt: nil)
+            Prov.kolla((ordning.first?.ändrad ?? .distantPast) >= (ordning.last?.ändrad ?? .distantFuture),
+                       "nyast först")
+
+            ett.meddelanden.append(.init(roll: .människa, text: "Och volymrabatten?"))
+            try! arkiv.spara(ett, för: kund)
+            Prov.lika(arkiv.samtal(för: kund, projekt: nil).count, 2,
+                      "att spara om ett samtal skapar inte ett nytt")
+            Prov.lika(arkiv.samtal(för: kund, projekt: nil).first?.id, ett.id,
+                      "det senast ändrade ligger överst")
+
+            try! arkiv.taBort(två, för: kund)
+            Prov.lika(arkiv.samtal(för: kund, projekt: nil).count, 1, "samtal går att ta bort")
+
+            Prov.lika(Samtal.titel(ur: []), "Nytt samtal", "ett tomt samtal får ett namn ändå")
+            let lång = String(repeating: "ord ", count: 40)
+            Prov.kolla(Samtal.titel(ur: [.init(roll: .människa, text: lång)]).count <= 53,
+                       "en lång fråga kapas till en läsbar titel")
+        }
+
+        do {   // en chatt från tiden före samtalen
+            let rot = FileManager.default.temporaryDirectory
+                .appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: rot) }
+            let arkiv = Arkivet(rot: rot)
+            let kund = try! arkiv.skapaKund(namn: "Acme")
+
+            // Så såg det ut när varje kund hade exakt en chatt
+            let gammal = kund.mapp.appending(path: ".kundkoll/chatt.json")
+            try! FileManager.default.createDirectory(
+                at: gammal.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let meddelanden: [Chatt.Meddelande] = [
+                .init(roll: .människa, text: "Vad sa vi om leveranstiden?"),
+                .init(roll: .assistent, text: "Sex veckor."),
+            ]
+            try! JSONEncoder.kundkoll.encode(meddelanden).write(to: gammal)
+
+            let samtal = arkiv.samtal(för: kund, projekt: nil)
+            Prov.lika(samtal.count, 1, "den gamla chatten blir ett samtal")
+            Prov.lika(samtal.first?.titel, "Vad sa vi om leveranstiden?", "med titel ur frågan")
+            Prov.lika(samtal.first?.meddelanden.count, 2, "och alla meddelanden kvar")
+            Prov.kolla(!FileManager.default.fileExists(atPath: gammal.path),
+                       "den gamla filen städas bort efter flytten")
+        }
+
+        do {   // uppgifter
+            let rot = FileManager.default.temporaryDirectory
+                .appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: rot) }
+            let arkiv = Arkivet(rot: rot)
+            let kund = try! arkiv.skapaKund(namn: "Acme")
+
+            try! arkiv.läggTill([Uppgift(vad: "Skicka offert på pallställ", vem: "Anders",
+                                         när: "före fredag", ursprung: .möte,
+                                         källtitel: "Avstämning")], för: kund)
+            Prov.lika(arkiv.uppgifter(för: kund).count, 1, "uppgiften sparas")
+
+            // Samma sak nämns ofta i både ett möte och ett mejl
+            try! arkiv.läggTill([Uppgift(vad: "Skicka offerten på pallställen",
+                                         ursprung: .mejl)], för: kund)
+            Prov.lika(arkiv.uppgifter(för: kund).count, 1,
+                      "samma åtagande från två håll blir inte två kort")
+
+            try! arkiv.läggTill([Uppgift(vad: "Boka möte om certifieringen")], för: kund)
+            Prov.lika(arkiv.uppgifter(för: kund).count, 2, "något annat blir ett eget kort")
+
+            var u = arkiv.uppgifter(för: kund).first!
+            u.läge = .pågår
+            try! arkiv.uppdatera(u, för: kund)
+            Prov.lika(arkiv.uppgifter(för: kund).first?.läge, .pågår, "läget går att ändra")
+
+            let not = try! String(contentsOf: kund.mapp.appending(path: "Att göra.md"),
+                                  encoding: .utf8)
+            Prov.kolla(not.contains("## Pågår"), "tavlan skrivs som markdown")
+            Prov.kolla(not.contains("**Anders**"), "med vem som ska göra det")
+            Prov.kolla(not.contains("*(före fredag)*"), "och när")
+
+            try! arkiv.taBort(u, för: kund)
+            Prov.lika(arkiv.uppgifter(för: kund).count, 1, "uppgifter går att ta bort")
+        }
+
+        do {   // likhet mellan uppgifter
+            let a = Uppgift(vad: "Skicka offert på pallställ före fredag")
+            Prov.kolla(a.liknar(Uppgift(vad: "Skicka offerten på pallställen på fredag")),
+                       "samma sak i annan formulering känns igen")
+            Prov.kolla(!a.liknar(Uppgift(vad: "Boka möte om certifieringen")),
+                       "olika saker hålls isär")
+            Prov.kolla(!a.liknar(Uppgift(vad: "")), "tom uppgift liknar inget")
+        }
+
+        do {   // samtal
+            let rot = FileManager.default.temporaryDirectory
+                .appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: rot) }
+            let arkiv = Arkivet(rot: rot)
+            let kund = try! arkiv.skapaKund(namn: "Acme")
+            let projekt = try! arkiv.skapaProjekt(namn: "Nytt lager", hos: kund)
+
+            Prov.lika(arkiv.samtal(för: kund, projekt: nil).count, 0, "inga samtal från början")
+
+            var ett = Samtal(projekt: nil, meddelanden: [
+                .init(roll: .människa, text: "Vad kostade battericellerna?"),
+                .init(roll: .assistent, text: "2 400 kr per enhet."),
+            ])
+            try! arkiv.spara(ett, för: kund)
+            let sparade = arkiv.samtal(för: kund, projekt: nil)
+            Prov.lika(sparade.count, 1, "samtalet sparas")
+            Prov.lika(sparade.first?.titel, "Vad kostade battericellerna?",
+                      "titeln härleds ur första frågan")
+
+            // Ett andra samtal, och ett i projektet
+            let två = Samtal(meddelanden: [.init(roll: .människa, text: "Vem är kontaktperson?")])
+            try! arkiv.spara(två, för: kund)
+            try! arkiv.spara(Samtal(projekt: "Nytt lager",
+                                    meddelanden: [.init(roll: .människa, text: "Hur går bygget?")]),
+                             för: kund)
+            Prov.lika(arkiv.samtal(för: kund, projekt: nil).count, 2,
+                      "kundens samtal är två")
+            Prov.lika(arkiv.samtal(för: kund, projekt: "Nytt lager").count, 1,
+                      "projektet ser bara sitt eget")
+            _ = projekt
+
+            // Nyast först, så att man landar i det man höll på med
+            let ordning = arkiv.samtal(för: kund, projekt: nil)
+            Prov.kolla((ordning.first?.ändrad ?? .distantPast) >= (ordning.last?.ändrad ?? .distantFuture),
+                       "nyast först")
+
+            ett.meddelanden.append(.init(roll: .människa, text: "Och volymrabatten?"))
+            try! arkiv.spara(ett, för: kund)
+            Prov.lika(arkiv.samtal(för: kund, projekt: nil).count, 2,
+                      "att spara om ett samtal skapar inte ett nytt")
+            Prov.lika(arkiv.samtal(för: kund, projekt: nil).first?.id, ett.id,
+                      "det senast ändrade ligger överst")
+
+            try! arkiv.taBort(två, för: kund)
+            Prov.lika(arkiv.samtal(för: kund, projekt: nil).count, 1, "samtal går att ta bort")
+
+            Prov.lika(Samtal.titel(ur: []), "Nytt samtal", "ett tomt samtal får ett namn ändå")
+            let lång = String(repeating: "ord ", count: 40)
+            Prov.kolla(Samtal.titel(ur: [.init(roll: .människa, text: lång)]).count <= 53,
+                       "en lång fråga kapas till en läsbar titel")
+        }
+
+        do {   // en chatt från tiden före samtalen
+            let rot = FileManager.default.temporaryDirectory
+                .appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: rot) }
+            let arkiv = Arkivet(rot: rot)
+            let kund = try! arkiv.skapaKund(namn: "Acme")
+
+            // Så såg det ut när varje kund hade exakt en chatt
+            let gammal = kund.mapp.appending(path: ".kundkoll/chatt.json")
+            try! FileManager.default.createDirectory(
+                at: gammal.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let meddelanden: [Chatt.Meddelande] = [
+                .init(roll: .människa, text: "Vad sa vi om leveranstiden?"),
+                .init(roll: .assistent, text: "Sex veckor."),
+            ]
+            try! JSONEncoder.kundkoll.encode(meddelanden).write(to: gammal)
+
+            let samtal = arkiv.samtal(för: kund, projekt: nil)
+            Prov.lika(samtal.count, 1, "den gamla chatten blir ett samtal")
+            Prov.lika(samtal.first?.titel, "Vad sa vi om leveranstiden?", "med titel ur frågan")
+            Prov.lika(samtal.first?.meddelanden.count, 2, "och alla meddelanden kvar")
+            Prov.kolla(!FileManager.default.fileExists(atPath: gammal.path),
+                       "den gamla filen städas bort efter flytten")
+        }
+
+        do {   // uppgifter ur modellens JSON
+            let json = """
+            {"uppgifter": [
+              {"vad": "Skicka ritningar", "vem": "Anders", "när": "på måndag"},
+              {"vad": "Kolla priset", "vem": null, "när": null},
+              {"vad": "kort", "vem": null, "när": null}
+            ]}
+            """
+            let u = Uppgiftsletare.tolka(json)
+            Prov.lika(u.count, 2, "för korta rader sorteras bort")
+            Prov.lika(u.first?.vem, "Anders", "vem tolkas")
+            Prov.kolla(u.last?.vem == nil, "null blir nil")
+            Prov.lika(Uppgiftsletare.tolka("inget här").count, 0, "text utan JSON ger inga uppgifter")
+
+            let ikodruta = "Här kommer de:\n```json\n" + json + "\n```"
+            Prov.lika(Uppgiftsletare.tolka(ikodruta).count, 2, "JSON i kodruta tolkas")
+        }
+
+        do {   // gamla filer utan nya fält
+            // Det här var en verklig bugg: fältet "text" lades till på Mejl,
+            // och då slutade alla tidigare sparade mail.json gå att läsa —
+            // tyst, eftersom felet bara syntes som att ingenting hände.
+            let gammalt = """
+            {"hämtad": "2026-08-31T19:43:13Z",
+             "mejl": [{"datumText": "Monday, 3 August 2026 at 09:00:00",
+                       "avsändare": "Anna <anna@acme.se>", "ämne": "Offert",
+                       "meddelandeID": "<a@x>", "konto": "k", "låda": "INBOX",
+                       "riktning": "fran"}]}
+            """
+            let cache = try? JSONDecoder.kundkoll.decode(
+                Arkivet.Mailcache.self, from: Data(gammalt.utf8))
+            Prov.kolla(cache != nil, "en mailcache utan bilagor och brödtext går att läsa")
+            Prov.kolla(cache?.hämtad != nil, "datum utan sekundbråk går fortfarande att läsa")
+            Prov.lika(cache?.mejl.count, 1, "mejlen kommer med")
+            Prov.lika(cache?.mejl.first?.text, "", "brödtexten blir tom i stället för att fälla")
+            Prov.lika(cache?.bilagor.count, 0, "bilagorna blir en tom lista")
+
+            let gammalInspelning = """
+            {"titel": "Avstämning", "inledd": "2026-08-31T19:43:13Z", "längd": 120,
+             "kund": "Acme", "liveYttranden": []}
+            """
+            let i = try? JSONDecoder.kundkoll.decode(
+                Inspelning.self, from: Data(gammalInspelning.utf8))
+            Prov.kolla(i != nil, "en inspelning utan de senaste fälten går att läsa")
+            Prov.lika(i?.titel, "Avstämning", "titeln kommer med")
+            Prov.lika(i?.enspårig, false, "enspårig får sitt standardvärde")
+            Prov.lika(i?.kallade.count, 0, "kallade blir tom")
+            Prov.kolla(i?.sammanfattning == nil, "sammanfattningen blir nil")
+
+            let gammalKontakt = """
+            {"namn": "Anna Svensson"}
+            """
+            let k = try? JSONDecoder.kundkoll.decode(Kontakt.self, from: Data(gammalKontakt.utf8))
+            Prov.lika(k?.namn, "Anna Svensson", "en kontakt med bara namn går att läsa")
+            Prov.lika(k?.epost.count, 0, "adresserna blir en tom lista")
+        }
+
+        do {   // brödtext ur mejl
+            let d = "\u{1F}"
+            let rad = "Monday, 3 August 2026 at 09:00:00\(d)Anna <anna@acme.se>\(d)Offert\(d)<a@x>\(d)konto\(d)INBOX\(d)fran\(d)Hej! Här kommer offerten på pallställ."
+            let m = Mailen.tolka(rad).first
+            Prov.lika(m?.text, "Hej! Här kommer offerten på pallställ.",
+                      "brödtexten kommer med")
+
+            // Citerade svar och signaturer klipps: de finns redan indexerade
+            // var för sig och skulle bara fylla banken.
+            Prov.lika(Mailen.städaBrödtext("Nytt svar här.\n\nFrån: Anna\nGammalt svar"),
+                      "Nytt svar här.", "citat klipps bort")
+            Prov.lika(Mailen.städaBrödtext("Kort svar.\nSkickat från min iPhone"),
+                      "Kort svar.", "signaturer klipps bort")
+            Prov.lika(Mailen.städaBrödtext("  Bara text.  "), "Bara text.",
+                      "blanksteg trimmas")
+
+            let utan = "Monday, 3 August 2026 at 09:00:00\(d)A <a@x.se>\(d)Ämne\(d)<b@x>\(d)konto\(d)INBOX\(d)fran"
+            Prov.lika(Mailen.tolka(utan).first?.text, "",
+                      "äldre rader utan brödtext tolkas ändå")
+        }
+
+        do {   // sammanfattningens JSON
+            let json = """
+            {"kärna": "Genomgång av lagerprojektet.",
+             "beslut": ["Offert före fredag"],
+             "åtaganden": [{"vad": "Skicka ritningar", "vem": "Anders", "när": "på måndag"},
+                           {"vad": "Kolla pris", "vem": null, "när": null}],
+             "öppet": ["Vem betalar frakten?"]}
+            """
+            let s = Sammanfattare.tolka(json)
+            Prov.lika(s?.kärna, "Genomgång av lagerprojektet.", "kärnan tolkas")
+            Prov.lika(s?.beslut.count, 1, "beslut tolkas")
+            Prov.lika(s?.åtaganden.count, 2, "åtaganden tolkas")
+            Prov.lika(s?.åtaganden.first?.vem, "Anders", "vem som ska göra det")
+            Prov.lika(s?.åtaganden.first?.när, "på måndag", "och när")
+            Prov.kolla(s?.åtaganden.last?.vem == nil, "null blir nil, inte strängen null")
+            Prov.lika(s?.öppet.count, 1, "öppna frågor tolkas")
+            Prov.kolla(!(s?.tom ?? true), "en ifylld sammanfattning är inte tom")
+
+            // Modeller lägger gärna JSON i en kodruta och skriver en rad före
+            let ikodruta = "Här är sammanfattningen:\n\n```json\n" + json + "\n```"
+            Prov.kolla(Sammanfattare.tolka(ikodruta) != nil, "JSON i kodruta tolkas")
+            Prov.lika(Sammanfattare.tolka(ikodruta)?.beslut.count, 1, "och innehållet kommer med")
+
+            Prov.kolla(Sammanfattare.tolka("inget här") == nil, "text utan JSON ger nil")
+            let tom = Sammanfattare.tolka("""
+            {"kärna": "", "beslut": [], "åtaganden": [], "öppet": []}
+            """)
+            Prov.kolla(tom?.tom == true, "en sammanfattning utan innehåll räknas som tom")
+        }
+
+        do {   // markdown i svaren
+            let block = Markdowntext.tolka("""
+            Här är vad som sades:
+
+            - Cell Sourcing Platform beskrivs som en av punkterna [4]
+            - Man får tillbaka inspect sheets
+
+            1. Tidsfönstret
+            2. Gruppstorlek
+
+            # Sammanfattning
+
+            Sista stycket.
+            """)
+            Prov.kolla(block.contains(.punkt("Cell Sourcing Platform beskrivs som en av punkterna [4]", nivå: 0)),
+                       "bindestreckslistor blir punkter")
+            Prov.kolla(block.contains(.numrerad(1, "Tidsfönstret", nivå: 0)),
+                       "numrerade listor behåller sina nummer")
+            Prov.kolla(block.contains(.rubrik("Sammanfattning")), "rubriker känns igen")
+            Prov.kolla(block.contains(.stycke("Sista stycket.")), "vanliga stycken kommer med")
+
+            // Rader i samma stycke slås ihop, tomrad bryter
+            let ihop = Markdowntext.tolka("En rad\noch en till\n\nNytt stycke")
+            Prov.lika(ihop, [.stycke("En rad och en till"), .stycke("Nytt stycke")],
+                      "radbrytning inom ett stycke blir mellanslag")
+
+            Prov.lika(Markdowntext.tolka("").count, 0, "tom text ger inga block")
+            Prov.lika(Markdowntext.tolka("bara text"), [.stycke("bara text")],
+                      "text utan markdown blir ett stycke")
+
+            // Ett indraget listelement hamnar en nivå in
+            let indrag = Markdowntext.tolka("- överst\n  - inunder")
+            Prov.kolla(indrag.contains(.punkt("inunder", nivå: 1)), "indrag ger en nivå")
+        }
+
+        do {   // nyckelringen
+            let konto = "kundkoll-prov-\(UUID().uuidString)"
+            defer { Nyckelring.spara("", som: konto) }
+            Prov.kolla(Nyckelring.hämta(konto) == nil, "ingen nyckel från början")
+            Prov.kolla(Nyckelring.spara("hemlig-nyckel", som: konto), "nyckeln går att spara")
+            Prov.lika(Nyckelring.hämta(konto), "hemlig-nyckel", "och att läsa tillbaka")
+            Prov.kolla(Nyckelring.spara("", som: konto), "en tom nyckel tar bort posten")
+            Prov.kolla(Nyckelring.hämta(konto) == nil, "och då finns den inte längre")
+        }
+    }
+
+    // MARK: - Obsidian
+
+    static func obsidian() {
+        Prov.svit("Obsidian")
+        // Sökvägar med å ä ö och mellanslag måste överleva kodningen
+        let c = CharacterSet.urlQueryValueAllowed
+        Prov.kolla(!c.contains(Unicode.Scalar("/")), "snedstreck kodas i sökvägen")
+        Prov.kolla(!c.contains(Unicode.Scalar("&")), "och-tecken kodas")
+        let kodad = "/Users/a/Documents/Kunder/Ängsö Trä/Anteckningar/Möte.md"
+            .addingPercentEncoding(withAllowedCharacters: .urlQueryValueAllowed)
+        Prov.kolla(kodad != nil, "sökvägen går att koda")
+        Prov.kolla(kodad?.contains("%2F") == true, "snedstrecken är kodade")
+        Prov.kolla(URL(string: "obsidian://open?path=\(kodad ?? "")") != nil,
+                   "resultatet blir en giltig URL")
+    }
+
+    // MARK: - Anteckningar
+
+    static func anteckningar() {
+        Prov.svit("Anteckningar")
+        let fm = FileManager.default
+
+        do {
+            let rot = fm.temporaryDirectory.appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? fm.removeItem(at: rot) }
+            let arkiv = Arkivet(rot: rot)
+            let kund = try! arkiv.skapaKund(namn: "Acme")
+            let projekt = try! arkiv.skapaProjekt(namn: "Nytt lager", hos: kund)
+            let mapp = projekt.anteckningsmapp
+
+            let a = try! arkiv.nyAnteckning(i: mapp, titel: "Möte om layout")
+            Prov.kolla(fm.fileExists(atPath: a.fil.path), "anteckningen blir en markdownfil")
+            Prov.lika(a.fil.pathExtension, "md", "med rätt filändelse")
+            Prov.lika(arkiv.anteckningar(i: mapp).count, 1, "och hittas i mappen")
+
+            // Samma rubrik två gånger ska inte skriva över
+            let b = try! arkiv.nyAnteckning(i: mapp, titel: "Möte om layout")
+            Prov.kolla(a.fil != b.fil, "samma rubrik ger inte samma fil")
+            Prov.lika(arkiv.anteckningar(i: mapp).count, 2, "båda finns kvar")
+
+            var c = a
+            c.text = "# Möte om layout\n\nLagret ska rymma 400 pallplatser.\n"
+            try! arkiv.spara(c)
+            let läst = arkiv.anteckningar(i: mapp).first { $0.titel == a.titel }
+            Prov.kolla(läst?.text.contains("400 pallplatser") == true, "texten sparas")
+            Prov.lika(läst?.utdrag, "Lagret ska rymma 400 pallplatser.",
+                      "utdraget hoppar över rubriken")
+
+            let omdöpt = try! arkiv.döpOm(c, till: "Layoutmöte 12 sep")
+            Prov.lika(omdöpt.titel, "Layoutmöte 12 sep", "anteckningen går att döpa om")
+            Prov.kolla(!fm.fileExists(atPath: a.fil.path), "den gamla filen lämnas inte kvar")
+            Prov.kolla(fm.fileExists(atPath: omdöpt.fil.path), "den nya filen finns")
+
+            try! arkiv.taBort(omdöpt)
+            Prov.lika(arkiv.anteckningar(i: mapp).count, 1, "anteckningar går att ta bort")
+        }
+
+        do {   // bilder
+            let rot = fm.temporaryDirectory.appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? fm.removeItem(at: rot) }
+            let arkiv = Arkivet(rot: rot)
+            let kund = try! arkiv.skapaKund(namn: "Acme")
+            let mapp = kund.anteckningsmapp
+
+            let namn = try! arkiv.sparaBild(Data([0x89, 0x50, 0x4E, 0x47]), ändelse: "png", i: mapp)
+            Prov.kolla(namn.hasPrefix("bilder/"), "bilden hamnar i en egen mapp (\(namn))")
+            Prov.kolla(fm.fileExists(atPath: mapp.appending(path: namn).path),
+                       "filen finns på disk")
+
+            var a = try! arkiv.nyAnteckning(i: mapp, titel: "Skisser")
+            a.text = "# Skisser\n\n![[\(namn)]]\n\nText emellan\n\n![[bilder/annan.png]]\n"
+            Prov.lika(a.bilder.count, 2, "båda bilderna hittas i texten")
+            Prov.lika(a.bilder.first, namn, "i den ordning de förekommer")
+
+            a.text = "# Utan bilder\n\nSe [[En annan anteckning]] för mer.\n"
+            Prov.lika(a.bilder.count, 0,
+                      "vanliga wikilänkar räknas inte som bilder")
+        }
+
+        do {   // filnamn
+            let rot = fm.temporaryDirectory.appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? fm.removeItem(at: rot) }
+            let arkiv = Arkivet(rot: rot)
+            let kund = try! arkiv.skapaKund(namn: "Acme")
+            let a = try! arkiv.nyAnteckning(i: kund.anteckningsmapp, titel: "Före/efter: ändringar")
+            Prov.kolla(!a.titel.contains("/"),
+                       "snedstreck i rubriken skapar inte oavsiktliga undermappar")
+            Prov.kolla(fm.fileExists(atPath: a.fil.path), "anteckningen skapas ändå")
+
+            let tom = try! arkiv.nyAnteckning(i: kund.anteckningsmapp, titel: "")
+            Prov.lika(tom.titel, "Anteckning", "en anteckning utan rubrik får ett namn ändå")
+        }
+    }
+
+    // MARK: - Kontakter och kalender
+
+    static func kontakterOchKalender() {
+        Prov.svit("Kontakter och kalender")
+
+        do {   // e-postmatchning
+            let k = Kontakt(namn: "Anna", epost: ["Anna@Acme.se"])
+            Prov.kolla(k.matchar(epost: "anna@acme.se"), "matchning bryr sig inte om skiftläge")
+            Prov.kolla(k.matchar(epost: "Anna Svensson <anna@acme.se>"),
+                       "adressen hittas även inbäddad i ett namn")
+            Prov.kolla(!k.matchar(epost: "anna@annat.se"), "fel domän matchar inte")
+        }
+
+        do {   // domäner, med allmänna leverantörer bortsorterade
+            let d = Kalendern.domäner(hos: [
+                Kontakt(namn: "A", epost: ["a@acme.se"]),
+                Kontakt(namn: "B", epost: ["b@gmail.com"]),
+                Kontakt(namn: "C", epost: ["c@acme.se", "privat@hotmail.com"]),
+            ])
+            Prov.lika(d, ["acme.se"],
+                      "gmail och hotmail räknas inte som kundens domän, annars matchar varje möte")
+        }
+
+        do {   // mötesmatchning
+            let kund = Kund(namn: "Acme AB", mapp: URL(fileURLWithPath: "/tmp/Acme AB"))
+            let kontakter = [Kontakt(namn: "Anna Svensson", epost: ["anna@acme.se"])]
+            func möte(_ titel: String, _ deltagare: [(String, String?)]) -> Kalendern.Möte {
+                Kalendern.Möte(id: UUID().uuidString, titel: titel, start: Date(),
+                               slut: Date().addingTimeInterval(3600),
+                               deltagare: deltagare.map {
+                                   Kalendern.Deltagare(namn: $0.0, epost: $0.1, ärJag: false) },
+                               plats: nil, möteslänk: nil)
+            }
+            Prov.kolla(Kalendern.hör(möte("Avstämning", [("Anna Svensson", "anna@acme.se")]),
+                                     till: kund, kontakter: kontakter),
+                       "möte med en känd kontakt hör till kunden")
+            Prov.kolla(Kalendern.hör(möte("Uppstart", [("Bo Ek", "bo@acme.se")]),
+                                     till: kund, kontakter: kontakter),
+                       "okänd person på kundens domän räknas också")
+            Prov.kolla(Kalendern.hör(möte("Möte med Acme AB", [("Cecilia", "c@annat.se")]),
+                                     till: kund, kontakter: kontakter),
+                       "kundnamnet i titeln räcker när adresser saknas")
+            Prov.kolla(!Kalendern.hör(möte("Tandläkare", [("Tandvården", "info@tandlakaren.se")]),
+                                      till: kund, kontakter: kontakter),
+                       "ovidkommande möten sorteras bort")
+        }
+
+        do {   // deltagare som visas
+            func möte(_ deltagare: [(String, Bool)]) -> Kalendern.Möte {
+                Kalendern.Möte(id: "1", titel: "T", start: Date(), slut: Date(),
+                               deltagare: deltagare.map {
+                                   Kalendern.Deltagare(namn: $0.0, epost: nil, ärJag: $0.1) },
+                               plats: nil, möteslänk: nil)
+            }
+            let m = möte([("Anders Bjarby", true), ("Kristin Sand Bakken", false)])
+            Prov.lika(m.deltagare.filter { !$0.ärJag }.map(\.namn), ["Kristin Sand Bakken"],
+                      "jag själv räknas inte som motpart i deltagarlistan")
+        }
+
+        do {   // kontakter sparas per kund och slås ihop
+            let rot = FileManager.default.temporaryDirectory
+                .appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: rot) }
+            let arkiv = Arkivet(rot: rot)
+            let kund = try! arkiv.skapaKund(namn: "Acme")
+
+            try! arkiv.läggTill(Kontakt(namn: "Anna Svensson", epost: ["anna@acme.se"]), hos: kund)
+            Prov.lika(arkiv.kontakter(för: kund).count, 1, "kontakten sparas")
+
+            // Samma person igen, från ett annat håll och med mer uppgifter
+            try! arkiv.läggTill(Kontakt(namn: "Anna Svensson", roll: "VD",
+                                        epost: ["anna.svensson@acme.se"],
+                                        telefon: ["070-1234567"]), hos: kund)
+            let alla = arkiv.kontakter(för: kund)
+            Prov.lika(alla.count, 1, "samma namn ger inte en dubblett")
+            Prov.lika(alla.first?.epost.count, 2, "adresserna slås ihop")
+            Prov.lika(alla.first?.roll, "VD", "uppgifter som saknades fylls i")
+
+            Prov.kolla(FileManager.default.fileExists(
+                atPath: kund.kontaktmapp.appending(path: "Anna Svensson.md").path),
+                       "kontakten får en not i vaultet")
+
+            try! arkiv.taBort(alla.first!, hos: kund)
+            Prov.lika(arkiv.kontakter(för: kund).count, 0, "kontakten går att ta bort")
+        }
+
+        do {   // redigering
+            let rot = FileManager.default.temporaryDirectory
+                .appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: rot) }
+            let arkiv = Arkivet(rot: rot)
+            let kund = try! arkiv.skapaKund(namn: "Acme")
+            try! arkiv.läggTill(Kontakt(namn: "Bo Ek"), hos: kund)
+
+            var bo = arkiv.kontakter(för: kund).first!
+            bo.roll = "Inköpschef"
+            bo.epost = ["bo@acme.se", "bo.ek@acme.se"]
+            bo.telefon = ["070-1234567"]
+            try! arkiv.uppdatera(bo, hos: kund)
+
+            let sparad = arkiv.kontakter(för: kund).first
+            Prov.lika(sparad?.roll, "Inköpschef", "rollen sparas")
+            Prov.lika(sparad?.epost.count, 2, "flera adresser sparas")
+            Prov.lika(sparad?.telefon.first, "070-1234567", "telefonnumret sparas")
+
+            let not = try! String(contentsOf: kund.kontaktmapp.appending(path: "Bo Ek.md"),
+                                  encoding: .utf8)
+            Prov.kolla(not.contains("roll: \"Inköpschef\""), "uppgifterna hamnar i frontmatter")
+            Prov.kolla(not.contains("  - bo@acme.se"), "adresserna listas i frontmatter")
+        }
+
+        do {   // egna anteckningar i noten överlever en uppdatering
+            let rot = FileManager.default.temporaryDirectory
+                .appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: rot) }
+            let arkiv = Arkivet(rot: rot)
+            let kund = try! arkiv.skapaKund(namn: "Acme")
+            try! arkiv.läggTill(Kontakt(namn: "Cecilia Nord"), hos: kund)
+
+            let not = kund.kontaktmapp.appending(path: "Cecilia Nord.md")
+            var text = try! String(contentsOf: not, encoding: .utf8)
+            text += "\nGillar att prata om segling. Ringer helst på förmiddagen.\n"
+            try! text.write(to: not, atomically: true, encoding: .utf8)
+
+            var c = arkiv.kontakter(för: kund).first!
+            c.epost = ["cecilia@acme.se"]
+            try! arkiv.uppdatera(c, hos: kund)
+
+            let efter = try! String(contentsOf: not, encoding: .utf8)
+            Prov.kolla(efter.contains("Gillar att prata om segling"),
+                       "egna anteckningar skrivs inte över när uppgifter uppdateras")
+            Prov.kolla(efter.contains("cecilia@acme.se"), "och de nya uppgifterna kommer med")
+        }
+
+        do {   // namnbyte
+            let rot = FileManager.default.temporaryDirectory
+                .appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: rot) }
+            let arkiv = Arkivet(rot: rot)
+            let kund = try! arkiv.skapaKund(namn: "Acme")
+            try! arkiv.läggTill(Kontakt(namn: "Eva Berg"), hos: kund)
+
+            var eva = arkiv.kontakter(för: kund).first!
+            eva.namn = "Eva Berg-Lund"
+            try! arkiv.uppdatera(eva, hos: kund)
+
+            let fm = FileManager.default
+            Prov.kolla(fm.fileExists(atPath: kund.kontaktmapp.appending(path: "Eva Berg-Lund.md").path),
+                       "noten följer med vid namnbyte")
+            Prov.kolla(!fm.fileExists(atPath: kund.kontaktmapp.appending(path: "Eva Berg.md").path),
+                       "den gamla noten lämnas inte kvar föräldralös")
+            Prov.lika(arkiv.kontakter(för: kund).count, 1, "namnbyte skapar ingen dubblett")
+        }
+
+        do {   // frontmatter
+            Prov.lika(Arkivet.utanFrontmatter("---\ntyp: kontakt\n---\n\n# Anna\n"),
+                      "\n# Anna\n", "frontmatter skalas bort")
+            Prov.lika(Arkivet.utanFrontmatter("# Anna\n"), "# Anna\n",
+                      "filer utan frontmatter lämnas orörda")
+            Prov.lika(Arkivet.utanFrontmatter("---\ntrasig utan slut\n"),
+                      "---\ntrasig utan slut\n",
+                      "en frontmatter utan avslutning rörs inte")
+        }
+    }
+
+    // MARK: - Mail
+
+    static func mailen() {
+        Prov.svit("Mail")
+
+        do {   // tolkning av svaret
+            let d = "\u{1F}"
+            let rader = [
+                "Tuesday, 18 August 2026 at 00:49:37\(d)\"Acme AB\" <faktura@acme.se>\(d)Faktura 1234\(d)<abc@acme.se>\(d)anders@exempel.se\(d)INBOX\(d)från",
+                "Monday, 17 August 2026 at 09:00:00\(d)Anna <anna@acme.se>\(d)Re: Offert | version 2\(d)<def@acme.se>\(d)anders@exempel.se\(d)INBOX\(d)från",
+            ].joined(separator: "\n")
+            let mejl = Mailen.tolka(rader)
+            Prov.lika(mejl.count, 2, "båda raderna tolkas")
+            Prov.kolla(!(mejl.first?.skickat ?? true), "mejl ur inkorgen räknas som mottagna")
+            Prov.lika(mejl.first?.ämne, "Faktura 1234", "ämnet kommer med")
+            Prov.lika(mejl.first?.avsändarnamn, "Acme AB", "namnet plockas ur avsändaren")
+            Prov.lika(mejl.first?.avsändaradress, "faktura@acme.se", "adressen plockas ur avsändaren")
+            Prov.kolla(mejl.contains { $0.ämne == "Re: Offert | version 2" },
+                       "ämnen med rörtecken överlever, därav ASCII 31 som avgränsare")
+            Prov.kolla((mejl.first?.datum ?? .distantPast) > (mejl.last?.datum ?? .distantFuture),
+                       "nyaste mejlet först")
+        }
+
+        do {   // datumformatet Mail lämnar
+            let d = Mailen.datum(ur: "Tuesday, 18 August 2026 at 00:49:37")
+            Prov.kolla(d != nil, "Mails datumsträng går att tolka")
+            if let d {
+                let delar = Calendar.current.dateComponents([.year, .month, .day, .hour], from: d)
+                Prov.lika(delar.year, 2026, "rätt år")
+                Prov.lika(delar.month, 8, "rätt månad")
+                Prov.lika(delar.day, 18, "rätt dag")
+            }
+            Prov.kolla(Mailen.datum(ur: "skräp") == nil, "skräp ger nil i stället för fel datum")
+        }
+
+        do {   // riktning
+            let d = "\u{1F}"
+            let rader = [
+                "Monday, 3 August 2026 at 09:00:00\(d)Anders <anders@exempel.se>\(d)Re: Offert\(d)<a@x>\(d)anders@exempel.se\(d)Sent Messages\(d)till",
+                "Monday, 3 August 2026 at 08:00:00\(d)Anna <anna@acme.se>\(d)Offert\(d)<b@x>\(d)anders@exempel.se\(d)INBOX\(d)fran",
+            ].joined(separator: "\n")
+            let mejl = Mailen.tolka(rader)
+            Prov.lika(mejl.count, 2, "både mottaget och skickat tolkas")
+            Prov.kolla(mejl.first?.skickat == true, "det jag skickat känns igen som skickat")
+            Prov.kolla(mejl.last?.skickat == false, "det jag fått räknas inte som skickat")
+        }
+
+        do {   // cache
+            let rot = FileManager.default.temporaryDirectory
+                .appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: rot) }
+            let arkiv = Arkivet(rot: rot)
+            let kund = try! arkiv.skapaKund(namn: "Acme")
+            Prov.kolla(arkiv.mailcache(för: kund) == nil, "ingen cache från början")
+
+            let d = "\u{1F}"
+            let mejl = Mailen.tolka(
+                "Monday, 3 August 2026 at 09:00:00\(d)Anna <anna@acme.se>\(d)Offert\(d)<a@x>\(d)konto\(d)INBOX\(d)fran")
+            try! arkiv.sparaMail(mejl, för: kund)
+
+            let cache = arkiv.mailcache(för: kund)
+            Prov.lika(cache?.mejl.count, 1, "mejlen finns kvar efter omstart")
+            Prov.lika(cache?.mejl.first?.ämne, "Offert", "med ämnet i behåll")
+            Prov.kolla(cache?.färsk == true, "en nyss hämtad cache räknas som färsk")
+
+            let gammal = Arkivet.Mailcache(hämtad: Date().addingTimeInterval(-3600), mejl: mejl)
+            Prov.kolla(!gammal.färsk, "en timme gammal cache hämtas om")
+
+            let not = try! String(contentsOf: kund.mailmapp.appending(path: "Mail.md"),
+                                  encoding: .utf8)
+            Prov.kolla(not.contains("Offert"), "korrespondensen skrivs till Obsidian")
+            Prov.kolla(not.contains("[[Acme]]"), "med länk till kunden")
+        }
+
+        do {   // trasiga rader
+            Prov.lika(Mailen.tolka("").count, 0, "tomt svar ger inga mejl")
+            Prov.lika(Mailen.tolka("bara en text utan fält").count, 0, "rader utan fält hoppas över")
+            // Äldre rader utan riktningsfält ska inte falla
+            let utanRiktning = "Monday, 3 August 2026 at 08:00:00\u{1F}A <a@x.se>\u{1F}Ämne\u{1F}<b@x>\u{1F}konto\u{1F}INBOX"
+            Prov.lika(Mailen.tolka(utanRiktning).count, 1, "rader utan riktningsfält tolkas ändå")
+        }
+    }
+
+    // MARK: - Röstanalys
+
+    static func röster() {
+        Prov.svit("Röstanalys")
+
+        func y(_ start: Double, _ slut: Double, _ text: String = "text") -> Yttrande {
+            Yttrande(röst: .motpart, text: text, start: start, slut: slut)
+        }
+
+        do {   // turbyggande
+            let turer = Röstanalys.turer(av: [
+                y(0, 3), y(3.2, 6),          // 0,2 s paus — samma tur
+                y(9, 12), y(12.1, 15),       // 3 s paus bryter, sedan ihop igen
+            ])
+            Prov.lika(turer.count, 2, "korta pauser håller ihop turen, långa bryter")
+            Prov.lika(turer.first?.start, 0, "turen börjar vid första yttrandet")
+            Prov.lika(turer.first?.slut, 6, "och slutar vid det sista före pausen")
+        }
+
+        do {   // för korta turer sållas bort
+            let turer = Röstanalys.turer(av: [y(0, 0.8), y(5, 9)])
+            Prov.lika(turer.count, 1, "turer under \(Tröskel.minstaTurLängd) s kastas")
+            Prov.lika(turer.first?.längd, 4, "den långa blir kvar")
+        }
+
+        do {   // taket bryter långa turer
+            var rader: [Yttrande] = []
+            for i in 0..<20 { rader.append(y(Double(i) * 2, Double(i) * 2 + 1.9)) }
+            let turer = Röstanalys.turer(av: rader, tak: 12)
+            Prov.kolla(turer.allSatisfy { $0.längd <= 13 },
+                       "ingen tur blir längre än taket och hinner blanda in nästa person")
+            Prov.kolla(turer.count > 1, "den långa monologen delas upp (\(turer.count) turer)")
+        }
+
+        do {   // trösklarna följer längden
+            Prov.kolla(Tröskel.samma(sekunder: 2) < Tröskel.samma(sekunder: 10),
+                       "kort ljud kräver lägre tröskel än långt")
+            Prov.kolla(Tröskel.namnge(sekunder: 5) > Tröskel.samma(sekunder: 5),
+                       "att sätta namn kräver mer säkerhet än att bunta ihop")
+            Prov.kolla(Tröskel.sammaGrupp(sekunder: 30) > Tröskel.samma(sekunder: 30),
+                       "andra rundan är strängare, annars slås lika röster ihop")
+        }
+
+        do {   // avtryck och likhet
+            let a = Avtryck(vektor: [1, 0, 0], sekunder: 5)
+            let b = Avtryck(vektor: [1, 0, 0], sekunder: 5)
+            let c = Avtryck(vektor: [0, 1, 0], sekunder: 5)
+            Prov.lika(a.likhet(b), 1.0, "identiska avtryck ger likhet 1")
+            Prov.lika(a.likhet(c), 0.0, "vinkelräta avtryck ger 0")
+            Prov.lika(a.likhet(Avtryck(vektor: [1, 0], sekunder: 5)), 0.0,
+                      "olika längd ger 0 i stället för att krascha")
+        }
+
+        do {   // profiler
+            var p = Röstprofil(namn: "Anna", avtryck: [Avtryck(vektor: [1, 0, 0], sekunder: 5)],
+                               uppdaterad: Date(), samtal: 1)
+            Prov.lika(p.likhet(Avtryck(vektor: [1, 0, 0], sekunder: 5)), 1.0, "profilen känner igen sig själv")
+            p.lärDig(Avtryck(vektor: [0, 1, 0], sekunder: 9))
+            Prov.lika(p.avtryck.count, 2, "profilen lär sig nya avtryck")
+            Prov.lika(p.likhet(Avtryck(vektor: [0, 1, 0], sekunder: 5)), 1.0,
+                      "bästa träffen räknas, inte medelvärdet")
+            for i in 0..<12 { p.lärDig(Avtryck(vektor: [0, 0, 1], sekunder: Double(i))) }
+            Prov.kolla(p.avtryck.count <= 8, "profilen växer inte i all oändlighet (\(p.avtryck.count))")
+            Prov.kolla(p.avtryck.contains { $0.sekunder == 9 }, "de längsta avtrycken behålls vid gallring")
+        }
+
+        do {   // gruppering
+            func a(_ v: [Float], _ s: Double) -> Avtryck { Avtryck(vektor: v, sekunder: s) }
+            let t1 = Röstanalys.Tur(start: 0, slut: 8, text: "en")
+            let t2 = Röstanalys.Tur(start: 10, slut: 18, text: "två")
+            let t3 = Röstanalys.Tur(start: 20, slut: 28, text: "tre")
+            // Två nästan identiska röster och en helt annan
+            let nära1: [Float] = [1, 0, 0]
+            let nära2: [Float] = [0.99, 0.14, 0]
+            let annan: [Float] = [0, 0, 1]
+            let grupper = Röstanalys.gruppera([(t1, a(nära1, 8)), (t2, a(nära2, 8)), (t3, a(annan, 8))])
+            Prov.lika(grupper.count, 2, "lika röster buntas ihop, olika hålls isär")
+            Prov.kolla(grupper.first?.turer.count == 2, "den största gruppen har de två lika")
+        }
+
+        do {   // var kedjan klipps
+            // Likheten faller monotont när grupper slås ihop. Det största
+            // fallet är övergången från samma person till olika.
+            //            5      4      3      2      1
+            let kedja = [0.82, 0.78, 0.73, 0.40, -Double.infinity]
+            Prov.lika(Röstanalys.klippställe(kedja), 3,
+                      "klipper där likheten faller mest")
+
+            // Ett jämnt fall utan tydlig gräns
+            Prov.kolla(Röstanalys.klippställe([0.8, 0.7, 0.6, 0.5, -Double.infinity]) >= 0,
+                       "en jämn kedja ger ändå ett svar")
+            Prov.lika(Röstanalys.klippställe([0.5]), 0, "en kedja med ett läge klipps först")
+            Prov.lika(Röstanalys.klippställe([]), 0, "tom kedja kraschar inte")
+        }
+
+        do {   // långa turer blir kärnor
+            func p(_ längd: Double, _ v: [Float]) -> (Röstanalys.Tur, Avtryck) {
+                (Röstanalys.Tur(start: 0, slut: längd, text: ""),
+                 Avtryck(vektor: v, sekunder: längd))
+            }
+            let (kärnor, korta) = Röstanalys.delaEfterLängd([
+                p(20, [1, 0, 0]), p(18, [0, 1, 0]),      // långa
+                p(2, [1, 0, 0]), p(3, [0, 1, 0]), p(2.5, [1, 0, 0]),   // korta
+            ])
+            Prov.kolla(kärnor.allSatisfy { $0.0.längd >= Tröskel.minstaKärnlängd },
+                       "bara långa turer blir kärnor")
+            Prov.kolla(korta.allSatisfy { $0.0.längd < 20 }, "de korta hamnar i resten")
+            Prov.kolla(kärnor.count >= 1 && korta.count >= 3,
+                       "uppdelningen ger både kärnor och rester (\(kärnor.count)/\(korta.count))")
+        }
+
+        do {   // korta turer hamnar hos rätt röst i stället för att bli egna
+            func p(_ start: Double, _ längd: Double, _ v: [Float]) -> (Röstanalys.Tur, Avtryck) {
+                (Röstanalys.Tur(start: start, slut: start + längd, text: ""),
+                 Avtryck(vektor: v, sekunder: längd))
+            }
+            let a: [Float] = [1, 0, 0]
+            let b: [Float] = [0, 1, 0]
+            // Två tydliga röster i långa turer, plus fem korta inpass
+            let grupper = Röstanalys.gruppera([
+                p(0, 20, a), p(30, 18, b), p(60, 16, a), p(90, 15, b),
+                p(120, 2, a), p(125, 3, b), p(130, 2, a), p(135, 2.5, b), p(140, 2, a),
+            ], väntade: 2)
+            Prov.lika(grupper.count, 2,
+                      "korta inpass blir inte egna röster (\(grupper.count) grupper)")
+            Prov.lika(grupper.reduce(0) { $0 + $1.turer.count }, 9,
+                      "alla turer kommer med någonstans")
+        }
+
+        do {   // väntat antal styr
+            func p(_ v: [Float]) -> (Röstanalys.Tur, Avtryck) {
+                (Röstanalys.Tur(start: 0, slut: 12, text: ""), Avtryck(vektor: v, sekunder: 12))
+            }
+            let par = [p([1, 0, 0]), p([0.98, 0.2, 0]), p([0, 1, 0]), p([0, 0.98, 0.2]),
+                       p([0, 0, 1]), p([0.2, 0, 0.98])]
+            Prov.kolla(Röstanalys.gruppera(par, väntade: 3).count <= 3,
+                       "ett väntat antal ger inte fler röster än så")
+            Prov.kolla(Röstanalys.gruppera(par, väntade: 2).count <= 2,
+                       "och håller ihop hårdare när färre väntas")
+        }
+
+        do {   // namngivning kräver säkerhet
+            let t = Röstanalys.Tur(start: 0, slut: 10, text: "hej")
+            let grupper = Röstanalys.gruppera([(t, Avtryck(vektor: [1, 0, 0], sekunder: 10))])
+            let profil = Röstprofil(namn: "Anna", avtryck: [Avtryck(vektor: [1, 0, 0], sekunder: 10)],
+                                    uppdaterad: Date(), samtal: 1)
+            Prov.lika(Röstanalys.namnge(grupper, mot: [profil]).first?.namn, "Anna",
+                      "en säker träff får namnet")
+
+            let svag = Röstprofil(namn: "Berit", avtryck: [Avtryck(vektor: [0.5, 0.86, 0], sekunder: 10)],
+                                  uppdaterad: Date(), samtal: 1)
+            Prov.kolla(Röstanalys.namnge(grupper, mot: [svag]).first?.namn == nil,
+                       "en osäker träff lämnas namnlös hellre än att gissa fel")
+        }
+
+        do {   // två grupper får inte samma namn
+            let t1 = Röstanalys.Tur(start: 0, slut: 10, text: "en")
+            let t2 = Röstanalys.Tur(start: 30, slut: 40, text: "två")
+            let g = [Röstanalys.Röstgrupp(turer: [t1], avtryck: [Avtryck(vektor: [1, 0, 0], sekunder: 10)]),
+                     Röstanalys.Röstgrupp(turer: [t2], avtryck: [Avtryck(vektor: [0.97, 0.24, 0], sekunder: 10)])]
+            let profil = Röstprofil(namn: "Anna", avtryck: [Avtryck(vektor: [1, 0, 0], sekunder: 10)],
+                                    uppdaterad: Date(), samtal: 1)
+            let ut = Röstanalys.namnge(g, mot: [profil])
+            Prov.lika(ut.filter { $0.namn == "Anna" }.count, 1,
+                      "samma person sätts bara på en grupp")
+        }
+
+        do {   // tilldelning enligt diarisering
+            func t(_ start: Double, _ slut: Double) -> Röstanalys.Tur {
+                Röstanalys.Tur(start: start, slut: slut, text: "")
+            }
+            let turer = [t(0, 10), t(12, 20), t(25, 35), t(40, 45)]
+            let segment = [
+                Röstanalys.Talarsegment(start: 0, slut: 11, talare: "A"),
+                Röstanalys.Talarsegment(start: 11, slut: 22, talare: "B"),
+                Röstanalys.Talarsegment(start: 22, slut: 36, talare: "A"),
+                Röstanalys.Talarsegment(start: 36, slut: 50, talare: "B"),
+            ]
+            let grupper = Röstanalys.gruppera(turer: turer, avtryck: [:], enligt: segment)
+            Prov.lika(grupper.count, 2, "två talare ger två grupper")
+            // A talar 0–10 och 25–35, alltså 20 s; B talar 12–20 och 40–45, 13 s
+            Prov.lika(grupper.first?.turer.count, 2, "största gruppen har sina två turer")
+            Prov.kolla(grupper.allSatisfy { $0.turer.count == 2 },
+                       "turerna fördelas efter var de överlappar mest")
+
+            // En tur som spänner över en talarväxling hamnar hos den som har mest
+            let delad = Röstanalys.gruppera(
+                turer: [t(8, 16)], avtryck: [:], enligt: segment)
+            Prov.lika(delad.count, 1, "en tur hamnar hos en enda talare")
+            Prov.lika(delad.first?.turer.count, 1, "och tas inte bort")
+
+            Prov.lika(Röstanalys.gruppera(turer: turer, avtryck: [:], enligt: []).count, 0,
+                      "utan segment blir det inga grupper")
+        }
+
+        do {   // etiketter och lagring
+            var y1 = Yttrande(röst: .motpart, text: "hej", start: 0, slut: 2)
+            y1.röstgrupp = 0
+            Prov.lika(y1.etikett([:]), "Röst 1", "namnlös grupp visas med nummer")
+            Prov.lika(y1.etikett([0: "Anna"]), "Anna", "namngiven grupp visar namnet")
+            let mitt = Yttrande(röst: .jag, text: "hej", start: 0, slut: 2)
+            Prov.lika(mitt.etikett([0: "Anna"]), "Jag", "mitt eget spår är alltid jag")
+        }
+
+        do {   // profiler sparas per kund
+            let rot = FileManager.default.temporaryDirectory
+                .appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: rot) }
+            let arkiv = Arkivet(rot: rot)
+            let a = try! arkiv.skapaKund(namn: "Acme")
+            let b = try! arkiv.skapaKund(namn: "Beta")
+            try! arkiv.lärDigRöst(namn: "Anna", avtryck: Avtryck(vektor: [1, 0, 0], sekunder: 6), hos: a)
+            Prov.lika(arkiv.röstprofiler(för: a).count, 1, "profilen sparas hos kunden")
+            Prov.lika(arkiv.röstprofiler(för: b).count, 0, "och läcker inte till andra kunder")
+            try! arkiv.lärDigRöst(namn: "Anna", avtryck: Avtryck(vektor: [0, 1, 0], sekunder: 7), hos: a)
+            let p = arkiv.röstprofiler(för: a).first
+            Prov.lika(p?.avtryck.count, 2, "ett andra samtal lägger till ett avtryck")
+            Prov.lika(p?.samtal, 2, "antalet samtal räknas upp")
+        }
+    }
+
+    // MARK: - Arkivet
+
+    private static func tillfälligt() -> (Arkivet, URL) {
+        let rot = FileManager.default.temporaryDirectory
+            .appending(path: "kundkoll-test-\(UUID().uuidString)")
+        return (Arkivet(rot: rot), rot)
+    }
+
+    static func arkivet() {
+        Prov.svit("Arkivet")
+        let fm = FileManager.default
+
+        do {   // mappstruktur och vault
+            let (arkiv, rot) = tillfälligt()
+            defer { try? fm.removeItem(at: rot) }
+            let kund = try! arkiv.skapaKund(namn: "Åkessons Bygg AB")
+            Prov.kolla(fm.fileExists(atPath: kund.projektmapp.path), "kunden får mappen Projekt")
+            Prov.kolla(fm.fileExists(atPath: kund.samtalsmapp.path), "kunden får mappen Samtal")
+            Prov.kolla(fm.fileExists(atPath: kund.kontaktmapp.path), "kunden får mappen Kontakter")
+            Prov.kolla(fm.fileExists(atPath: kund.mailmapp.path), "kunden får mappen Mail")
+            Prov.kolla(fm.fileExists(atPath: kund.mapp.appending(path: ".obsidian/app.json").path),
+                       "mappen blir en Obsidian-vault")
+            Prov.kolla(fm.fileExists(atPath: kund.mapp.appending(path: "Åkessons Bygg AB.md").path),
+                       "vaultet får en ingångsnot")
+        }
+
+        do {   // svenska tecken
+            let (arkiv, rot) = tillfälligt()
+            defer { try? fm.removeItem(at: rot) }
+            let kund = try! arkiv.skapaKund(namn: "Ängsö Trä & Rör")
+            arkiv.läsOm()
+            Prov.kolla(arkiv.kunder.contains { $0.namn == "Ängsö Trä & Rör" },
+                       "å ä ö överlever vägen till disk och tillbaka")
+            let md = try! String(contentsOf: kund.mapp.appending(path: "Ängsö Trä & Rör.md"), encoding: .utf8)
+            Prov.kolla(md.contains("Ängsö Trä & Rör"), "å ä ö överlever i markdown")
+        }
+
+        do {   // farliga tecken
+            let (arkiv, rot) = tillfälligt()
+            defer { try? fm.removeItem(at: rot) }
+            let kund = try! arkiv.skapaKund(namn: "Före/Efter AB")
+            Prov.kolla(!kund.namn.contains("/"), "snedstreck skapar inte oavsiktliga undermappar")
+            Prov.kolla(fm.fileExists(atPath: kund.mapp.path), "kunden skapas ändå")
+        }
+
+        do {   // läser det som skapats för hand
+            let (arkiv, rot) = tillfälligt()
+            defer { try? fm.removeItem(at: rot) }
+            let förHand = rot.appending(path: "Handgjord AB/Projekt/Ombyggnad")
+            try! fm.createDirectory(at: förHand, withIntermediateDirectories: true)
+            arkiv.läsOm()
+            let kund = arkiv.kunder.first { $0.namn == "Handgjord AB" }
+            Prov.kolla(kund != nil, "kund skapad i Finder syns i appen")
+            if let kund {
+                Prov.lika(arkiv.projekt(för: kund).map(\.namn), ["Ombyggnad"],
+                          "projekt skapat i Finder syns också")
+            }
+        }
+
+        do {   // namnkollisioner
+            let (arkiv, rot) = tillfälligt()
+            defer { try? fm.removeItem(at: rot) }
+            let kund = try! arkiv.skapaKund(namn: "Acme")
+            let nu = Date()
+            let a = try! arkiv.nyInspelningsmapp(placering: .kund(kund), titel: "Avstämning", datum: nu)
+            let b = try! arkiv.nyInspelningsmapp(placering: .kund(kund), titel: "Avstämning", datum: nu)
+            Prov.kolla(a != b, "två inspelningar samma minut skriver inte över varandra")
+        }
+
+        do {   // spara och läsa tillbaka
+            let (arkiv, rot) = tillfälligt()
+            defer { try? fm.removeItem(at: rot) }
+            let kund = try! arkiv.skapaKund(namn: "Acme")
+            _ = try! arkiv.skapaProjekt(namn: "Nytt lager", hos: kund)
+            let mapp = try! arkiv.nyInspelningsmapp(placering: .kund(kund), titel: "Uppstart", datum: Date())
+            let inspelning = Inspelning(
+                titel: "Uppstart", inledd: Date(), längd: 92.5,
+                kund: "Acme", projekt: "Nytt lager", mikrofon: "MacBook Pro-mikrofon",
+                liveYttranden: [
+                    Yttrande(röst: .jag, text: "Hej, hur går det med lagret?", start: 0, slut: 3),
+                    Yttrande(röst: .motpart, text: "Det rullar på.", start: 3.2, slut: 5),
+                ],
+                arkivYttranden: nil)
+            try! arkiv.spara(inspelning, i: mapp)
+
+            let tillbaka = arkiv.inspelningar(för: kund)
+            Prov.lika(tillbaka.count, 1, "sparad inspelning hittas igen")
+            Prov.lika(tillbaka.first?.0.yttranden.count, 2, "alla rader kommer med")
+
+            let md = try! String(contentsOf: mapp.appending(path: "Transkript.md"), encoding: .utf8)
+            Prov.kolla(md.contains("[[Acme]]"), "markdown länkar till kunden")
+            Prov.kolla(md.contains("[[Nytt lager]]"), "markdown länkar till projektet")
+            Prov.kolla(md.contains("**Jag** `00:00`"), "rader får talare och tidsstämpel")
+            Prov.kolla(md.contains("Det rullar på."), "texten finns i markdown")
+        }
+
+        do {   // kasta en inspelning
+            let rot = FileManager.default.temporaryDirectory
+                .appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: rot) }
+            let arkiv = Arkivet(rot: rot)
+            let kund = try! arkiv.skapaKund(namn: "Acme")
+            let mapp = try! arkiv.nyInspelningsmapp(placering: .kund(kund),
+                                                    titel: "Att kasta", datum: Date())
+            let i = Inspelning(titel: "Att kasta", inledd: Date(), längd: 5,
+                               kund: "Acme", projekt: nil, mikrofon: nil,
+                               liveYttranden: [], arkivYttranden: nil)
+            try! arkiv.spara(i, i: mapp)
+            // Ljudfilerna ska följa med, inte lämnas kvar
+            FileManager.default.createFile(atPath: mapp.appending(path: "jag.wav").path,
+                                           contents: Data([1, 2, 3]))
+            Prov.lika(arkiv.inspelningar(för: kund).count, 1, "inspelningen finns")
+
+            try! arkiv.kastaInspelning(i: mapp)
+            Prov.lika(arkiv.inspelningar(för: kund).count, 0, "den försvinner ur listan")
+            Prov.kolla(!FileManager.default.fileExists(atPath: mapp.path),
+                       "hela mappen är borta, med ljud och transkript")
+        }
+
+        do {   // arkiv går före live
+            var i = Inspelning(titel: "T", inledd: Date(), längd: 10, kund: "K", projekt: nil, mikrofon: nil,
+                               liveYttranden: [Yttrande(röst: .jag, text: "live", start: 0, slut: 1)],
+                               arkivYttranden: nil)
+            Prov.lika(i.yttranden.first?.text, "live", "live-transkriptet visas innan efterbearbetning")
+            i.arkivYttranden = [Yttrande(röst: .jag, text: "arkiv", start: 0, slut: 1)]
+            Prov.lika(i.yttranden.first?.text, "arkiv", "arkivtranskriptet tar över när det finns")
+            Prov.kolla(i.efterbearbetad, "inspelningen räknas som efterbearbetad")
+        }
+    }
+
+    // MARK: - Ljud
+
+    static func ljud() {
+        Prov.svit("Ljud")
+
+        func u32(_ d: Data, _ o: Int) -> UInt32 { d[o..<o+4].withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) } }
+        func u16(_ d: Data, _ o: Int) -> UInt16 { d[o..<o+2].withUnsafeBytes { $0.loadUnaligned(as: UInt16.self) } }
+        func i16(_ d: Data, _ o: Int) -> Int16 { d[o..<o+2].withUnsafeBytes { $0.loadUnaligned(as: Int16.self) } }
+
+        do {   // WAV-huvud
+            let d = Wav.data(av: [Float](repeating: 0.5, count: 16_000))
+            Prov.lika(d.count, 44 + 32_000, "WAV får rätt total storlek")
+            Prov.lika(String(data: d[0..<4], encoding: .ascii), "RIFF", "filen inleds med RIFF")
+            Prov.lika(String(data: d[8..<12], encoding: .ascii), "WAVE", "formatet är WAVE")
+            Prov.lika(u16(d, 20), 1, "kodningen är PCM")
+            Prov.lika(u16(d, 22), 1, "ljudet är mono")
+            Prov.lika(u32(d, 24), 16_000, "frekvensen är 16 kHz, som whisper vill ha")
+            Prov.lika(u16(d, 34), 16, "provdjupet är 16 bitar")
+            Prov.lika(u32(d, 40), 32_000, "datalängden stämmer")
+        }
+
+        do {   // klippning
+            let d = Wav.data(av: [2.0, -2.0])
+            Prov.lika(i16(d, 44), 32767, "för höga prov klipps i stället för att vika runt")
+            Prov.lika(i16(d, 46), -32767, "detsamma åt andra hållet")
+        }
+
+        do {   // spårskrivaren
+            let fil = FileManager.default.temporaryDirectory.appending(path: "\(UUID().uuidString).wav")
+            defer { try? FileManager.default.removeItem(at: fil) }
+            let s = try! Spårskrivare(fil: fil)
+            s.skriv([Float](repeating: 0.1, count: 8_000))
+            s.skriv([Float](repeating: 0.1, count: 8_000))
+            s.stäng()
+            let d = try! Data(contentsOf: fil)
+            Prov.lika(u32(d, 40), 32_000, "huvudets datalängd lagas när filen stängs")
+            Prov.lika(u32(d, 4), UInt32(36 + 32_000), "RIFF-längden lagas också")
+            let ljud = try! AVAudioFile(forReading: fil)
+            Prov.lika(ljud.length, 16_000, "filen går att öppna som ljud, inte bara se rätt ut")
+            Prov.lika(ljud.fileFormat.sampleRate, 16_000, "med rätt frekvens")
+        }
+
+        let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)!
+
+        // Testljudet ska likna tal, inte en konstant nivå. Det var just en
+        // konstant som förde kalibreringen vilse en gång: en syntetisk fil med
+        // tal på RMS 0,2 gav trösklar som slängde allt den inbyggda
+        // mikrofonen spelade in, där tal ligger på 0,005–0,016.
+        var frö: UInt64 = 12345
+        func slump() -> Float {
+            frö = frö &* 6364136223846793005 &+ 1442695040888963407
+            return Float(Int32(truncatingIfNeeded: frö >> 33)) / Float(Int32.max)
+        }
+        /// En bit ljud på ungefär `nivå` i RMS ovanpå en bakgrund. Ljudet
+        /// pulserar i stavelsetakt, som tal gör: det är i pauserna mellan
+        /// orden bakgrunden går att se.
+        var stavelse = 0
+        func ram(_ nivå: Float, _ sekunder: Double, _ tid: Double,
+                 bakgrund: Float = 0.0003) -> Ljudram {
+            let antal = AVAudioFrameCount(16_000 * sekunder)
+            let buf = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: antal)!
+            buf.frameLength = antal
+            let period = 16_000 / 45 * 10          // ~4,5 stavelser i sekunden
+            for i in 0..<Int(antal) {
+                stavelse = (stavelse + 1) % period
+                let ljudande = Double(stavelse) < Double(period) * 0.65
+                let n = ljudande ? nivå * 1.25 : 0
+                buf.floatChannelData![0][i] = slump() * (n * 1.7) + slump() * bakgrund * 1.7
+            }
+            return Ljudram(röst: .jag, buffert: buf, tid: tid)
+        }
+        func tystnad(_ sekunder: Double, _ tid: Double) -> Ljudram {
+            ram(0, sekunder, tid, bakgrund: 0)
+        }
+
+        do {   // tystnad stänger fönstret
+            let b = Ljudbuffring()
+            Prov.kolla(b.mata(ram(0.05, 1.0, 0)).fönster == nil, "tal håller fönstret öppet")
+            Prov.kolla(b.mata(ram(0.05, 1.0, 1)).fönster == nil, "fortsatt tal håller det öppet")
+            let f = b.mata(tystnad(0.8, 2)).fönster
+            Prov.kolla(f != nil, "tystnad längre än 0,6 s stänger fönstret")
+            if let f {
+                Prov.lika(f.prov.count, 16_000 * 28 / 10, "fönstret innehåller allt ljud fram till tystnaden")
+                Prov.lika(f.start, 0, "fönstret börjar där talet började")
+            }
+        }
+
+        do {   // maxlängd
+            let b = Ljudbuffring()
+            var fönster: Ljudbuffring.Fönster?
+            for i in 0..<20 where fönster == nil {
+                fönster = b.mata(ram(0.05, 1.0, Double(i))).fönster
+            }
+            Prov.kolla(fönster != nil, "den som talar oavbrutet får ändå text")
+            if let f = fönster {
+                Prov.lika(f.prov.count, 16_000 * 15, "senast efter 15 sekunder")
+            }
+        }
+
+        do {   // tysta fönster skickas inte vidare
+            let b = Ljudbuffring()
+            // Ett helt tyst fönster: whisper skulle hitta på text ur det
+            var fönster: Ljudbuffring.Fönster?
+            for i in 0..<20 where fönster == nil {
+                fönster = b.mata(tystnad(1.0, Double(i))).fönster
+            }
+            Prov.kolla(fönster == nil, "ett tyst fönster skickas aldrig till whisper")
+
+            // Svagt jämnt brus — nivån är mätt ur kalibreringsfilen — ska
+            // inte heller nå fram.
+            let c = Ljudbuffring()
+            var brusfönster: Ljudbuffring.Fönster?
+            for i in 0..<20 where brusfönster == nil {
+                brusfönster = c.mata(ram(0, 1.0, Double(i), bakgrund: 0.0017)).fönster
+            }
+            Prov.kolla(brusfönster == nil, "svagt brus räknas inte som tal")
+
+            // Ett rum som brusar starkt ska inte heller göra bruset till tal.
+            let e = Ljudbuffring()
+            var rumsfönster: Ljudbuffring.Fönster?
+            for i in 0..<30 where rumsfönster == nil {
+                rumsfönster = e.mata(ram(0, 1.0, Double(i), bakgrund: 0.02)).fönster
+            }
+            Prov.kolla(rumsfönster == nil, "ett brusigt rum räknas inte heller som tal")
+        }
+
+        do {   // samma tal, olika inspelningsnivåer
+            // Det här är felet som fanns: mikrofonspåret låg på RMS 0,006 och
+            // en fast tröskel slängde varenda fönster, medan datorljudet på
+            // 0,2 gick igenom. Detekteringen ska klara hela spannet.
+            for nivå in [Float(0.004), 0.006, 0.02, 0.06, 0.2] {
+                let b = Ljudbuffring()
+                var f: Ljudbuffring.Fönster?
+                for i in 0..<4 where f == nil {
+                    f = b.mata(ram(nivå, 1.0, Double(i))).fönster
+                }
+                if f == nil { f = b.mata(tystnad(0.8, 4)).fönster }
+                Prov.kolla(f != nil, "tal på RMS \(nivå) släpps igenom")
+            }
+        }
+
+        do {   // mätaren
+            let b = Ljudbuffring()
+            _ = b.mata(ram(0.012, 0.5, 0))
+            Prov.kolla(b.senasteNivå > 0.3,
+                       "mätaren rör sig på tal från den inbyggda mikrofonen (\(b.senasteNivå))")
+            let c = Ljudbuffring()
+            _ = c.mata(tystnad(0.5, 0))
+            Prov.kolla(c.senasteNivå < 0.1, "men ligger stilla vid tystnad (\(c.senasteNivå))")
+        }
+
+        do {   // nedräkning
+            // Omräknaren har en intern fördröjning och håller tillbaka en bit
+            // av första bufferten. Det som spelar roll är att inget försvinner
+            // över tid, så mät summan över flera bitar i stället för en enda.
+            let b = Ljudbuffring()
+            let stereo = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 48_000, channels: 2, interleaved: false)!
+            var summa = 0
+            for s in 0..<5 {
+                let buf = AVAudioPCMBuffer(pcmFormat: stereo, frameCapacity: 48_000)!
+                buf.frameLength = 48_000
+                for k in 0..<2 { for i in 0..<48_000 { buf.floatChannelData![k][i] = 0.2 } }
+                let (mono, _) = b.mata(Ljudram(röst: .motpart, buffert: buf, tid: Double(s)))
+                summa += mono.count
+            }
+            // Fem sekunder in ska ge fem sekunder ut, på en bråkdel av en sekund när.
+            Prov.kolla(abs(summa - 5 * 16_000) < 1_100,
+                       "48 kHz stereo blir 16 kHz mono utan att ljud tappas (\(summa) av 80 000 prov)")
+        }
+    }
+
+    // MARK: - Liveinsikter
+
+    static func liveinsikter() {
+        Prov.svit("Liveinsikter")
+
+        Prov.kolla(!Liveinsikter.dagsAttGranska(tecken: 40, väntat: 3),
+                   "en enda mening granskas inte direkt")
+        Prov.kolla(Liveinsikter.dagsAttGranska(tecken: 200, väntat: 3),
+                   "ett stycke räcker för att granska")
+        Prov.kolla(Liveinsikter.dagsAttGranska(tecken: 40, väntat: 30),
+                   "i ett långsamt samtal granskas det lilla som sagts ändå")
+        Prov.kolla(!Liveinsikter.dagsAttGranska(tecken: 0, väntat: 300),
+                   "men tystnad granskas aldrig, hur länge den än varar")
+    }
+
+    // MARK: - Whisper
+
+    static func whisper() {
+        Prov.svit("Whisper")
+
+        do {   // tolkning
+            let json = """
+            {"transcription":[
+              {"text":" Hej allihopa.","offsets":{"from":0,"to":2400}},
+              {"text":" Välkomna till mötet.","offsets":{"from":2400,"to":5100}}
+            ]}
+            """.data(using: .utf8)!
+            let rader = Whisper.tolka(json, röst: .motpart, förskjutning: 10)
+            Prov.lika(rader.count, 2, "båda raderna tolkas")
+            Prov.lika(rader.first?.text, "Hej allihopa.", "inledande blanksteg tas bort")
+            Prov.lika(rader.first?.start, 10, "millisekunder blir sekunder plus förskjutning")
+            Prov.lika(rader.first?.slut, 12.4, "sluttiden räknas om likadant")
+            Prov.kolla(rader.allSatisfy { $0.röst == .motpart }, "rösten följer med spåret")
+        }
+
+        do {   // tomt ljud
+            for t in ["", "[Musik]", "(skratt)", ".", " ... "] {
+                Prov.kolla(Whisper.ärTomtLjud(t), "«\(t)» sorteras bort som tystnad")
+            }
+            // Fraserna whisper hittar på ur tystnad
+            for t in ["Tack.", "Tack för hjälpen.", "Tack så mycket", "Textning av",
+                      "Thank you.", "Hej då"] {
+                Prov.kolla(Whisper.ärTomtLjud(t), "påhittet «\(t)» sorteras bort")
+            }
+            for t in ["Tack för mötet.", "Ja.", "Tack för att du tog dig tid att titta på ritningen."] {
+                Prov.kolla(!Whisper.ärTomtLjud(t), "«\(t)» behålls")
+            }
+            let json = """
+            {"transcription":[
+              {"text":" [Musik]","offsets":{"from":0,"to":1000}},
+              {"text":" Riktig text.","offsets":{"from":1000,"to":2000}}
+            ]}
+            """.data(using: .utf8)!
+            Prov.lika(Whisper.tolka(json, röst: .jag, förskjutning: 0).count, 1,
+                      "påhittade rader tas bort redan vid tolkningen")
+        }
+
+        do {   // loopar
+            Prov.kolla(Whisper.ärLoop("Ett stort stort stort stort stort stelt"),
+                       "samma ord fyra gånger i rad är en modell som fastnat")
+            Prov.kolla(Whisper.ärLoop("ja ja ja ja ja ja ja ja"),
+                       "en lång ramsa av ett enda ord likaså")
+            Prov.kolla(!Whisper.ärLoop("Ja, ja, det stämmer nog."),
+                       "ett upprepat ord i normalt tal är inte en loop")
+            Prov.kolla(!Whisper.ärLoop("Vi ska titta på lagret och sedan gå igenom offerten i lugn och ro."),
+                       "vanliga meningar passerar")
+            Prov.kolla(Whisper.ärTomtLjud("Ett stort stort stort stort stort stelt"),
+                       "loopar sorteras bort som tomt ljud")
+        }
+
+        do {   // VAD-flaggor
+            let flaggor = Whisper.vadflaggor(.standard)
+            Prov.kolla(flaggor.contains("--vad"), "taldetektering slås på")
+            Prov.kolla(flaggor.contains { $0.hasSuffix("ggml-silero-v5.1.2.bin") },
+                       "Silero-modellen pekas ut")
+        }
+
+        do {   // framsteg ur whispers utskrift
+            Prov.lika(Whisper.tid(ur: "00:01:30.080"), 90.08, "tidsstämpeln tolkas")
+            Prov.lika(Whisper.tid(ur: "01:00:00.000"), 3600, "timmar räknas med")
+            Prov.kolla(Whisper.tid(ur: "skräp") == nil, "skräp ger nil")
+
+            var buffert = "[00:00:00.000 --> 00:00:04.500]  Hej allihopa.[00:00:04.500 --> 00:00:09.000]  Välkomna."
+            let första = Whisper.nästaSegment(&buffert)
+            Prov.lika(första?.slut, 4.5, "första segmentets sluttid")
+            Prov.lika(första?.text, "Hej allihopa.", "och dess text")
+            Prov.kolla(buffert.hasPrefix("[00:00:04.500"), "det lästa tas bort ur bufferten")
+
+            // Ett halvt segment ska vänta på mer data i stället för att tolkas fel
+            var halvt = "[00:00:09.000 --> 00:00:12.000]  Ofull"
+            Prov.kolla(Whisper.nästaSegment(&halvt) == nil,
+                       "ett ofullständigt segment lämnas kvar tills resten kommit")
+            Prov.kolla(halvt.contains("Ofull"), "och texten går inte förlorad")
+
+            var tom = ""
+            Prov.kolla(Whisper.nästaSegment(&tom) == nil, "tom buffert kraschar inte")
+        }
+
+        do {   // ledig port
+            let a = try! Whisper.ledigPort()
+            Prov.kolla(a > 1024, "en ledig port hittas (\(a))")
+            let s = socket(AF_INET, SOCK_STREAM, 0)
+            defer { close(s) }
+            var adr = sockaddr_in()
+            adr.sin_family = sa_family_t(AF_INET)
+            adr.sin_port = UInt16(a).bigEndian
+            adr.sin_addr.s_addr = inet_addr("127.0.0.1")
+            let r = withUnsafePointer(to: &adr) {
+                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    bind(s, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+                }
+            }
+            Prov.lika(r, 0, "porten går verkligen att binda")
+        }
+
+        do {   // brister upptäcks
+            let trasig = Whisper.Sökvägar(rot: URL(fileURLWithPath: "/finns/inte"),
+                                          livemodell: "a.bin", arkivmodell: "b.bin",
+                                          vadmodell: "c.bin")
+            Prov.lika(trasig.brister.count, 5, "saknade binärer och modeller upptäcks")
+            let riktig = Whisper.Sökvägar.standard
+            if FileManager.default.fileExists(atPath: riktig.rot.path) {
+                Prov.kolla(riktig.brister.isEmpty,
+                           "den riktiga whisper.cpp-uppsättningen är komplett\(riktig.brister.isEmpty ? "" : ": \(riktig.brister)")")
+            }
+        }
+    }
+}

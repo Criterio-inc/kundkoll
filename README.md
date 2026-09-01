@@ -1,0 +1,233 @@
+# Kundkoll
+
+[![Patreon](https://img.shields.io/badge/Patreon-st%C3%B6d%20projektet-f96854?logo=patreon&logoColor=white)](https://www.patreon.com/AndersBjarby)
+
+Nativ macOS-app för att hålla ordning på mötes- och telefontranskriberingar
+per kund och projekt. Allt ljud och all transkribering sker lokalt på datorn.
+
+## Läge
+
+Alla fyra etapper är klara.
+
+| Etapp | Innehåll | Läge |
+|---|---|---|
+| 1 | Inspelning av vald mikrofon + datorljud, live-transkript på svenska, mappstruktur med Obsidian-vault per kund | klar |
+| – | Röstanalys som delar upp motpartsspåret och känner igen vem som talar | klar |
+| 2 | Kontakter, kalender och mejl kopplat till rätt kund | klar |
+| 3 | Kunskapsbank och chatt per kund och projekt | klar |
+| 4 | Insikter under samtal — fångar frågeställningar och svarar ur kunskapsbanken | klar |
+
+## Layout
+
+Kunder och deras projekt ligger som träd i sidopanelen. Innehållet har flikar —
+översikt, inspelningar, anteckningar, mejl — i stället för en lång rulle.
+Chatten är en panel som fälls ut till höger och följer det som är valt.
+
+Inspelningen har ett **eget fönster**, som går att lägga bredvid Teams eller på
+en andra skärm. Under tiden fungerar resten av appen som vanligt: slå upp vad
+som sades förra gången, skriv en anteckning, fråga chatten. En rad längst ned i
+huvudfönstret visar att inspelningen pågår och kan stoppa den.
+
+Startas inspelningen från ett kalendermöte börjar den direkt — titel och
+deltagare finns i mötet, och mikrofonen är den som användes sist.
+
+## Så fungerar inspelningen
+
+Mikrofonen och datorljudet fångas som **två skilda spår** i samma ström
+(ScreenCaptureKit). Att de är åtskilda ger "vem sa vad" utan diarisering: ditt
+spår är du, det andra är motparten.
+
+Ljudet delas i fönster vid naturliga pauser i talet och skickas till KB-Whisper
+(Kungliga bibliotekets svenska modell) medan samtalet pågår. Fönster utan tal
+skickas aldrig iväg: whisper hittar annars på text ur tystnad — se avsnittet i
+`docs/VERIFIERAD-STACK.md`. Efter samtalet går
+en större modell igenom hela ljudet en gång till och ersätter live-transkriptet
+med arkivkvalitet.
+
+Färdiga inspelningar går också att lägga till: en mp4 från Teams eller Zoom, en
+m4a från telefonen, en wav från diktafonen. Släpp filen på kunden eller använd
+knappen i verktygsraden. Där finns ingen kanaluppdelning, så röstanalysen får
+dela upp talarna — och en av dem kan vara du.
+
+Sitter flera personer i mötet delas motpartsspåret upp per röst med pyannote,
+och personer kunden är känd för sedan tidigare känns igen automatiskt via
+röstavtryck. Vet du antalet röster kan du ange det i «Vem är vem» — det ger
+märkbart bättre uppdelning. Osäkra röster lämnas
+namnlösa hellre än att gissa fel.
+
+Se `docs/VERIFIERAD-STACK.md` och `docs/RÖSTANALYS.md` för mätningarna bakom
+varje val.
+
+## Omvärlden
+
+Kundvyn visar kommande möten, kontakter och mejl som hör till kunden.
+
+**Kalender** (EventKit): ett möte räknas som kundens om någon deltagare finns
+bland kundens kontakter, har kundens e-postdomän, eller om kundnamnet står i
+titeln. Startas inspelningen från ett möte följer titeln med — och de kallade
+blir förslagen när rösterna ska märkas.
+
+**Kontakter** (Contacts): personer hämtas ur adressboken eller skrivs upp för
+hand, och redigeras i appen — namn, roll, flera adresser och telefonnummer. En
+kontakt som skrivits upp för hand kan läggas upp i macOS Kontakter, och ändringar
+skrivas tillbaka dit. Det sker bara på knapptryck: adressboken är din egen och
+delas med telefonen, så appen ändrar inget där i bakgrunden. En person du satt
+namn på i ett transkript läggs upp som kontakt automatiskt.
+
+**Mail** (AppleScript): söker mejl på kundens adresser, öppnar dem i Mail.
+Vägen är vald efter mätning — mejlen ligger också som filer under
+`~/Library/Mail`, vilket är snabbare vid breda sökningar men kräver Full Disk
+Access. Eftersom vi alltid söker på bestämda kundadresser räcker AppleScript,
+som bara behöver automationsbehörighet.
+
+## Efter mötet
+
+Ett fyrtio minuter långt samtal blir fyra hundra rader transkript. Det man
+behöver därifrån är tre saker, och de skrivs automatiskt efter
+efterbearbetningen: vad mötet handlade om, vad som beslutades, och vad någon
+lovade att göra. Åtagandena är bockbara och ligger kvar i `Transkript.md`, så
+de syns som en checklista i Obsidian.
+
+## Att göra
+
+Åtaganden hamnar på en tavla med tre spalter, utan att någon skriver in dem.
+Mötets sammanfattning bidrar med sina, och nya mejl gås igenom när de hämtas.
+Samma sak nämnd i både ett möte och ett mejl blir ett kort, inte två.
+
+Korten dras mellan spalterna, och tavlan skrivs som `Att göra.md` i kundens
+valv så den syns i Obsidian.
+
+## Söka
+
+⇧⌘F söker i allt material hos alla kunder samtidigt — transkript,
+sammanfattningar, anteckningar, mejl och bilagor. Träffarna grupperas per kund,
+och orden kapas automatiskt så att «leverans» hittar «leveranstiden».
+
+## Insikter under samtal
+
+Medan ett möte spelas in lyssnar appen efter sådant deltagarna behöver slå upp,
+och svarar ur kunskapsbanken. Svaren dyker upp bredvid live-transkriptet.
+
+En lokal modell via Ollama gör bedömningen, så allt som sägs granskas på
+datorn — bara de frågeställningar som faktiskt hittas går vidare. Uppmätt på
+riktiga möten: qwen3:8b 12 av 12 rätt utan ett enda falskt larm. Se
+`docs/INSIKTER.md`.
+
+## Fråga om kunden
+
+Varje kund och projekt har en chatt som svarar ur kundens eget material —
+transkript, anteckningar, mejlämnen och kontakter. Svaren hänvisar till vad de
+bygger på, och modellen säger ifrån i stället för att gissa när svaret inte
+finns i underlaget.
+
+Chatten är uppdelad i samtal. Ett nytt startas med pennan, och menyn i toppen
+bläddrar tillbaka till tidigare — ett samtal handlar oftast om en sak, och att
+rensa skulle kasta det man kanske vill tillbaka till.
+
+Underlaget är transkript, anteckningar, mejl **med bilagornas innehåll**,
+kontakter och tidigare samtal. Tidigare samtal viktas ner: de säger vad modellen
+svarade, inte vad som faktiskt hände. Ett svar kan sparas som anteckning direkt ur
+chatten.
+
+**Kopplade mappar** — källkod, ritningar, offerter — indexeras däremot inte.
+De genomsöks i stället av en agent när du ställer frågan, så att svaret bygger
+på hur filerna ser ut just nu. Det tar en halv minut, så det svaret dyker upp
+asynkront efter det snabba ur kunskapsbanken.
+
+Sökningen är SQLite FTS5 med trunkerade sökord; svenskans böjningar gör att rak
+sökning bara träffar i ett fall av fyra. Mätningen står i
+`docs/KUNSKAPSBANK.md`.
+
+Modellen kan köras hos OpenRouter, Anthropic, OpenAI, Azure eller lokalt
+(Ollama, LM Studio). Chatten är det enda i appen som går ut på nätet, och bara
+när du ställer en fråga — väljer du en lokal modell lämnar ingenting datorn.
+Nyckeln sparas i macOS nyckelring.
+
+## Anteckningar
+
+Kunder och projekt har anteckningar — vanliga markdownfiler i en
+`Anteckningar`-mapp, alltså samma filer som Obsidian öppnar. En anteckning kan
+innehålla skärmdumpar: knappen öppnar macOS egen områdesväljare, bilden läggs i
+en `bilder`-mapp bredvid och länkas med `![[bilder/…]]` så att Obsidian visar
+den. Bilder går också att klistra in eller dra och släppa.
+
+## Data
+
+Allt hamnar under `~/Documents/Kunder`, en Obsidian-vault per kund:
+
+```
+~/Documents/Kunder/
+  Acme AB/
+    .obsidian/
+    Acme AB.md
+    Projekt/
+      Nytt lager/
+        Nytt lager.md
+        Inspelningar/
+        Dokument/
+        Anteckningar/
+    Samtal/
+      2026-08-31 0930 Avstämning/
+        jag.wav          16 kHz mono, ditt spår
+        motpart.wav      16 kHz mono, motpartens spår
+        möte.json        metadata, transkript och vem som talar
+        Transkript.md    det Obsidian visar, med wikilänkar
+    Kontakter/
+      kontakter.json     kundens personer
+      Anna Svensson.md   en not per person; uppgifterna i frontmatter,
+                         brödtexten din egen och skrivs aldrig över
+      röstprofiler.json  kända röster hos den här kunden
+    Mail/
+    Anteckningar/
+```
+
+Filsystemet är sanningen — ingen databas. En kund eller ett projekt som skapas
+för hand i Finder eller Obsidian dyker upp i appen utan vidare.
+
+## Krav
+
+- macOS 26
+- `~/Projekt/whisper.cpp` byggd, med `kb_whisper_ggml_small.bin` och
+  `kb_whisper_ggml_medium.bin` i `models/`
+- Pythonmiljö med torch och speechbrain för röstanalysen; som standard
+  `~/Projekt/transcriber/venv`
+- Behörighet för **Mikrofon** och **Skärminspelning** (den senare krävs för
+  datorljudet — ScreenCaptureKit fångar bara ljud här, ingen bild sparas)
+- Frivilligt: **Kalender**, **Kontakter** och **Automatisering** för Mail.
+  Appen fungerar utan, men då syns inga möten, kontakter eller mejl.
+
+## Se appen
+
+```bash
+./scripts/skarmbild.sh            # fångar fönstret
+./scripts/skarmbild.sh --starta   # startar om appen först
+```
+
+`screencapture -l <fönster-id>` svarar "could not create image from window" när
+appen ligger bakom — macOS släpper backing store för dolda fönster, och det ser
+ut som ett behörighetsfel utan att vara det. Skriptet lyfter därför fram
+fönstret först, gör flera försök, och faller tillbaka på hela skärmen.
+
+## Bygga
+
+```bash
+./scripts/bygg-app.sh                                        # dist/Kundkoll.app
+.build/arm64-apple-macosx/debug/Kundkoll --test              # 406 enhetstester
+.build/arm64-apple-macosx/debug/Kundkoll --prov-ljud f.wav   # hela kedjan skarpt
+.build/arm64-apple-macosx/debug/Kundkoll --prov-röst ljud.wav w.json facit.json
+.build/arm64-apple-macosx/debug/Kundkoll --prov-import fil.mp4 fil.m4a
+.build/arm64-apple-macosx/debug/Kundkoll --prov-chatt [leverantör] [modell]
+.build/arm64-apple-macosx/debug/Kundkoll --prov-bilaga fil.pdf bild.png
+.build/arm64-apple-macosx/debug/Kundkoll --prov-omröst <inspelningsmapp> [antal]
+.build/arm64-apple-macosx/debug/Kundkoll --prov-kodagent <mapp> "<fråga>"
+.build/arm64-apple-macosx/debug/Kundkoll --prov-insikter [modell …]
+```
+
+Xcode behövs inte — Command Line Tools räcker. Appen signeras med Developer ID
+om certifikatet finns, vilket gör att macOS kommer ihåg beviljade behörigheter
+mellan ombyggen. Eget certifikat anges med `KUNDKOLL_SIGNERING`; utan
+certifikat signeras appen ad hoc och behörigheterna får ges om vid varje bygge.
+
+## Licens
+
+MIT, se `LICENSE`.
