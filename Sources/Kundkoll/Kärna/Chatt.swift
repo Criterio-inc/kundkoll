@@ -21,6 +21,24 @@ actor Chatt {
             datum.map { "\(titel) · \(DateFormatter.dag.string(from: $0))" } ?? titel
         }
 
+        init(nummer: Int, titel: String, typ: String, källa: String, datum: Date? = nil) {
+            self.nummer = nummer
+            self.titel = titel
+            self.typ = typ
+            self.källa = källa
+            self.datum = datum
+        }
+
+        /// Skriven för hand: se `Inspelning`.
+        init(from avkodare: Decoder) throws {
+            let c = try avkodare.container(keyedBy: CodingKeys.self)
+            nummer = try c.decodeIfPresent(Int.self, forKey: .nummer) ?? 0
+            titel = try c.decodeIfPresent(String.self, forKey: .titel) ?? ""
+            typ = try c.decodeIfPresent(String.self, forKey: .typ) ?? ""
+            källa = try c.decodeIfPresent(String.self, forKey: .källa) ?? ""
+            datum = try c.decodeIfPresent(Date.self, forKey: .datum)
+        }
+
         var ikon: String {
             switch typ {
             case "transkript": "waveform"
@@ -52,6 +70,31 @@ actor Chatt {
         var ursprung: Ursprung = .kunskapsbank
         /// Mappen svaret kommer ur, när det är en agent som svarat.
         var mapp: String?
+
+        init(id: UUID = UUID(), roll: Roll, text: String, tid: Date = Date(),
+             hänvisningar: [Hänvisning] = [], ursprung: Ursprung = .kunskapsbank,
+             mapp: String? = nil) {
+            self.id = id
+            self.roll = roll
+            self.text = text
+            self.tid = tid
+            self.hänvisningar = hänvisningar
+            self.ursprung = ursprung
+            self.mapp = mapp
+        }
+
+        /// Hela samtalshistoriken ligger i de här. Skriven för hand så att ett
+        /// nytt fält inte tar den med sig — se `Inspelning`.
+        init(from avkodare: Decoder) throws {
+            let c = try avkodare.container(keyedBy: CodingKeys.self)
+            id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+            roll = try c.decodeIfPresent(Roll.self, forKey: .roll) ?? .assistent
+            text = try c.decodeIfPresent(String.self, forKey: .text) ?? ""
+            tid = try c.decodeIfPresent(Date.self, forKey: .tid) ?? Date()
+            hänvisningar = try c.decodeIfPresent([Hänvisning].self, forKey: .hänvisningar) ?? []
+            ursprung = try c.decodeIfPresent(Ursprung.self, forKey: .ursprung) ?? .kunskapsbank
+            mapp = try c.decodeIfPresent(String.self, forKey: .mapp)
+        }
     }
 
     struct Svar {

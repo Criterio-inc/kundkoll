@@ -7,6 +7,18 @@ struct Avtryck: Codable, Hashable {
     var vektor: [Float]
     var sekunder: Double
 
+    init(vektor: [Float], sekunder: Double) {
+        self.vektor = vektor
+        self.sekunder = sekunder
+    }
+
+    /// Skriven för hand: se `Inspelning`.
+    init(from avkodare: Decoder) throws {
+        let c = try avkodare.container(keyedBy: CodingKeys.self)
+        vektor = try c.decodeIfPresent([Float].self, forKey: .vektor) ?? []
+        sekunder = try c.decodeIfPresent(Double.self, forKey: .sekunder) ?? 0
+    }
+
     /// Cosinuslikhet. Båda vektorerna är normerade, så skalärprodukten räcker.
     func likhet(_ annan: Avtryck) -> Double {
         guard vektor.count == annan.vektor.count else { return 0 }
@@ -25,6 +37,26 @@ struct Röstprofil: Codable, Hashable, Identifiable {
     var uppdaterad: Date
     /// Antal samtal profilen har byggts av.
     var samtal: Int
+
+    init(id: UUID = UUID(), namn: String, avtryck: [Avtryck],
+         uppdaterad: Date = Date(), samtal: Int = 1) {
+        self.id = id
+        self.namn = namn
+        self.avtryck = avtryck
+        self.uppdaterad = uppdaterad
+        self.samtal = samtal
+    }
+
+    /// Profilerna byggs upp över månader av samtal. Skriven för hand så att
+    /// ett nytt fält inte gör dem oläsbara — se `Inspelning`.
+    init(from avkodare: Decoder) throws {
+        let c = try avkodare.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        namn = try c.decodeIfPresent(String.self, forKey: .namn) ?? ""
+        avtryck = try c.decodeIfPresent([Avtryck].self, forKey: .avtryck) ?? []
+        uppdaterad = try c.decodeIfPresent(Date.self, forKey: .uppdaterad) ?? Date()
+        samtal = try c.decodeIfPresent(Int.self, forKey: .samtal) ?? 1
+    }
 
     /// Hur väl ett nytt avtryck stämmer med profilen. Bästa träffen räknas —
     /// samma person kan låta olika i olika samtal, och ett dåligt avtryck ska

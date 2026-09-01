@@ -14,6 +14,22 @@ struct Kopplad: Codable, Hashable, Identifiable {
     var ändelser: [String] = []
     var tillagd = Date()
 
+    init(väg: String, namn: String = "", ändelser: [String] = [], tillagd: Date = Date()) {
+        self.väg = väg
+        self.namn = namn
+        self.ändelser = ändelser
+        self.tillagd = tillagd
+    }
+
+    /// Skriven för hand: se `Inspelning`.
+    init(from avkodare: Decoder) throws {
+        let c = try avkodare.container(keyedBy: CodingKeys.self)
+        väg = try c.decodeIfPresent(String.self, forKey: .väg) ?? ""
+        namn = try c.decodeIfPresent(String.self, forKey: .namn) ?? ""
+        ändelser = try c.decodeIfPresent([String].self, forKey: .ändelser) ?? []
+        tillagd = try c.decodeIfPresent(Date.self, forKey: .tillagd) ?? Date()
+    }
+
     var url: URL { URL(fileURLWithPath: väg) }
     var visatNamn: String { namn.isEmpty ? url.lastPathComponent : namn }
     var finns: Bool { FileManager.default.fileExists(atPath: väg) }

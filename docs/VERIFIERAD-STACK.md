@@ -276,3 +276,27 @@ Att grep:a brett är dessutom missvisande — "apple.com" matchar 75 532 av
   och det får tolkas i efterhand.
 - Ämnesrader innehåller både `|` och tabbar. Fälten avgränsas därför med
   ASCII 31.
+
+## ⚠️ Allt som ligger på disk läses för hand
+
+Swift använder inte standardvärden när en nyckel saknas. Ett nytt fält på en
+typ som sparas gör därför alla tidigare filer oläsbara — och eftersom de läses
+med `try?` försvinner de utan ett ord. Det har hänt två gånger här: mejlcachen
+tömdes när `text` lades till på `Mejl`, och en inspelning slutade synas i
+listan.
+
+Mätt på hela kodbasen 2026-09-01: **alla** sparade typer utan handskriven
+`init(from:)` föll på den minsta JSON en äldre version kan ha lämnat efter sig
+— sammanfattningen inne i `möte.json` (som tar hela inspelningen med sig),
+röstprofilerna som byggts upp över månader, chattarnas meddelanden, de
+kopplade mapparna och modellvalet. 19 prov, 19 fällda.
+
+Regeln är därför: **varje typ som skrivs till disk har en handskriven
+`init(from:)` där varje fält läses med `decodeIfPresent` och ett standardvärde.**
+Provsviten `Lagring` håller efter det med en minsta JSON per typ, och provar
+också åt andra hållet — ett okänt fält från en nyare version får inte fälla
+läsningen.
+
+Andra ledet: en `möte.json` som ändå blir oläslig — avbruten skrivning, trasig
+disk — får inspelningen att listas som påbörjad i stället för att bara
+försvinna.

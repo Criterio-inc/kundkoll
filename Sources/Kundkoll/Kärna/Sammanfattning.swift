@@ -20,9 +20,48 @@ struct Mötessammanfattning: Codable, Hashable {
         /// När, som det sades — "före fredag", "nästa vecka".
         var när: String?
         var klart = false
+
+        init(id: UUID = UUID(), vad: String, vem: String? = nil,
+             när: String? = nil, klart: Bool = false) {
+            self.id = id
+            self.vad = vad
+            self.vem = vem
+            self.när = när
+            self.klart = klart
+        }
+
+        /// Skriven för hand: se `Inspelning`.
+        init(from avkodare: Decoder) throws {
+            let c = try avkodare.container(keyedBy: CodingKeys.self)
+            id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+            vad = try c.decodeIfPresent(String.self, forKey: .vad) ?? ""
+            vem = try c.decodeIfPresent(String.self, forKey: .vem)
+            när = try c.decodeIfPresent(String.self, forKey: .när)
+            klart = try c.decodeIfPresent(Bool.self, forKey: .klart) ?? false
+        }
     }
 
     var tom: Bool { beslut.isEmpty && åtaganden.isEmpty && öppet.isEmpty }
+
+    init(kärna: String, beslut: [String], åtaganden: [Åtagande],
+         öppet: [String], skriven: Date = Date()) {
+        self.kärna = kärna
+        self.beslut = beslut
+        self.åtaganden = åtaganden
+        self.öppet = öppet
+        self.skriven = skriven
+    }
+
+    /// Ligger inne i möte.json. Faller den går hela inspelningen förlorad ur
+    /// listan, så den läses lika försiktigt som inspelningen själv.
+    init(from avkodare: Decoder) throws {
+        let c = try avkodare.container(keyedBy: CodingKeys.self)
+        kärna = try c.decodeIfPresent(String.self, forKey: .kärna) ?? ""
+        beslut = try c.decodeIfPresent([String].self, forKey: .beslut) ?? []
+        åtaganden = try c.decodeIfPresent([Åtagande].self, forKey: .åtaganden) ?? []
+        öppet = try c.decodeIfPresent([String].self, forKey: .öppet) ?? []
+        skriven = try c.decodeIfPresent(Date.self, forKey: .skriven) ?? Date()
+    }
 }
 
 /// Skriver sammanfattningen med den modell som valts för chatten.

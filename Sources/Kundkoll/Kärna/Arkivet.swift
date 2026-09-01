@@ -57,17 +57,19 @@ final class Arkivet: ObservableObject {
             .sorted { $0.0.inledd > $1.0.inledd }
     }
 
-    /// Inspelningsmappar som saknar möte.json.
+    /// Inspelningsmappar vars metadata saknas eller inte går att läsa.
     ///
     /// De uppstår om appen stängs eller importen faller mitt i. Ljudet finns
     /// men ingen metadata, så mappen syns inte i listan — och blir liggande
-    /// osynlig i Finder om den inte visas någonstans.
+    /// osynlig i Finder om den inte visas någonstans. En möte.json som inte
+    /// går att avkoda hamnar här av samma skäl: annars försvinner hela
+    /// inspelningen utan ett ord.
     func ofullständiga(för kund: Kund) -> [(mapp: URL, storlek: Int)] {
         var rötter = [kund.samtalsmapp]
         rötter += projekt(för: kund).map(\.inspelningsmapp)
         return rötter
             .flatMap { mappar(i: $0) }
-            .filter { !fm.fileExists(atPath: $0.appending(path: "möte.json").path) }
+            .filter { !läsbar(i: $0) }
             .filter { mapp in
                 // Bara mappar som faktiskt innehåller ljud är värda att visa.
                 (try? fm.contentsOfDirectory(atPath: mapp.path))?
@@ -75,6 +77,14 @@ final class Arkivet: ObservableObject {
             }
             .map { ($0, storlek(av: $0)) }
             .sorted { $0.0.lastPathComponent > $1.0.lastPathComponent }
+    }
+
+    /// Om mappens möte.json finns och går att läsa.
+    private func läsbar(i mapp: URL) -> Bool {
+        guard let data = try? Data(contentsOf: mapp.appending(path: "möte.json")) else {
+            return false
+        }
+        return (try? JSONDecoder.kundkoll.decode(Inspelning.self, from: data)) != nil
     }
 
     private func storlek(av mapp: URL) -> Int {

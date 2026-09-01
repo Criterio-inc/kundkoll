@@ -94,6 +94,20 @@ struct Modellval: Codable, Hashable {
     /// Tom betyder leverantörens standardadress.
     var adress: String = ""
 
+    init(leverantör: Leverantör = .openrouter, modell: String? = nil, adress: String = "") {
+        self.leverantör = leverantör
+        self.modell = modell ?? leverantör.standardmodell
+        self.adress = adress
+    }
+
+    /// Skriven för hand: se `Inspelning`.
+    init(from avkodare: Decoder) throws {
+        let c = try avkodare.container(keyedBy: CodingKeys.self)
+        leverantör = try c.decodeIfPresent(Leverantör.self, forKey: .leverantör) ?? .openrouter
+        modell = try c.decodeIfPresent(String.self, forKey: .modell) ?? leverantör.standardmodell
+        adress = try c.decodeIfPresent(String.self, forKey: .adress) ?? ""
+    }
+
     var url: URL? {
         URL(string: adress.isEmpty ? leverantör.standardadress : adress)
     }
