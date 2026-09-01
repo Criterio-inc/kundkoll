@@ -19,6 +19,7 @@ struct Kundinnehåll: View {
     @State private var kontakter: [Kontakt] = []
     @State private var möten: [Kalendern.Möte] = []
     @State private var inspelningar: [(Inspelning, URL)] = []
+    @State private var visaBilagor = false
     @State private var mejl: [Mailen.Mejl] = []
     @State private var bilagor: [Bilagor.Bilaga] = []
     @State private var mejlLäge: Mejlläge = .ejHämtat
@@ -427,9 +428,14 @@ struct Kundinnehåll: View {
 
     /// Bilagorna, med markering för vilka som gick att läsa text ur.
     /// Det är texten som är sökbar; en bild utan text säger inget.
+    ///
+    /// Hopfälld som standard. Ett par mejlväxlingar räcker för att ge trettio
+    /// skärmdumpar, och då är det bilagorna man ser i mailfliken i stället för
+    /// mejlen. Att de är sökbara är det som betyder något; namnen letar man
+    /// sällan efter.
     private var bilageavsnitt: some View {
         let lästa = bilagor.filter { $0.text?.isEmpty == false }
-        return avsnitt("Bilagor · \(lästa.count) av \(bilagor.count) sökbara") {
+        return DisclosureGroup(isExpanded: $visaBilagor) {
             VStack(spacing: 0) {
                 ForEach(Array(bilagor.enumerated()), id: \.element.id) { i, b in
                     Button {
@@ -459,6 +465,9 @@ struct Kundinnehåll: View {
                 }
             }
             .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
+            .padding(.top, 8)
+        } label: {
+            Text("Bilagor · \(lästa.count) av \(bilagor.count) sökbara").font(.headline)
         }
     }
 
