@@ -13,6 +13,13 @@ struct Ingång {
             sem.wait()
             exit(kod)
         }
+        if CommandLine.arguments.contains("--prov-datum") {
+            let sem = DispatchSemaphore(value: 0)
+            nonisolated(unsafe) var kod: Int32 = 1
+            Task.detached { kod = await Datumprov.kör(); sem.signal() }
+            sem.wait()
+            exit(kod)
+        }
         if CommandLine.arguments.contains("--test") {
             exit(MainActor.assumeIsolated { Tester.kör() })
         }

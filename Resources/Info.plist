@@ -20,6 +20,8 @@
     <string>Kundkoll transkriberar samtal på den här datorn.</string>
     <key>NSCalendarsFullAccessUsageDescription</key>
     <string>Kundkoll kopplar möten i kalendern till rätt kund och projekt.</string>
+    <key>NSRemindersFullAccessUsageDescription</key>
+    <string>Kundkoll kan lägga uppgifter från tavlan i Påminnelser, så att de följer med till telefonen.</string>
     <key>NSContactsUsageDescription</key>
     <string>Kundkoll hämtar kontaktuppgifter för att koppla personer till rätt kund.</string>
     <key>NSAppleEventsUsageDescription</key>

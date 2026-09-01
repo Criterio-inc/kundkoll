@@ -220,6 +220,8 @@ final class Arkivet: ObservableObject {
         ändrad.ändrad = Date()
         alla[i] = ändrad
         try sparaUppgifter(alla, för: kund)
+        // Alla ändringar går genom hit, så spegeln till Påminnelser bor här.
+        Påminnelser.delad.spegla(ändrad)
     }
 
     func taBort(_ uppgift: Uppgift, för kund: Kund) throws {
@@ -797,6 +799,12 @@ extension DateFormatter {
     static let bildnamn: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd HHmmss"
+        return f
+    }()
+    static let kortdag: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "d MMM"
+        f.locale = Locale(identifier: "sv_SE")
         return f
     }()
     static let dag: DateFormatter = {

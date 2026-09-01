@@ -13,7 +13,7 @@ enum Uppgiftssamling {
         guard let kund = Arkivet.shared.kunder.first(where: { $0.namn == inspelning.kund })
         else { return }
         let nya = sammanfattning.åtaganden.map {
-            Uppgift(vad: $0.vad, vem: $0.vem, när: $0.när,
+            Uppgift(vad: $0.vad, vem: $0.vem, när: $0.när, senast: $0.senast,
                     läge: $0.klart ? .klart : .attGöra,
                     ursprung: .möte,
                     källa: mapp?.path,
@@ -51,9 +51,10 @@ enum Uppgiftssamling {
             guard let u = try? await letare.leta(
                 i: text,
                 sammanhang: m.skickat ? "ett mejl jag skickat" : "ett mejl jag fått",
-                kund: kund.namn) else { continue }
+                kund: kund.namn,
+                datum: m.datum ?? Date()) else { continue }
             funna += u.map {
-                Uppgift(vad: $0.vad, vem: $0.vem, när: $0.när,
+                Uppgift(vad: $0.vad, vem: $0.vem, när: $0.när, senast: $0.senast,
                         ursprung: .mejl, källtitel: m.ämne, skapad: m.datum ?? Date())
             }
         }

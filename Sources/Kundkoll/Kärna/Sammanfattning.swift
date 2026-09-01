@@ -19,14 +19,17 @@ struct Mötessammanfattning: Codable, Hashable {
         var vem: String?
         /// När, som det sades — "före fredag", "nästa vecka".
         var när: String?
+        /// När som ett riktigt datum, när modellen kunde räkna ut det.
+        var senast: Date?
         var klart = false
 
         init(id: UUID = UUID(), vad: String, vem: String? = nil,
-             när: String? = nil, klart: Bool = false) {
+             när: String? = nil, senast: Date? = nil, klart: Bool = false) {
             self.id = id
             self.vad = vad
             self.vem = vem
             self.när = när
+            self.senast = senast
             self.klart = klart
         }
 
@@ -37,6 +40,7 @@ struct Mötessammanfattning: Codable, Hashable {
             vad = try c.decodeIfPresent(String.self, forKey: .vad) ?? ""
             vem = try c.decodeIfPresent(String.self, forKey: .vem)
             när = try c.decodeIfPresent(String.self, forKey: .när)
+            senast = try c.decodeIfPresent(Date.self, forKey: .senast)
             klart = try c.decodeIfPresent(Bool.self, forKey: .klart) ?? false
         }
     }
@@ -87,17 +91,28 @@ actor Sammanfattare {
             text = String(text.prefix(halva)) + "\n\n[…]\n\n" + String(text.suffix(halva))
         }
 
+        let dag: String = {
+            let f = DateFormatter()
+            f.dateFormat = "yyyy-MM-dd"
+            f.locale = Locale(identifier: "en_US_POSIX")
+            return f.string(from: inspelning.inledd)
+        }()
         let uppdrag = """
-        Här är transkriptet från ett möte med kunden \(kund).
+        Här är transkriptet från ett möte med kunden \(kund), hållet \(dag).
 
         Sammanfatta det som JSON med exakt dessa fält:
 
         {
           "kärna": "två eller tre meningar om vad mötet handlade om",
           "beslut": ["det som faktiskt bestämdes"],
-          "åtaganden": [{"vad": "…", "vem": "namn eller null", "när": "som det sades, eller null"}],
+          "åtaganden": [{"vad": "…", "vem": "namn eller null", \
+        "när": "som det sades, eller null", "senast": "ÅÅÅÅ-MM-DD eller null"}],
           "öppet": ["frågor som lämnades obesvarade"]
         }
+
+        "senast" är sista dagen som ett riktigt datum, räknat från mötesdagen \
+        \(dag) — "före fredag" blir fredagens datum. Går det inte att räkna \
+        ut, null.
 
         Ta bara med sådant som verkligen sades. Hellre en tom lista än ett
         påhittat beslut. Skriv på svenska, kort och konkret, utan artigheter.
@@ -127,7 +142,9 @@ actor Sammanfattare {
         rent = String(rent[första...sista])
 
         struct Rå: Decodable {
-            struct Å: Decodable { let vad: String; let vem: String?; let när: String? }
+            struct Å: Decodable {
+                let vad: String; let vem: String?; let när: String?; let senast: String?
+            }
             let kärna: String?
             let beslut: [String]?
             let åtaganden: [Å]?
@@ -138,7 +155,8 @@ actor Sammanfattare {
             kärna: rå.kärna ?? "",
             beslut: rå.beslut ?? [],
             åtaganden: (rå.åtaganden ?? []).map {
-                .init(vad: $0.vad, vem: tomSomNil($0.vem), när: tomSomNil($0.när))
+                .init(vad: $0.vad, vem: tomSomNil($0.vem), när: tomSomNil($0.när),
+                      senast: Uppgift.dag(tomSomNil($0.senast)))
             },
             öppet: rå.öppet ?? [])
     }

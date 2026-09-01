@@ -14,6 +14,7 @@ struct Uppgiftsredigering: View {
 
     @EnvironmentObject private var arkiv: Arkivet
     @Environment(\.dismiss) private var stäng
+    @State private var läggerIPåminnelser = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -47,6 +48,20 @@ struct Uppgiftsredigering: View {
                                 .textFieldStyle(.roundedBorder)
                         }
                     }
+                    fält("Senast") {
+                        HStack(spacing: 10) {
+                            Toggle("", isOn: harDatum).labelsHidden()
+                            if uppgift.senast != nil {
+                                DatePicker("", selection: datumval, displayedComponents: .date)
+                                    .labelsHidden()
+                            } else {
+                                Text(uppgift.när.map { "«\($0)» — inget räknat datum" }
+                                     ?? "Inget datum")
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                     fält("Läge") {
                         Picker("", selection: $uppgift.läge) {
                             ForEach(Uppgift.Läge.allCases) { Text($0.namn).tag($0) }
@@ -74,6 +89,16 @@ struct Uppgiftsredigering: View {
                     vidSparat()
                     stäng()
                 }
+                if uppgift.påminnelse == nil {
+                    Button(läggerIPåminnelser ? "Lägger in …" : "Lägg i Påminnelser") {
+                        läggIPåminnelser()
+                    }
+                    .disabled(läggerIPåminnelser)
+                } else {
+                    Label("i Påminnelser", systemImage: "checklist.checked")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
                 Button("Avbryt") { stäng() }
                 Button("Spara") { spara() }
@@ -98,6 +123,34 @@ struct Uppgiftsredigering: View {
     private func text(_ binding: Binding<String?>) -> Binding<String> {
         Binding(get: { binding.wrappedValue ?? "" },
                 set: { binding.wrappedValue = $0.isEmpty ? nil : $0 })
+    }
+
+    /// Datumväljaren visas bara när det finns ett datum att välja.
+    private var harDatum: Binding<Bool> {
+        Binding(get: { uppgift.senast != nil },
+                set: { på in
+                    uppgift.senast = på
+                        ? (uppgift.senast ?? Calendar.current.startOfDay(for: Date()))
+                        : nil
+                })
+    }
+
+    private var datumval: Binding<Date> {
+        Binding(get: { uppgift.senast ?? Date() }, set: { uppgift.senast = $0 })
+    }
+
+    /// Lägger uppgiften i Påminnelser och sparar id:t, så att en avbockning
+    /// på tavlan bockar av även där.
+    private func läggIPåminnelser() {
+        läggerIPåminnelser = true
+        Task {
+            if let id = await Påminnelser.delad.läggIn(uppgift, kund: kund.namn) {
+                uppgift.påminnelse = id
+                try? arkiv.uppdatera(uppgift, för: kund)
+                vidSparat()
+            }
+            läggerIPåminnelser = false
+        }
     }
 
     private var projektval: Binding<String> {

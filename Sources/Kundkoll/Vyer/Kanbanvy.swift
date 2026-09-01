@@ -105,10 +105,16 @@ struct Kanbanvy: View {
                 .foregroundStyle(u.läge == .klart ? .secondary : .primary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if u.vem != nil || u.när != nil {
-                Text([u.vem, u.när].compactMap { $0 }.joined(separator: " · "))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            if u.vem != nil || u.när != nil || u.senast != nil {
+                HStack(spacing: 4) {
+                    if let vem = u.vem { Text(vem) }
+                    if let rad = närtext(u) {
+                        if u.vem != nil { Text("·") }
+                        Text(rad).foregroundStyle(u.försenad ? Color.red : Color.secondary)
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
             HStack(spacing: 4) {
                 Image(systemName: u.ursprung.ikon).font(.system(size: 9))
@@ -150,6 +156,12 @@ struct Kanbanvy: View {
         try? arkiv.läggTill([Uppgift(vad: text, projekt: projekt?.namn)], för: kund)
         ny = ""
         läsOm()
+    }
+
+    /// Datumet när det finns, annars orden som de föll — "före fredag" säger
+    /// mer än ingenting.
+    private func närtext(_ u: Uppgift) -> String? {
+        u.senast.map { DateFormatter.kortdag.string(from: $0) } ?? u.när
     }
 
     private func läsOm() { uppgifter = arkiv.uppgifter(för: kund) }
