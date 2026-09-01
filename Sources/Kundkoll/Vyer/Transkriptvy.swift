@@ -169,11 +169,15 @@ struct Transkriptvy: View {
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     }
-                    Button(sammanfattar ? "Skriver om …" : "Skriv om sammanfattningen") {
-                        Task { await sammanfatta() }
+                    HStack(spacing: 16) {
+                        Button("Skriv uppföljningsmejl") { uppföljningsmejl() }
+                            .help("Öppnar ett utkast i Mail med beslut och åtaganden. Inget skickas.")
+                        Button(sammanfattar ? "Skriver om …" : "Skriv om sammanfattningen") {
+                            Task { await sammanfatta() }
+                        }
+                        .disabled(sammanfattar)
+                        .buttonStyle(.link)
                     }
-                    .disabled(sammanfattar)
-                    .buttonStyle(.link)
                 } else {
                     saknasSammanfattning
                 }
@@ -411,6 +415,20 @@ struct Transkriptvy: View {
                                      projekt: inspelning.projekt)], för: kund)
         ny = ""
         läsUppgifter()
+    }
+
+    /// Ett utkast i Mail ur det mötet landade i. Skickas aldrig härifrån.
+    private func uppföljningsmejl() {
+        let text = Uppföljning.brödtext(för: inspelning)
+        guard !text.isEmpty else { return }
+        let till = Uppföljning.mottagare(för: inspelning,
+                                         kontakter: arkiv.kontakter(för: kund))
+        do {
+            try Uppföljning.öppnaUtkast(ämne: "Uppföljning: \(inspelning.titel)",
+                                        text: text, till: till)
+        } catch {
+            fel = error.localizedDescription
+        }
     }
 
     private func sammanfatta() async {
