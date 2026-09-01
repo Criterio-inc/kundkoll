@@ -98,8 +98,13 @@ struct Chattpanel: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 16) {
                         if samtal.meddelanden.isEmpty { tomtLäge }
-                        ForEach(samtal.meddelanden) { m in bubbla(m).id(m.id) }
-                        if väntar {
+                        // Tomma meddelanden är platshållare som väntar på sin
+                        // första strömmade bit; de ritas inte.
+                        ForEach(samtal.meddelanden.filter { !$0.text.isEmpty }) { m in
+                            bubbla(m).id(m.id)
+                        }
+                        if väntar && !(samtal.meddelanden.last.map {
+                            $0.roll == .assistent && !$0.text.isEmpty } ?? false) {
                             HStack(spacing: 8) {
                                 ProgressView().controlSize(.small)
                                 Text("Tänker …").foregroundStyle(.secondary)
@@ -125,6 +130,12 @@ struct Chattpanel: View {
                 .onChange(of: samtal.meddelanden.count) {
                     if let sista = samtal.meddelanden.last {
                         withAnimation { rulle.scrollTo(sista.id, anchor: .bottom) }
+                    }
+                }
+                // Strömmande text ändrar inte antalet; följ även växandet.
+                .onChange(of: samtal.meddelanden.last?.text) {
+                    if let sista = samtal.meddelanden.last, !sista.text.isEmpty {
+                        rulle.scrollTo(sista.id, anchor: .bottom)
                     }
                 }
             }
@@ -431,15 +442,29 @@ struct Chattpanel: View {
         senasteTräffar = träffar
         let historik = samtal.meddelanden.dropLast()
 
+        // Svaret strömmas in i en platshållare, så att de första orden syns
+        // på under sekunden. Hänvisningarna sätts när texten är färdig.
+        let plats = Chatt.Meddelande(roll: .assistent, text: "")
+        samtal.meddelanden.append(plats)
         Task {
             do {
                 let svar = try await chatt.fråga(
                     text, om: kund.namn, projekt: projekt?.namn,
-                    träffar: träffar, historik: Array(historik))
-                samtal.meddelanden.append(Chatt.Meddelande(roll: .assistent, text: svar.text,
-                                                    hänvisningar: svar.hänvisningar))
+                    träffar: träffar, historik: Array(historik),
+                    vidDelta: { bit in
+                        Task { @MainActor in
+                            guard let i = samtal.meddelanden.firstIndex(where: { $0.id == plats.id })
+                            else { return }
+                            samtal.meddelanden[i].text += bit
+                        }
+                    })
+                if let i = samtal.meddelanden.firstIndex(where: { $0.id == plats.id }) {
+                    samtal.meddelanden[i].text = svar.text
+                    samtal.meddelanden[i].hänvisningar = svar.hänvisningar
+                }
                 spara()
             } catch {
+                samtal.meddelanden.removeAll { $0.id == plats.id }
                 fel = error.localizedDescription
             }
             väntar = false

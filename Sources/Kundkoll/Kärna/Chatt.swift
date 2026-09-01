@@ -117,11 +117,17 @@ actor Chatt {
     var leverantör: Leverantör { val.leverantör }
 
     /// Ställer en fråga med utdrag ur kunskapsbanken som underlag.
+    ///
+    /// Med `vidDelta` strömmas svaret bit för bit medan det skrivs — de
+    /// första orden syns på under sekunden i stället för att hela svaret
+    /// landar efter flera. Hänvisningarna kommer ändå sist: de plockas ur
+    /// den färdiga texten.
     func fråga(_ text: String,
                om kund: String,
                projekt: String?,
                träffar: [Kunskapsbank.Träff],
-               historik: [Meddelande]) async throws -> Svar {
+               historik: [Meddelande],
+               vidDelta: (@Sendable (String) -> Void)? = nil) async throws -> Svar {
         guard let url = val.url else { throw Fel.trasigAdress }
         let nyckel = Nyckelring.förLeverantör(val.leverantör)
         if val.leverantör.behöverNyckel && nyckel == nil { throw Fel.ingenNyckel(val.leverantör) }
@@ -134,7 +140,8 @@ actor Chatt {
         var r = URLRequest(url: url)
         r.httpMethod = "POST"
         r.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        r.httpBody = try kropp(system: system, tidigare: Array(tidigare), fråga: text)
+        r.httpBody = try kropp(system: system, tidigare: Array(tidigare), fråga: text,
+                               ström: vidDelta != nil)
 
         switch val.leverantör {
         case .anthropic:
@@ -149,6 +156,11 @@ actor Chatt {
             r.setValue("Bearer \(nyckel ?? "")", forHTTPHeaderField: "Authorization")
         case .lokal:
             if let nyckel { r.setValue("Bearer \(nyckel)", forHTTPHeaderField: "Authorization") }
+        }
+
+        if let vidDelta {
+            let hela = try await strömma(r, url: url, vidDelta: vidDelta)
+            return Svar(text: hela, hänvisningar: Self.använda(i: hela, av: träffar))
         }
 
         let (data, svar): (Data, URLResponse)
@@ -170,6 +182,40 @@ actor Chatt {
         guard let innehåll, !innehåll.isEmpty else { throw Fel.tomtSvar }
 
         return Svar(text: innehåll, hänvisningar: Self.använda(i: innehåll, av: träffar))
+    }
+
+    /// Läser svaret som SSE-rader och lämnar ut varje textbit direkt.
+    private func strömma(_ r: URLRequest, url: URL,
+                         vidDelta: @Sendable (String) -> Void) async throws -> String {
+        let (rader, svar): (URLSession.AsyncBytes, URLResponse)
+        do {
+            (rader, svar) = try await session.bytes(for: r)
+        } catch {
+            if val.leverantör == .lokal { throw Fel.nårInteLokal(url.host ?? "") }
+            throw error
+        }
+        guard let http = svar as? HTTPURLResponse else { throw Fel.ingetSvar }
+        guard http.statusCode == 200 else {
+            var data = Data()
+            for try await byte in rader { data.append(byte) }
+            throw Fel.frånTjänsten(http.statusCode, Self.felmeddelande(data))
+        }
+
+        var hela = ""
+        for try await rad in rader.lines {
+            guard rad.hasPrefix("data:") else { continue }
+            let nytto = rad.dropFirst(5).trimmingCharacters(in: .whitespaces)
+            if nytto == "[DONE]" { break }
+            let bit = val.leverantör.talarAnthropic
+                ? Self.deltaAnthropic(Data(nytto.utf8))
+                : Self.deltaOpenAI(Data(nytto.utf8))
+            if let bit, !bit.isEmpty {
+                hela += bit
+                vidDelta(bit)
+            }
+        }
+        guard !hela.isEmpty else { throw Fel.tomtSvar }
+        return hela
     }
 
     // MARK: - Format
@@ -200,7 +246,8 @@ actor Chatt {
         return ut
     }
 
-    private func kropp(system: String, tidigare: [Meddelande], fråga: String) throws -> Data {
+    private func kropp(system: String, tidigare: [Meddelande], fråga: String,
+                       ström: Bool = false) throws -> Data {
         var turer: [[String: String]] = []
         for m in tidigare {
             turer.append(["role": m.roll == .människa ? "user" : "assistant", "content": m.text])
@@ -209,18 +256,21 @@ actor Chatt {
 
         if val.leverantör.talarAnthropic {
             // Anthropic har systemtexten som eget fält, inte som ett meddelande.
-            return try JSONSerialization.data(withJSONObject: [
+            var kropp: [String: Any] = [
                 "model": val.modell,
                 "max_tokens": 2000,
                 "system": system,
                 "messages": turer,
-            ])
+            ]
+            if ström { kropp["stream"] = true }
+            return try JSONSerialization.data(withJSONObject: kropp)
         }
 
         var kropp: [String: Any] = [
             "messages": [["role": "system", "content": system]] + turer,
             "max_tokens": 2000,
         ]
+        if ström { kropp["stream"] = true }
         // Azure får modellen ur adressen, inte ur kroppen.
         if val.leverantör != .azure { kropp["model"] = val.modell }
         if val.leverantör == .openrouter {
@@ -241,6 +291,32 @@ actor Chatt {
         }
         return (try? JSONDecoder().decode(Svarskropp.self, from: data))?
             .choices.first?.message.content
+    }
+
+    /// En SSE-rad från OpenAI-dialekten: texten ligger i choices[0].delta.
+    static func deltaOpenAI(_ data: Data) -> String? {
+        struct Rad: Decodable {
+            struct Val: Decodable {
+                struct D: Decodable { let content: String? }
+                let delta: D?
+            }
+            let choices: [Val]?
+        }
+        return (try? JSONDecoder().decode(Rad.self, from: data))?
+            .choices?.first?.delta?.content
+    }
+
+    /// En SSE-rad från Anthropic: bara content_block_delta bär text.
+    static func deltaAnthropic(_ data: Data) -> String? {
+        struct Rad: Decodable {
+            struct D: Decodable { let type: String?; let text: String? }
+            let type: String?
+            let delta: D?
+        }
+        guard let rad = try? JSONDecoder().decode(Rad.self, from: data),
+              rad.type == "content_block_delta",
+              rad.delta?.type == "text_delta" else { return nil }
+        return rad.delta?.text
     }
 
     static func läsAnthropic(_ data: Data) -> String? {
