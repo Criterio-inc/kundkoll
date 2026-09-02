@@ -58,6 +58,7 @@ struct Kontaktvy: View {
             List {
                 ForEach(kontakter) { k in
                     HStack {
+                        Kontaktsigill(kontakt: k, kund: kund, sida: 28)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(k.namn)
                             if let e = k.förstaEpost {

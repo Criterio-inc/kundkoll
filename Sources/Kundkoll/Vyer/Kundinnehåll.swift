@@ -12,6 +12,7 @@ struct Kundinnehåll: View {
 
     @EnvironmentObject private var arkiv: Arkivet
     @EnvironmentObject private var kalender: Kalendern
+    @EnvironmentObject private var adressbok: Adressboken
     @EnvironmentObject private var session: Inspelningssession
 
     @State private var flik: Flik = .översikt
@@ -136,6 +137,7 @@ struct Kundinnehåll: View {
         }
         .onAppear {
             läsOm()
+            hämtaKontaktbilder()
             // Indexet hålls aktuellt från start — inte först när ett mejl
             // råkar hämtas eller chatten öppnas. Ändringskontrollen gör att
             // ett aktuellt index kostar nästan ingenting att bekräfta.
@@ -338,12 +340,15 @@ struct Kundinnehåll: View {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 200), spacing: 10)],
                           alignment: .leading, spacing: 10) {
                     ForEach(kontakter) { k in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(k.namn)
-                            if let r = k.roll {
-                                Text(r).font(.caption).foregroundStyle(.secondary)
-                            } else if let e = k.förstaEpost {
-                                Text(e).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        HStack(spacing: 10) {
+                            Kontaktsigill(kontakt: k, kund: kund, sida: 30)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(k.namn)
+                                if let r = k.roll {
+                                    Text(r).font(.caption).foregroundStyle(.secondary)
+                                } else if let e = k.förstaEpost {
+                                    Text(e).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                }
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -590,6 +595,22 @@ struct Kundinnehåll: View {
         kontakter = arkiv.kontakter(för: kund)
         inspelningar = arkiv.inspelningar(för: kund)
         ofullständiga = arkiv.ofullständiga(för: kund)
+    }
+
+    /// Kopplade kontakter utan bild får sin profilbild ur macOS Kontakter,
+    /// i tysthet — den som redan lagt in bilder där ska inte göra om jobbet.
+    private func hämtaKontaktbilder() {
+        guard adressbok.harTillgång else { return }
+        Task {
+            var ändrade = false
+            for var k in arkiv.kontakter(för: kund)
+            where k.systemID != nil && k.bild == nil {
+                guard let data = adressbok.bilddata(för: k) else { continue }
+                try? arkiv.sparaKontaktbild(data, för: &k, hos: kund)
+                ändrade = true
+            }
+            if ändrade { kontakter = arkiv.kontakter(för: kund) }
+        }
     }
 
     private func hämtaMöten() async {

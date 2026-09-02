@@ -521,6 +521,42 @@ final class Arkivet: ObservableObject {
     }
 
     /// Ersätter en kontakt med samma id.
+    /// Profilbilderna ligger som filer bredvid kontaktnoterna, aldrig som
+    /// data i json — de ska synas i Finder och följa med kundmappen.
+    func kontaktbildsmapp(_ kund: Kund) -> URL {
+        kund.kontaktmapp.appending(path: "bilder")
+    }
+
+    func kontaktbild(för kontakt: Kontakt, hos kund: Kund) -> URL? {
+        guard let bild = kontakt.bild else { return nil }
+        let url = kontaktbildsmapp(kund).appending(path: bild)
+        return fm.fileExists(atPath: url.path) ? url : nil
+    }
+
+    /// Sparar bilddata som kontaktens profilbild och ger filnamnet.
+    /// Bilden skalas ned — ett sigill behöver inte tolv megapixlar.
+    @discardableResult
+    func sparaKontaktbild(_ data: Data, för kontakt: inout Kontakt,
+                          hos kund: Kund) throws -> String {
+        guard let liten = Bildverktyg.jpegSigill(data, sida: 256) else {
+            throw Enkeltfel("Bilden gick inte att läsa.")
+        }
+        try fm.createDirectory(at: kontaktbildsmapp(kund), withIntermediateDirectories: true)
+        let namn = "\(kontakt.id.uuidString).jpg"
+        try liten.write(to: kontaktbildsmapp(kund).appending(path: namn), options: .atomic)
+        kontakt.bild = namn
+        try uppdatera(kontakt, hos: kund)
+        return namn
+    }
+
+    func taBortKontaktbild(för kontakt: inout Kontakt, hos kund: Kund) throws {
+        if let bild = kontakt.bild {
+            try? fm.removeItem(at: kontaktbildsmapp(kund).appending(path: bild))
+        }
+        kontakt.bild = nil
+        try uppdatera(kontakt, hos: kund)
+    }
+
     func uppdatera(_ kontakt: Kontakt, hos kund: Kund) throws {
         var alla = kontakter(för: kund)
         guard let i = alla.firstIndex(where: { $0.id == kontakt.id }) else {

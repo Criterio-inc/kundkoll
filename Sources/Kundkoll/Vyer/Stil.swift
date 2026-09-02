@@ -127,6 +127,28 @@ struct Sigill: View {
     }
 }
 
+/// Kontaktens ansikte: profilbilden när en finns, annars initialerna.
+struct Kontaktsigill: View {
+    let kontakt: Kontakt
+    let kund: Kund
+    var sida: CGFloat = 26
+
+    @EnvironmentObject private var arkiv: Arkivet
+
+    var body: some View {
+        if let url = arkiv.kontaktbild(för: kontakt, hos: kund),
+           let bild = NSImage(contentsOf: url) {
+            Image(nsImage: bild)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: sida, height: sida)
+                .clipShape(.rect(cornerRadius: sida * 0.28))
+        } else {
+            Sigill(namn: kontakt.namn, sida: sida)
+        }
+    }
+}
+
 // MARK: - Tomma lägen
 
 /// Ett vänligt tomt läge i stället för en ensam grå rad.

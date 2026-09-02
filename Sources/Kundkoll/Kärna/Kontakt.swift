@@ -13,15 +13,19 @@ struct Kontakt: Codable, Hashable, Identifiable {
     var telefon: [String] = []
     /// Identifieraren i macOS Kontakter, när kontakten är hämtad därifrån.
     var systemID: String?
+    /// Filnamnet på profilbilden i kundens Kontakter/bilder, när en finns.
+    var bild: String?
 
     init(id: UUID = UUID(), namn: String, roll: String? = nil,
-         epost: [String] = [], telefon: [String] = [], systemID: String? = nil) {
+         epost: [String] = [], telefon: [String] = [], systemID: String? = nil,
+         bild: String? = nil) {
         self.id = id
         self.namn = namn
         self.roll = roll
         self.epost = epost
         self.telefon = telefon
         self.systemID = systemID
+        self.bild = bild
     }
 
     /// Skriven för hand så att en kontakt sparad före ett nytt fält
@@ -34,6 +38,7 @@ struct Kontakt: Codable, Hashable, Identifiable {
         epost = try c.decodeIfPresent([String].self, forKey: .epost) ?? []
         telefon = try c.decodeIfPresent([String].self, forKey: .telefon) ?? []
         systemID = try c.decodeIfPresent(String.self, forKey: .systemID)
+        bild = try c.decodeIfPresent(String.self, forKey: .bild)
     }
 
     var förstaEpost: String? { epost.first }

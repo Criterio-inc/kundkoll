@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// Redigerar en kontakt och kan lägga upp eller uppdatera personen i
 /// macOS Kontakter.
@@ -101,6 +102,41 @@ struct Kontaktredigering: View {
             Button("Lägg till i Kontakter") { skrivTillAdressboken(nytt: true) }
                 .disabled(kontakt.namn.trimmingCharacters(in: .whitespaces).isEmpty)
         }
+    }
+
+    @ViewBuilder
+    private var bildval: some View {
+        Button("Välj bild …", action: väljBild)
+        if kopplad {
+            Button("Hämta från Kontakter") { hämtaBildFrånKontakter() }
+        }
+        if kontakt.bild != nil {
+            Divider()
+            Button("Ta bort bilden", role: .destructive) {
+                try? arkiv.taBortKontaktbild(för: &kontakt, hos: kund)
+                vidSparat(kontakt)
+            }
+        }
+    }
+
+    private func väljBild() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        panel.allowsMultipleSelection = false
+        panel.message = "Välj en profilbild för \(kontakt.namn)"
+        guard panel.runModal() == .OK, let url = panel.url,
+              let data = try? Data(contentsOf: url) else { return }
+        try? arkiv.sparaKontaktbild(data, för: &kontakt, hos: kund)
+        vidSparat(kontakt)
+    }
+
+    private func hämtaBildFrånKontakter() {
+        guard let data = adressbok.bilddata(för: kontakt) else {
+            meddelande = Meddelande(text: "Posten i Kontakter har ingen bild.", fel: false)
+            return
+        }
+        try? arkiv.sparaKontaktbild(data, för: &kontakt, hos: kund)
+        vidSparat(kontakt)
     }
 
     private func fält<Innehåll: View>(_ rubrik: String,

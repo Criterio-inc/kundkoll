@@ -21,6 +21,7 @@ final class Adressboken: ObservableObject {
     private static let nycklar = [
         CNContactGivenNameKey, CNContactFamilyNameKey, CNContactOrganizationNameKey,
         CNContactJobTitleKey, CNContactEmailAddressesKey, CNContactPhoneNumbersKey,
+        CNContactImageDataKey, CNContactThumbnailImageDataKey,
     ] as [CNKeyDescriptor]
 
     @discardableResult
@@ -90,6 +91,15 @@ final class Adressboken: ObservableObject {
         let begäran = CNSaveRequest()
         begäran.update(ändringsbar)
         try butik.execute(begäran)
+    }
+
+    /// Profilbilden ur macOS Kontakter, när posten har en.
+    func bilddata(för kontakt: Kontakt) -> Data? {
+        guard harTillgång, let id = kontakt.systemID,
+              let post = try? butik.unifiedContact(withIdentifier: id,
+                                                   keysToFetch: Self.nycklar)
+        else { return nil }
+        return post.imageData ?? post.thumbnailImageData
     }
 
     /// Finns posten kvar? En kontakt kan ha raderats i Kontakter sedan vi
