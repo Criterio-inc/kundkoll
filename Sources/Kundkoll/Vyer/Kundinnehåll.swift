@@ -33,6 +33,8 @@ struct Kundinnehåll: View {
     @State private var attKasta: Öppnad?
     @State private var ofullständiga: [(mapp: URL, storlek: Int)] = []
     @State private var briefing: Kalendern.Möte?
+    /// Mötes-id → projektnamn, valt för hand.
+    @State private var möteskopplingar: [String: String] = [:]
     @State private var slutför: URL?
     @State private var slutförsteg = ""
 
@@ -178,7 +180,25 @@ struct Kundinnehåll: View {
 
     @ViewBuilder
     private var mötesavsnitt: some View {
-        avsnitt(möten.isEmpty ? "Möten" : "Kommande möten") {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Avsnittsrubrik(möten.isEmpty ? "Möten" : "Kommande möten")
+                Image(systemName: "info.circle")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .help("Ett möte räknas som kundens om någon deltagare finns "
+                          + "bland kundens kontakter, har kundens mejldomän, eller "
+                          + "om kundnamnet står i mötets titel. Vilket projekt det "
+                          + "hör till väljs för hand — det kan ingen regel gissa.")
+                Spacer()
+            }
+            mötesinnehåll
+        }
+    }
+
+    @ViewBuilder
+    private var mötesinnehåll: some View {
+        Group {
             if möten.isEmpty {
                 Text(kalender.harTillgång
                      ? "Inga inbokade möten med \(kund.namn) de närmaste veckorna."
@@ -206,6 +226,25 @@ struct Kundinnehåll: View {
                         if m.pågår {
                             Märke(text: "pågår", färg: .red)
                         }
+                        if !projekt.isEmpty {
+                            // Vilket projekt mötet hör till kan ingen regel
+                            // gissa; det väljs här och följer med inspelningen.
+                            Menu {
+                                Button("Inget projekt") { koppla(m, till: nil) }
+                                ForEach(projekt) { p in
+                                    Button(p.namn) { koppla(m, till: p.namn) }
+                                }
+                            } label: {
+                                Label(möteskopplingar[m.id] ?? "Projekt",
+                                      systemImage: "folder")
+                                    .font(.caption)
+                            }
+                            .menuStyle(.borderlessButton)
+                            .fixedSize()
+                            .foregroundStyle(möteskopplingar[m.id] == nil
+                                             ? Color.secondary : Color.accentColor)
+                            .help("Välj vilket projekt mötet hör till")
+                        }
                         if let länk = m.möteslänk {
                             Button { NSWorkspace.shared.open(länk) } label: {
                                 Image(systemName: "video")
@@ -217,9 +256,11 @@ struct Kundinnehåll: View {
                             .buttonStyle(.borderless)
                             .help("Senaste mötet, öppna åtaganden och nya mejl — läsningen inför mötet")
                         Button("Spela in") {
-                            // Mötet bär titel och deltagare, och mikrofonen är
-                            // den som användes sist. Inget att fylla i.
-                            Inspelningsfönster.öppna(kund: kund, projekt: nil, möte: m)
+                            // Mötet bär titel, deltagare och sitt valda
+                            // projekt. Mikrofonen är den som användes sist.
+                            Inspelningsfönster.öppna(kund: kund,
+                                                     projekt: kopplatProjekt(m),
+                                                     möte: m)
                         }
                         .buttonStyle(.borderless)
                         .disabled(session.pågår)
@@ -231,6 +272,15 @@ struct Kundinnehåll: View {
             .kort(hörn: Stil.radhörn)
             }
         }
+    }
+
+    private func koppla(_ m: Kalendern.Möte, till projektnamn: String?) {
+        try? arkiv.kopplaMöte(m.id, till: projektnamn, för: kund)
+        möteskopplingar = arkiv.möteskopplingar(för: kund)
+    }
+
+    private func kopplatProjekt(_ m: Kalendern.Möte) -> Projekt? {
+        möteskopplingar[m.id].flatMap { namn in projekt.first { $0.namn == namn } }
     }
 
     /// "om 20 minuter", "i dag 14:00", "på torsdag" — närmare till hands än
@@ -536,6 +586,7 @@ struct Kundinnehåll: View {
 
     private func läsOm() {
         projekt = arkiv.projekt(för: kund)
+        möteskopplingar = arkiv.möteskopplingar(för: kund)
         kontakter = arkiv.kontakter(för: kund)
         inspelningar = arkiv.inspelningar(för: kund)
         ofullständiga = arkiv.ofullständiga(för: kund)

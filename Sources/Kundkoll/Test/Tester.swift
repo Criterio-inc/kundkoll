@@ -20,6 +20,7 @@ enum Tester {
         omindexering()
         betydelse()
         transkriberingsmotorer()
+        möteskopplingar()
         röster()
         kontakterOchKalender()
         mailen()
@@ -1633,6 +1634,25 @@ enum Tester {
         let siffror = möte("20260901", "2026-09-01")
         Prov.lika(Mötesserie.föregående(siffror.0, bland: alla + [möte("20260801", "2026-08-01")])?.0.id,
                   nil, "titlar av bara siffror kedjas aldrig")
+    }
+
+    // MARK: - Möteskopplingar
+
+    static func möteskopplingar() {
+        Prov.svit("Möteskopplingar")
+        let rot = FileManager.default.temporaryDirectory
+            .appending(path: "kundkoll-test-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: rot) }
+        let arkiv = Arkivet(rot: rot)
+        let kund = try! arkiv.skapaKund(namn: "Acme")
+
+        Prov.lika(arkiv.möteskopplingar(för: kund).count, 0, "inga kopplingar från början")
+        try! arkiv.kopplaMöte("m1", till: "Nytt lager", för: kund)
+        Prov.lika(arkiv.möteskopplingar(för: kund)["m1"], "Nytt lager",
+                  "ett möte kan kopplas till ett projekt")
+        try! arkiv.kopplaMöte("m1", till: nil, för: kund)
+        Prov.lika(arkiv.möteskopplingar(för: kund)["m1"], nil,
+                  "och kopplas loss igen")
     }
 
     // MARK: - Transkriberingsmotorer

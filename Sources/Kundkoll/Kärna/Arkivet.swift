@@ -179,6 +179,33 @@ final class Arkivet: ObservableObject {
         try fm.trashItem(at: mapp, resultingItemURL: nil)
     }
 
+    // MARK: - Möteskopplingar
+
+    /// Vilket projekt ett kalendermöte hör till, per mötes-id.
+    ///
+    /// Matchningen till kund är automatisk — deltagare bland kontakterna,
+    /// kundens mejldomän eller kundnamnet i titeln — men projektet inom
+    /// kunden kan ingen regel gissa, så det väljs för hand och sparas här.
+    private func möteskopplingsfil(_ kund: Kund) -> URL {
+        kund.mapp.appending(path: ".kundkoll/möteskopplingar.json")
+    }
+
+    func möteskopplingar(för kund: Kund) -> [String: String] {
+        guard let data = try? Data(contentsOf: möteskopplingsfil(kund)),
+              let k = try? JSONDecoder().decode([String: String].self, from: data)
+        else { return [:] }
+        return k
+    }
+
+    func kopplaMöte(_ mötesID: String, till projekt: String?, för kund: Kund) throws {
+        var alla = möteskopplingar(för: kund)
+        alla[mötesID] = projekt
+        try fm.createDirectory(at: kund.mapp.appending(path: ".kundkoll"),
+                               withIntermediateDirectories: true)
+        let data = try JSONEncoder.kundkoll.encode(alla)
+        try data.write(to: möteskopplingsfil(kund), options: .atomic)
+    }
+
     // MARK: - Uppgifter
 
     private func uppgiftsfil(_ kund: Kund) -> URL {
