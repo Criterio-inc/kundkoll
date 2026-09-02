@@ -1832,6 +1832,16 @@ enum Tester {
         Prov.lika(gammal?.motor, .openai, "sparade val utan alla fält går att läsa")
         Prov.lika(gammal?.arkivmodell, "whisper-1", "och tom modell betyder motorns standard")
 
+        // Loopfiltret: 773 rader «Good afternoon.» i följd hände på riktigt.
+        func y(_ t: String) -> Yttrande { Yttrande(röst: .motpart, text: t, start: 0, slut: 1) }
+        let loop = [y("Hej")] + Array(repeating: y("Good afternoon."), count: 700) + [y("Slut")]
+        let rensad = MlxWhisper.utanUpprepningar(loop)
+        Prov.lika(rensad.map(\.text), ["Hej", "Good afternoon.", "Slut"],
+                  "en loop kokas ner till sin första rad")
+        let äkta = [y("Ja."), y("Ja."), y("Precis.")]
+        Prov.lika(MlxWhisper.utanUpprepningar(äkta).count, 3,
+                  "korta äkta upprepningar lämnas i fred")
+
         // Språkvägvalet: KB översätter allt till svenska — uppmätt blev
         // engelskt ljud svenska även med -l en — så andra språk routas bort.
         let kb = Arkivtranskribering.vägval(motor: .whisperCpp,

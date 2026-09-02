@@ -221,7 +221,12 @@ enum MlxWhisper {
         var argument = [fil.path,
                         "--model", modell,
                         "--output-dir", ut.path,
-                        "--output-format", "json"]
+                        "--output-format", "json",
+                        // mlx saknar Silero-VAD, och utan de här två fastnade
+                        // den i en loop på ett riktigt möte: 60 s tystnad i
+                        // början gav 773 rader «Good afternoon.» i följd.
+                        "--condition-on-previous-text", "False",
+                        "--hallucination-silence-threshold", "2"]
         // Utan språk får modellen avgöra själv — uppmätt hittar den rätt.
         if let språk { argument += ["--language", språk] }
         p.arguments = argument
@@ -268,11 +273,31 @@ enum MlxWhisper {
             let segments: [Segment]
         }
         guard let f = try? JSONDecoder().decode(Fil.self, from: data) else { return [] }
-        return f.segments.compactMap { s in
+        let rader = f.segments.compactMap { s -> Yttrande? in
             let t = s.text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !t.isEmpty, !Whisper.ärTomtLjud(t) else { return nil }
             return Yttrande(röst: röst, text: t, start: s.start, slut: s.end)
         }
+        return utanUpprepningar(rader)
+    }
+
+    /// Samma text många gånger i rad är alltid en modell som fastnat, aldrig
+    /// någon som talar — uppmätt gav 60 s tystnad i början av ett möte 773
+    /// rader «Good afternoon.» i följd. Första förekomsten behålls, den kan
+    /// vara äkta.
+    static func utanUpprepningar(_ rader: [Yttrande], tak: Int = 4) -> [Yttrande] {
+        var ut: [Yttrande] = []
+        var i = 0
+        while i < rader.count {
+            var j = i
+            while j < rader.count, rader[j].text == rader[i].text { j += 1 }
+            ut.append(rader[i])
+            // Korta upprepningar är äkta tal — «Ja. Ja.» händer. Långa är det
+            // aldrig.
+            if j - i < tak { ut.append(contentsOf: rader[(i + 1)..<j]) }
+            i = j
+        }
+        return ut
     }
 }
 
