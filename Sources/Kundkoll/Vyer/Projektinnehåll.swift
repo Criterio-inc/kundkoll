@@ -14,6 +14,12 @@ struct Projektinnehåll: View {
     @State private var inspelningar: [(Inspelning, URL)] = []
     @State private var öppnad: Kundinnehåll.Öppnad?
     @State private var attKasta: Kundinnehåll.Öppnad?
+    @State private var lägesbild: Lägesbild?
+    @State private var skriverLäget = false
+    @State private var lägesfel: String?
+    /// Ett skrivförsök per gång vyn visas — annars skulle ett projekt utan
+    /// underlag försöka om vid varje omritning.
+    @State private var harFörsöktSkriva = false
 
     enum Flik: String, CaseIterable, Identifiable {
         case översikt, attGöra, inspelningar, anteckningar
@@ -52,7 +58,9 @@ struct Projektinnehåll: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     switch flik {
-                    case .översikt: mappavsnitt
+                    case .översikt:
+                        lägesavsnitt
+                        mappavsnitt
                     case .attGöra: Kanbanvy(kund: kund, projekt: projekt)
                     case .inspelningar: inspelningsflik
                     case .anteckningar: Anteckningslista(mapp: projekt.anteckningsmapp)
@@ -83,15 +91,111 @@ struct Projektinnehåll: View {
         } message: { v in
             Text("\(v.inspelning.titel) med ljud och transkript flyttas till papperskorgen.")
         }
-        .onAppear(perform: läsIn)
+        .onAppear {
+            läsIn()
+            // Lägesbilden ska bara finnas där. Saknas den, eller har underlaget
+            // ändrats, skrivs den om — men högst en gång per besök, och bara
+            // när chattens modell är på plats.
+            lägesbild = Läget.läs(kund: kund, projekt: projekt)
+            if !harFörsöktSkriva, Modellval.läs().färdig,
+               lägesbild == nil
+               || Läget.gammal(lägesbild!, kund: kund, projekt: projekt, arkiv: arkiv) {
+                harFörsöktSkriva = true
+                skrivLäget()
+            }
+        }
         .onChange(of: arkiv.sparningar) { läsIn() }
+    }
+
+    /// Var projektet står just nu, skrivet av modellen ur uppgifter, möten,
+    /// mejl och anteckningar. Cachas och skrivs om när underlaget ändrats.
+    private var lägesavsnitt: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Avsnittsrubrik("Läget just nu")
+                if skriverLäget { ProgressView().controlSize(.mini) }
+                Spacer()
+                Text(faktarad)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let lägesbild {
+                VStack(alignment: .leading, spacing: 10) {
+                    Markdowntext(text: lägesbild.text)
+                    HStack(spacing: 8) {
+                        Text("Skriven \(DateFormatter.klocka.string(from: lägesbild.skriven))")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                        if Läget.gammal(lägesbild, kund: kund, projekt: projekt, arkiv: arkiv) {
+                            Text("· underlaget har ändrats")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                        Button("Skriv om") { skrivLäget() }
+                            .buttonStyle(.link)
+                            .font(.caption)
+                            .disabled(skriverLäget)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(14)
+                .kort()
+            } else if skriverLäget {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Läser igenom projektet och skriver lägesbilden …")
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(14)
+                .kort()
+            } else if let lägesfel {
+                Text(lägesfel)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .kort()
+            }
+        }
+    }
+
+    /// Det räknbara, som alltid stämmer oavsett vad modellen skrev.
+    private var faktarad: String {
+        let egna = arkiv.uppgifter(för: kund).filter { $0.projekt == projekt.namn }
+        let öppna = egna.filter { $0.läge != .klart }
+        let försenade = öppna.filter(\.försenad).count
+        var delar: [String] = []
+        delar.append("\(inspelningar.count) \(inspelningar.count == 1 ? "möte" : "möten")")
+        var u = "\(öppna.count) öppna uppgifter"
+        if försenade > 0 { u += " · \(försenade) försenade" }
+        delar.append(u)
+        if let senaste = inspelningar.first?.0.inledd {
+            delar.append("senast \(DateFormatter.kortdag.string(from: senaste))")
+        }
+        return delar.joined(separator: " · ")
+    }
+
+    private func skrivLäget() {
+        guard !skriverLäget else { return }
+        skriverLäget = true
+        lägesfel = nil
+        Task {
+            do {
+                lägesbild = try await Läget.skriv(kund: kund, projekt: projekt, arkiv: arkiv)
+            } catch {
+                lägesfel = error.localizedDescription
+            }
+            skriverLäget = false
+        }
     }
 
     /// Mappar utanför kundmappen som hör till projektet.
     private var mappavsnitt: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Kopplade mappar").font(.headline)
+                Avsnittsrubrik("Kopplade mappar")
                 Spacer()
                 Button("Koppla mapp", action: väljMapp).buttonStyle(.link)
             }

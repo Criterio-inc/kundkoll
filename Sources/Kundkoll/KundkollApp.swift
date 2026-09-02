@@ -27,6 +27,33 @@ struct Ingång {
             sem.wait()
             exit(kod)
         }
+        if let i = CommandLine.arguments.firstIndex(of: "--prov-läget"),
+           i + 2 < CommandLine.arguments.count {
+            let a = CommandLine.arguments
+            // Läget.skriv är huvudaktörsbunden, så huvudtråden kan inte stå i
+            // en semafor — den pumpar körslingan tills jobbet är klart.
+            nonisolated(unsafe) var kod: Int32? = nil
+            Task { @MainActor in
+                do {
+                    guard let kund = Arkivet.shared.kunder.first(where: { $0.namn == a[i + 1] }),
+                          let projekt = Arkivet.shared.projekt(för: kund)
+                            .first(where: { $0.namn == a[i + 2] })
+                    else { throw Enkeltfel("Hittar inte \(a[i + 1]) / \(a[i + 2])") }
+                    let bild = try await Läget.skriv(kund: kund, projekt: projekt)
+                    print(bild.text)
+                    Prov.svit("Lägesbilden skarpt")
+                    Prov.kolla(!bild.text.isEmpty, "modellen skrev en lägesbild")
+                    kod = Prov.sammanfatta()
+                } catch {
+                    print("Gick inte: \(error.localizedDescription)")
+                    kod = 1
+                }
+            }
+            while kod == nil {
+                RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.1))
+            }
+            exit(kod ?? 1)
+        }
         if CommandLine.arguments.contains("--prov-datum") {
             let sem = DispatchSemaphore(value: 0)
             nonisolated(unsafe) var kod: Int32 = 1
