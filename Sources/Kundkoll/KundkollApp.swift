@@ -27,6 +27,40 @@ struct Ingång {
             sem.wait()
             exit(kod)
         }
+        if let i = CommandLine.arguments.firstIndex(of: "--transkribera-om"),
+           i + 1 < CommandLine.arguments.count {
+            let a = CommandLine.arguments
+            let mapp = URL(fileURLWithPath: a[i + 1])
+            let språk = i + 2 < a.count ? (a[i + 2] == "auto" ? nil : a[i + 2]) : "sv"
+            nonisolated(unsafe) var kod: Int32? = nil
+            Task { @MainActor in
+                do {
+                    guard let data = try? Data(contentsOf: mapp.appending(path: "möte.json")),
+                          let gammal = try? JSONDecoder.kundkoll.decode(Inspelning.self, from: data),
+                          let kund = Arkivet.shared.kunder.first(where: { $0.namn == gammal.kund })
+                    else { throw Enkeltfel("Hittar ingen läsbar inspelning i \(mapp.path)") }
+                    let placering: Placering = gammal.projekt.flatMap { namn in
+                        Arkivet.shared.projekt(för: kund).first { $0.namn == namn }
+                            .map { Placering.projekt($0) }
+                    } ?? .kund(kund)
+                    let profiler = Arkivet.shared.röstprofiler(för: kund)
+                    let ny = try await Import().slutför(
+                        mapp: mapp, placering: placering, profiler: profiler,
+                        titel: gammal.titel, språk: språk,
+                        vidLäge: { l in print("  \(l.steg)") })
+                    print("Klar: \(ny.yttranden.count) yttranden")
+                    for y in ny.yttranden.prefix(4) { print("  · \(y.text.prefix(80))") }
+                    kod = ny.yttranden.isEmpty ? 1 : 0
+                } catch {
+                    print("Gick inte: \(error.localizedDescription)")
+                    kod = 1
+                }
+            }
+            while kod == nil {
+                RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.1))
+            }
+            exit(kod ?? 1)
+        }
         if let i = CommandLine.arguments.firstIndex(of: "--prov-läget"),
            i + 2 < CommandLine.arguments.count {
             let a = CommandLine.arguments

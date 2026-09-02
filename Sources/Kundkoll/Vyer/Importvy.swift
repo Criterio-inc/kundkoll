@@ -28,6 +28,8 @@ struct Importvy: View {
     @State private var fil: URL?
     @State private var titel = ""
     @State private var valtProjekt: Projekt?
+    /// "sv", "en" eller nil — motorn avgör själv.
+    @State private var språk: String? = "sv"
 
     @State private var läge: Läge = .väljer
     @State private var steg = ""
@@ -90,6 +92,14 @@ struct Importvy: View {
                     Text(kund.namn).tag(Projekt?.none)
                     ForEach(projekt) { p in Text(p.namn).tag(Projekt?.some(p)) }
                 }
+                Picker("Språk", selection: $språk) {
+                    Text("Svenska").tag(String?.some("sv"))
+                    Text("Engelska").tag(String?.some("en"))
+                    Text("Avgör själv").tag(String?.none)
+                }
+                .help("KB-Whisper är svensktrimmad och översätter engelska till "
+                      + "svenska — för engelska möten tar transkriberingen vägen "
+                      + "via MLX eller den valda molnmotorn.")
             }
             .formStyle(.grouped)
 
@@ -222,6 +232,7 @@ struct Importvy: View {
                     fil, placering: placering,
                     titel: namn.isEmpty ? fil.deletingPathExtension().lastPathComponent : namn,
                     kund: kund, profiler: profiler,
+                    språk: språk,
                     vidLäge: { l in
                         Task { @MainActor in
                             steg = l.steg

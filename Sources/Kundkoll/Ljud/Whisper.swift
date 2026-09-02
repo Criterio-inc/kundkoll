@@ -122,7 +122,7 @@ actor Whisper {
     }
 
     /// Transkriberar ett talfönster. Tom sträng om whisper inte hörde något.
-    func transkribera(prov: [Float]) async throws -> String {
+    func transkribera(prov: [Float], språk: String = "sv") async throws -> String {
         guard process != nil else { throw Fel.serverEjIgång }
         let gräns = "kundkoll-\(UUID().uuidString)"
         var kropp = Data()
@@ -134,6 +134,7 @@ actor Whisper {
         kropp.append("\r\n".data(using: .utf8)!)
         del("temperature", "0")
         del("response_format", "json")
+        del("language", språk)
         kropp.append("--\(gräns)--\r\n".data(using: .utf8)!)
 
         var r = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/inference")!)
@@ -164,6 +165,7 @@ actor Whisper {
     /// exakt var i ljudet den är, och texten är dessutom värd att visa.
     func arkivtranskribera(fil: URL, röst: Röst, förskjutning: Double = 0,
                            modell: String? = nil,
+                           språk: String? = "sv",
                            totalLängd: Double? = nil,
                            vidFramsteg: (@Sendable (Framsteg) -> Void)? = nil) async throws -> [Yttrande] {
         if let brist = sökvägar.brister.first { throw Fel.saknas(brist) }
@@ -182,7 +184,7 @@ actor Whisper {
         p.currentDirectoryURL = sökvägar.rot
         p.arguments = [
             "-m", sökvägar.modell(vald).path,
-            "-l", "sv",
+            "-l", språk ?? "auto",
             "-f", fil.path,
             "-oj",                       // JSON bredvid, med tider
             "-of", ut.path,

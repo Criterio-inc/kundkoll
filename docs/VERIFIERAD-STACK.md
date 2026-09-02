@@ -323,3 +323,23 @@ Scribe finns som scribe_v1 och scribe_v2 — båda svarar, v2 är standard.
 Svarsformatet är ord (word/spacing/audio_event) med start/slut; bara
 word-raderna används. Whispers påhittsfilter (`ärTomtLjud`, loopdetektorn)
 körs på alla motorers utdata — text är text, oavsett var den kom ifrån.
+
+## ⚠️ KB-Whisper översätter engelska till svenska — oavsett språkflagga
+
+Uppmätt på ett riktigt engelskt möte (19 min, Teams): kb_medium med `-l sv`
+översatte hela mötet till svenska («Jag har inte sett en respons från Nina»),
+och med `-l en` och `-l auto` **också** — finjusteringen har i praktiken
+tappat förmågan att skriva engelska. kb_small behåller mer («I say we go
+ahead and get started», men «sänt … weeknd»), duger för live men inte arkiv.
+
+MLX large-v3-turbo med språket utelämnat: «Detected language: English» och
+felfri engelska. Därför:
+
+- Språk väljs per import och per inspelning: Svenska (standard), Engelska,
+  eller Avgör själv.
+- **Vägvalet**: whisper.cpp med KB-modell + annat språk än svenska routas
+  till MLX (eller stopp i klartext om mlx-whisper saknas). Molnmotorer och
+  icke-KB-modeller rör inte vägvalet.
+- Livefönstren skickar `language` per anrop till whisper-server.
+- Mötesvyn kan **transkribera om** en importerad inspelning på valt språk —
+  ljudet finns ju kvar. Även headless: `--transkribera-om <mapp> [sv|en|auto]`.

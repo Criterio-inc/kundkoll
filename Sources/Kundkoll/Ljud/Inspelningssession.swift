@@ -55,6 +55,8 @@ final class Inspelningssession: ObservableObject {
     private var placering: Placering?
     private var mikrofonNamn: String?
     private var kallade: [String] = []
+    /// Mötets språk: "sv" eller "en". Livefönstren och arkivpasset följer det.
+    private var språk = "sv"
     private var start = Date()
     private var klocka: Timer?
     /// En transkribering i taget per spår, annars hamnar raderna i oordning.
@@ -65,12 +67,14 @@ final class Inspelningssession: ObservableObject {
     // MARK: - Start
 
     func starta(placering: Placering, titel: String,
-                mikrofon: Ljudinfångning.Mikrofon?, kallade: [String] = []) async {
+                mikrofon: Ljudinfångning.Mikrofon?, kallade: [String] = [],
+                språk: String = "sv") async {
         guard case .vilande = läge else { return }
         self.placering = placering
         self.titel = titel.isEmpty ? "Samtal" : titel
         self.mikrofonNamn = mikrofon?.namn
         self.kallade = kallade
+        self.språk = språk
         yttranden = []
         förfluten = 0
 
@@ -140,7 +144,8 @@ final class Inspelningssession: ObservableObject {
         köer[röst] = Task { [weak self] in
             await tidigare?.value
             guard let self else { return }
-            guard let text = try? await self.whisper.transkribera(prov: f.prov), !text.isEmpty else { return }
+            guard let text = try? await self.whisper.transkribera(prov: f.prov, språk: self.språk),
+                  !text.isEmpty else { return }
             await MainActor.run {
                 let y = Yttrande(röst: röst, text: text, start: f.start, slut: f.slut)
                 self.yttranden.append(y)
@@ -187,7 +192,8 @@ final class Inspelningssession: ObservableObject {
             mikrofon: mikrofonNamn,
             liveYttranden: yttranden,
             arkivYttranden: nil,
-            kallade: kallade
+            kallade: kallade,
+            språk: språk
         )
         try? Arkivet.shared.spara(inspelning, i: mapp)
         läge = .klar(mapp)
@@ -214,7 +220,7 @@ final class Inspelningssession: ObservableObject {
                 // Två spår, så varje spår är halva arbetet.
                 let bas = Double(n) / Double(spår.count)
                 if let r = try? await Arkivtranskribering.kör(
-                    fil: url, röst: röst, totalLängd: i.längd,
+                    fil: url, röst: röst, språk: i.språk ?? "sv", totalLängd: i.längd,
                     vidFramsteg: { f in
                         Task { @MainActor in
                             self.efterbearbetningsandel = bas + f.andel / Double(spår.count)

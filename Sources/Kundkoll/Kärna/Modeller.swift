@@ -131,6 +131,8 @@ struct Inspelning: Codable, Identifiable, Hashable {
     var enspårig = false
     /// Namnet på filen den importerades från.
     var källfil: String?
+    /// Mötets språk: "sv", "en" eller nil för att låta motorn avgöra.
+    var språk: String?
     /// Vad mötet landade i. Skrivs efter efterbearbetningen.
     var sammanfattning: Mötessammanfattning?
     var efterbearbetad: Bool { arkivYttranden != nil }
@@ -142,6 +144,7 @@ struct Inspelning: Codable, Identifiable, Hashable {
          projekt: String?, mikrofon: String?, liveYttranden: [Yttrande],
          arkivYttranden: [Yttrande]?, röstnamn: [Int: String] = [:],
          kallade: [String] = [], enspårig: Bool = false, källfil: String? = nil,
+         språk: String? = nil,
          sammanfattning: Mötessammanfattning? = nil) {
         self.id = id
         self.titel = titel
@@ -156,6 +159,7 @@ struct Inspelning: Codable, Identifiable, Hashable {
         self.kallade = kallade
         self.enspårig = enspårig
         self.källfil = källfil
+        self.språk = språk
         self.sammanfattning = sammanfattning
     }
 
@@ -174,6 +178,7 @@ struct Inspelning: Codable, Identifiable, Hashable {
         kallade = try c.decodeIfPresent([String].self, forKey: .kallade) ?? []
         enspårig = try c.decodeIfPresent(Bool.self, forKey: .enspårig) ?? false
         källfil = try c.decodeIfPresent(String.self, forKey: .källfil)
+        språk = try c.decodeIfPresent(String.self, forKey: .språk)
         sammanfattning = try c.decodeIfPresent(Mötessammanfattning.self, forKey: .sammanfattning)
     }
 }

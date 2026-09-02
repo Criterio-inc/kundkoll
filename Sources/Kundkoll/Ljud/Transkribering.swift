@@ -126,26 +126,54 @@ struct Transkriberingsval: Codable {
 /// Arkivtranskriberingen: en ingång, fyra motorer.
 enum Arkivtranskribering {
 
-    static func kör(fil: URL, röst: Röst, totalLängd: Double? = nil,
+    /// `språk` är "sv", "en" eller nil för att låta motorn avgöra själv.
+    static func kör(fil: URL, röst: Röst, språk: String? = "sv",
+                    totalLängd: Double? = nil,
                     vidFramsteg: (@Sendable (Whisper.Framsteg) -> Void)? = nil)
     async throws -> [Yttrande] {
         let val = Transkriberingsval.läs()
-        switch val.motor {
+        guard let väg = vägval(motor: val.motor, modell: val.arkivmodell, språk: språk) else {
+            throw Enkeltfel("KB-Whisper är svensktrimmad och översätter andra språk "
+                            + "till svenska. För det här mötet behövs MLX "
+                            + "(pip install mlx-whisper i transcriber-venven) "
+                            + "eller en molnmotor — välj under ⌘,.")
+        }
+        switch väg.motor {
         case .whisperCpp:
             return try await Whisper.delad.arkivtranskribera(
-                fil: fil, röst: röst, modell: val.modell.isEmpty ? nil : val.modell,
+                fil: fil, röst: röst, modell: väg.modell, språk: språk,
                 totalLängd: totalLängd, vidFramsteg: vidFramsteg)
         case .mlx:
             return try await MlxWhisper.transkribera(
-                fil: fil, röst: röst, modell: val.arkivmodell,
+                fil: fil, röst: röst, modell: väg.modell, språk: språk,
                 totalLängd: totalLängd, vidFramsteg: vidFramsteg)
         case .openai:
             return try await Molntranskribering.openai(
-                fil: fil, röst: röst, modell: val.arkivmodell, vidFramsteg: vidFramsteg)
+                fil: fil, röst: röst, modell: väg.modell, språk: språk,
+                vidFramsteg: vidFramsteg)
         case .elevenlabs:
             return try await Molntranskribering.scribe(
-                fil: fil, röst: röst, modell: val.arkivmodell, vidFramsteg: vidFramsteg)
+                fil: fil, röst: röst, modell: väg.modell, språk: språk,
+                vidFramsteg: vidFramsteg)
         }
+    }
+
+    /// Vart ett språk får ta vägen.
+    ///
+    /// KB-modellerna översätter allt till svenska — uppmätt: engelskt ljud
+    /// med -l en blev svenska med kb_medium. För andra språk än svenska går
+    /// whisper.cpp-vägen därför via MLX, som upptäcker språket själv och
+    /// bevisligen behåller det. Finns inte MLX blir svaret nil och anroparen
+    /// får säga ifrån i klartext.
+    static func vägval(motor: Transkriberingsmotor, modell: String, språk: String?)
+    -> (motor: Transkriberingsmotor, modell: String)? {
+        guard motor == .whisperCpp, modell.contains("kb_whisper"), språk != "sv" else {
+            return (motor, modell)
+        }
+        guard FileManager.default.isExecutableFile(atPath: MlxWhisper.körbar.path) else {
+            return nil
+        }
+        return (.mlx, Transkriberingsmotor.mlx.standardmodell)
     }
 
     /// Vad som saknas för att det valda ska kunna köra. Tomt är gott.
@@ -175,6 +203,7 @@ enum MlxWhisper {
     static var körbar: URL { venv.appending(path: "bin/mlx_whisper") }
 
     static func transkribera(fil: URL, röst: Röst, modell: String,
+                             språk: String? = "sv",
                              totalLängd: Double?,
                              vidFramsteg: (@Sendable (Whisper.Framsteg) -> Void)?)
     async throws -> [Yttrande] {
@@ -189,11 +218,13 @@ enum MlxWhisper {
 
         let p = Process()
         p.executableURL = körbar
-        p.arguments = [fil.path,
-                       "--model", modell,
-                       "--language", "sv",
-                       "--output-dir", ut.path,
-                       "--output-format", "json"]
+        var argument = [fil.path,
+                        "--model", modell,
+                        "--output-dir", ut.path,
+                        "--output-format", "json"]
+        // Utan språk får modellen avgöra själv — uppmätt hittar den rätt.
+        if let språk { argument += ["--language", språk] }
+        p.arguments = argument
 
         // mlx_whisper skriver segmenten till stdout medan den arbetar, på
         // samma form som whisper-cli — framstegen läses därifrån.
@@ -254,6 +285,7 @@ enum Molntranskribering {
     // MARK: OpenAI
 
     static func openai(fil: URL, röst: Röst, modell: String,
+                       språk: String? = "sv",
                        vidFramsteg: (@Sendable (Whisper.Framsteg) -> Void)?)
     async throws -> [Yttrande] {
         guard let nyckel = Transkriberingsmotor.openai.nyckel else {
@@ -271,8 +303,9 @@ enum Molntranskribering {
         }
 
         vidFramsteg?(Whisper.Framsteg(andel: 0.2, senasteRad: "Skickar till OpenAI …"))
-        var delar: [(String, String)] = [("model", modell), ("language", "sv"),
+        var delar: [(String, String)] = [("model", modell),
                                          ("response_format", "verbose_json")]
+        if let språk { delar.append(("language", språk)) }
         let data = try await skickaMultipart(
             till: URL(string: "https://api.openai.com/v1/audio/transcriptions")!,
             huvuden: ["Authorization": "Bearer \(nyckel)"],
@@ -299,6 +332,7 @@ enum Molntranskribering {
     // MARK: ElevenLabs
 
     static func scribe(fil: URL, röst: Röst, modell: String,
+                       språk: String? = nil,
                        vidFramsteg: (@Sendable (Whisper.Framsteg) -> Void)?)
     async throws -> [Yttrande] {
         guard let nyckel = Transkriberingsmotor.elevenlabs.nyckel else {
@@ -308,7 +342,8 @@ enum Molntranskribering {
         let data = try await skickaMultipart(
             till: URL(string: "https://api.elevenlabs.io/v1/speech-to-text")!,
             huvuden: ["xi-api-key": nyckel],
-            fält: [("model_id", modell)], fil: fil, filtyp: "audio/wav")
+            fält: [("model_id", modell)] + (språk.map { [("language_code", $0)] } ?? []),
+            fil: fil, filtyp: "audio/wav")
         vidFramsteg?(Whisper.Framsteg(andel: 1, senasteRad: ""))
         return tolkaScribe(data, röst: röst)
     }

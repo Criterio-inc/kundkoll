@@ -1832,6 +1832,25 @@ enum Tester {
         Prov.lika(gammal?.motor, .openai, "sparade val utan alla fält går att läsa")
         Prov.lika(gammal?.arkivmodell, "whisper-1", "och tom modell betyder motorns standard")
 
+        // Språkvägvalet: KB översätter allt till svenska — uppmätt blev
+        // engelskt ljud svenska även med -l en — så andra språk routas bort.
+        let kb = Arkivtranskribering.vägval(motor: .whisperCpp,
+                                            modell: "kb_whisper_ggml_medium.bin", språk: "sv")
+        Prov.lika(kb?.motor, .whisperCpp, "svenska stannar hos KB")
+        let eng = Arkivtranskribering.vägval(motor: .whisperCpp,
+                                             modell: "kb_whisper_ggml_medium.bin", språk: "en")
+        Prov.lika(eng?.motor, .mlx, "engelska med KB-modell tar vägen via MLX")
+        let auto = Arkivtranskribering.vägval(motor: .whisperCpp,
+                                              modell: "kb_whisper_ggml_medium.bin", språk: nil)
+        Prov.lika(auto?.motor, .mlx, "avgör-själv likaså — KB kan inte avgöra")
+        let moln = Arkivtranskribering.vägval(motor: .elevenlabs,
+                                              modell: "scribe_v2", språk: "en")
+        Prov.lika(moln?.motor, .elevenlabs, "molnmotorer rör inte vägvalet")
+        let annan = Arkivtranskribering.vägval(motor: .whisperCpp,
+                                               modell: "ggml-large-v3.bin", språk: "en")
+        Prov.lika(annan?.motor, .whisperCpp,
+                  "en whisper.cpp-modell som inte är KB får köra engelska själv")
+
         Prov.kolla(!Transkriberingsval.lokalaModeller().isEmpty,
                    "modellistan hittar ggml-filerna")
         Prov.kolla(!Transkriberingsval.lokalaModeller().contains { $0.contains("silero") },

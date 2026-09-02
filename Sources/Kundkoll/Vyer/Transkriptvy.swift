@@ -22,6 +22,9 @@ struct Transkriptvy: View {
     @State private var ny = ""
     @State private var sammanfattar = false
     @State private var fel: String?
+    /// Sätts medan hela inspelningen görs om — transkribering, röster,
+    /// sammanfattning.
+    @State private var körOmSteg: String?
     @StateObject private var spelare = Yttrandespelare()
     @State private var hovrad: UUID?
     /// Närmast föregående möte i samma serie, när det finns ett.
@@ -66,7 +69,10 @@ struct Transkriptvy: View {
 
                 Divider()
                 HStack {
-                    if let fel {
+                    if let körOmSteg {
+                        ProgressView().controlSize(.small)
+                        Text(körOmSteg).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    } else if let fel {
                         Text(fel).font(.caption).foregroundStyle(.red).lineLimit(2)
                     }
                     Spacer()
@@ -130,6 +136,21 @@ struct Transkriptvy: View {
                 Image(systemName: "folder")
             }
             .help("Visa i Finder")
+            if inspelning.enspårig {
+                // Fel språk vid importen ska inte kräva en ny import — ljudet
+                // finns ju kvar.
+                Menu {
+                    Button("Transkribera om på svenska") { transkriberaOm("sv") }
+                    Button("Transkribera om på engelska") { transkriberaOm("en") }
+                    Button("Transkribera om — avgör själv") { transkriberaOm(nil) }
+                } label: {
+                    Image(systemName: "arrow.trianglehead.2.clockwise")
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .disabled(körOmSteg != nil)
+                .help("Kör om transkribering, röster och sammanfattning på valt språk")
+            }
             Button {
                 visaChatt.toggle()
                 Inställningar.mötesChattPå = visaChatt
@@ -425,6 +446,36 @@ struct Transkriptvy: View {
                                         text: text, till: till)
         } catch {
             fel = error.localizedDescription
+        }
+    }
+
+    /// Gör om hela inspelningen från ljudet: transkribering på valt språk,
+    /// röstuppdelning, sammanfattning. Titeln behålls.
+    private func transkriberaOm(_ språk: String?) {
+        guard körOmSteg == nil else { return }
+        körOmSteg = "Förbereder …"
+        fel = nil
+        spelare.sluta()
+        let placering: Placering = projekt.map { .projekt($0) } ?? .kund(kund)
+        let profiler = arkiv.röstprofiler(för: kund)
+        let titel = inspelning.titel
+        Task {
+            do {
+                let ny = try await Import().slutför(
+                    mapp: mapp, placering: placering, profiler: profiler,
+                    titel: titel, språk: språk,
+                    vidLäge: { l in
+                        Task { @MainActor in
+                            körOmSteg = l.steg
+                                + (l.andel.map { " · \(Int($0 * 100)) %" } ?? "")
+                        }
+                    })
+                inspelning = ny
+                läsUppgifter()
+            } catch {
+                fel = error.localizedDescription
+            }
+            körOmSteg = nil
         }
     }
 

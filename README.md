@@ -56,6 +56,12 @@ röstavtryck. Vet du antalet röster kan du ange det i «Vem är vem» — det g
 märkbart bättre uppdelning. Osäkra röster lämnas
 namnlösa hellre än att gissa fel.
 
+Språket väljs per möte och import: svenska, engelska eller låt motorn avgöra.
+KB-Whisper är svensktrimmad och översätter engelska till svenska — uppmätt
+även med språket satt till engelska — så engelska möten tar automatiskt vägen
+via MLX eller den valda molnmotorn, och ett redan feltranskriberat möte går
+att transkribera om från mötesvyn.
+
 Arkivpasset — genomlyssningen efter mötet — har fyra valbara motorer:
 whisper.cpp (standard, bäst svenska i mätningen), whisper via Apples MLX,
 Whisper hos OpenAI och Scribe hos ElevenLabs. De lokala lämnar aldrig datorn;
@@ -273,7 +279,7 @@ fönstret först, gör flera försök, och faller tillbaka på hela skärmen.
 
 ```bash
 ./scripts/bygg-app.sh                                        # dist/Kundkoll.app
-.build/arm64-apple-macosx/debug/Kundkoll --test              # 547 enhetstester
+.build/arm64-apple-macosx/debug/Kundkoll --test              # 552 enhetstester
 .build/arm64-apple-macosx/debug/Kundkoll --prov-ljud f.wav   # hela kedjan skarpt
 .build/arm64-apple-macosx/debug/Kundkoll --prov-röst ljud.wav w.json facit.json
 .build/arm64-apple-macosx/debug/Kundkoll --prov-import fil.mp4 fil.m4a

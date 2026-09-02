@@ -85,6 +85,7 @@ actor Import {
                    kund: Kund?,
                    profiler: [Röstprofil],
                    väntadeRöster: Int? = nil,
+                   språk: String? = "sv",
                    vidLäge: @Sendable @escaping (Läge) -> Void) async throws -> (Inspelning, URL) {
 
         await MainActor.run { vidLäge(Läge(steg: "Läser \(källa.lastPathComponent) …", andel: nil)) }
@@ -112,9 +113,9 @@ actor Import {
             vidLäge(Läge(steg: "Transkriberar \(formateraLängd(längd)) med KB-Whisper", andel: 0))
         }
         let rader = try await Arkivtranskribering.kör(
-            fil: wav, röst: .motpart, totalLängd: längd,
+            fil: wav, röst: .motpart, språk: språk, totalLängd: längd,
             vidFramsteg: { f in
-                vidLäge(Läge(steg: "Transkriberar \(formateraLängd(längd)) med KB-Whisper",
+                vidLäge(Läge(steg: "Transkriberar \(formateraLängd(längd))",
                              andel: f.andel, senaste: f.senasteRad))
             })
         guard !rader.isEmpty else { throw Fel.ingetTal }
@@ -136,7 +137,8 @@ actor Import {
             röstnamn: namn,
             kallade: [],
             enspårig: true,
-            källfil: källa.lastPathComponent)
+            källfil: källa.lastPathComponent,
+            språk: språk)
 
         inspelning.sammanfattning = try? await Sammanfattare()
             .skriv(för: inspelning, kund: placering.kundnamn)
@@ -161,6 +163,8 @@ actor Import {
     func slutför(mapp: URL,
                  placering: Placering,
                  profiler: [Röstprofil],
+                 titel angiven: String? = nil,
+                 språk: String? = "sv",
                  vidLäge: @Sendable @escaping (Läge) -> Void) async throws -> Inspelning {
         let wav = mapp.appending(path: "motpart.wav")
         guard FileManager.default.fileExists(atPath: wav.path) else { throw Fel.ingetLjud }
@@ -171,12 +175,12 @@ actor Import {
             .contentModificationDate) ?? Date()
 
         await MainActor.run {
-            vidLäge(Läge(steg: "Transkriberar \(formateraLängd(längd)) med KB-Whisper", andel: 0))
+            vidLäge(Läge(steg: "Transkriberar \(formateraLängd(längd))", andel: 0))
         }
         let rader = try await Arkivtranskribering.kör(
-            fil: wav, röst: .motpart, totalLängd: längd,
+            fil: wav, röst: .motpart, språk: språk, totalLängd: längd,
             vidFramsteg: { f in
-                vidLäge(Läge(steg: "Transkriberar \(formateraLängd(längd)) med KB-Whisper",
+                vidLäge(Läge(steg: "Transkriberar \(formateraLängd(längd))",
                              andel: f.andel, senaste: f.senasteRad))
             })
         guard !rader.isEmpty else { throw Fel.ingetTal }
@@ -187,11 +191,12 @@ actor Import {
 
         // Titeln står i mappnamnet: "2026-08-31 1548 magnus 1on1".
         let namn = mapp.lastPathComponent
-        let titel = namn.split(separator: " ").dropFirst(2).joined(separator: " ")
+        let urMapp = namn.split(separator: " ").dropFirst(2).joined(separator: " ")
+        let titel = angiven ?? (urMapp.isEmpty ? namn : urMapp)
 
         await MainActor.run { vidLäge(Läge(steg: "Sammanfattar mötet", andel: nil)) }
         var inspelning = Inspelning(
-            titel: titel.isEmpty ? namn : titel,
+            titel: titel,
             inledd: inledd, längd: längd,
             kund: placering.kundnamn,
             projekt: { if case .projekt(let p) = placering { p.namn } else { nil } }(),
@@ -201,7 +206,8 @@ actor Import {
             röstnamn: uppdelning.namn,
             kallade: [],
             enspårig: true,
-            källfil: nil)
+            källfil: nil,
+            språk: språk)
 
         inspelning.sammanfattning = try? await Sammanfattare()
             .skriv(för: inspelning, kund: placering.kundnamn)

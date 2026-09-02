@@ -16,6 +16,7 @@ struct Inspelningsvy: View {
 
     @State private var titel = ""
     @State private var valtProjekt: Projekt?
+    @State private var språk = "sv"
     @State private var mikrofoner: [Ljudinfångning.Mikrofon] = []
     @State private var valdMikrofon: Ljudinfångning.Mikrofon?
     @State private var projektlista: [Projekt] = []
@@ -65,6 +66,14 @@ struct Inspelningsvy: View {
                     Text(kund.namn).tag(Projekt?.none)
                     ForEach(projektlista) { p in Text(p.namn).tag(Projekt?.some(p)) }
                 }
+                Picker("Språk", selection: $språk) {
+                    Text("Svenska").tag("sv")
+                    Text("Engelska").tag("en")
+                }
+                .help("Liven transkriberar på det valda språket, och arkivpasset "
+                      + "efteråt likaså. KB-Whisper översätter engelska till "
+                      + "svenska, så engelska möten tar arkivvägen via MLX eller "
+                      + "molnet.")
                 Picker("Mikrofon", selection: $valdMikrofon) {
                     ForEach(mikrofoner) { m in Text(m.namn).tag(Ljudinfångning.Mikrofon?.some(m)) }
                 }
@@ -246,7 +255,8 @@ struct Inspelningsvy: View {
                 placering: placering,
                 titel: namn.isEmpty ? (möte?.titel ?? "Samtal") : namn,
                 mikrofon: mikrofon,
-                kallade: möte?.deltagare.filter { !$0.ärJag }.map(\.namn) ?? [])
+                kallade: möte?.deltagare.filter { !$0.ärJag }.map(\.namn) ?? [],
+                språk: språk)
         }
     }
 }
