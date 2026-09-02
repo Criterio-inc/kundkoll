@@ -115,7 +115,10 @@ struct Transkriptvy: View {
             if !inspelning.efterbearbetad {
                 Märke(text: "live", färg: .orange)
             }
-            if inspelning.yttranden.contains(where: { $0.röstgrupp != nil }) {
+            // Knappen ska finnas även när uppdelningen inte gav några
+            // grupper — det är ju precis då man vill köra om den med ett
+            // angivet antal.
+            if inspelning.yttranden.contains(where: { $0.röst == .motpart }) {
                 Button {
                     visaRöster = true
                 } label: {

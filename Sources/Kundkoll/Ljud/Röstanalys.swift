@@ -26,10 +26,18 @@ actor Röstanalys {
 
         static var standard: Sökvägar {
             let hem = FileManager.default.homeDirectoryForCurrentUser
+            // I appaketet ligger skriptet under Resources. Körd som
+            // kommandorad — proven, --transkribera-om — finns inget paket,
+            // och då gäller källträdet. Utan den reserven delades rösterna
+            // tyst inte alls i headless-körningar.
+            let ipaketet = URL(fileURLWithPath: Bundle.main.bundlePath)
+                .appending(path: "Contents/Resources/rostanalys.py")
+            let ikällan = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+                .appending(path: "scripts/rostanalys.py")
             return Sökvägar(
                 python: hem.appending(path: "Projekt/transcriber/venv/bin/python"),
-                skript: URL(fileURLWithPath: Bundle.main.bundlePath)
-                    .appending(path: "Contents/Resources/rostanalys.py"))
+                skript: FileManager.default.fileExists(atPath: ipaketet.path)
+                    ? ipaketet : ikällan)
         }
 
         var brister: [String] {
