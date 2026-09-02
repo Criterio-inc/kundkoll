@@ -1817,9 +1817,14 @@ enum Tester {
         try! arkiv.kopplaMöte("m1", till: "Nytt lager", för: kund)
         Prov.lika(arkiv.möteskopplingar(för: kund)["m1"], "Nytt lager",
                   "ett möte kan kopplas till ett projekt")
+        // Utan projekt är mötet ändå kundens — det är anspråket som räknas:
+        // möten utan deltagarlista kan ingen regel känna igen.
         try! arkiv.kopplaMöte("m1", till: nil, för: kund)
+        Prov.lika(arkiv.möteskopplingar(för: kund)["m1"], "",
+                  "utan projekt hör mötet ändå till kunden")
+        try! arkiv.taBortMöteskoppling("m1", för: kund)
         Prov.lika(arkiv.möteskopplingar(för: kund)["m1"], nil,
-                  "och kopplas loss igen")
+                  "och anspråket går att släppa")
     }
 
     // MARK: - Transkriberingsmotorer

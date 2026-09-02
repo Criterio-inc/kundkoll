@@ -249,9 +249,23 @@ final class Arkivet: ObservableObject {
         return k
     }
 
+    /// Kopplar ett möte till kunden, med eller utan projekt. Att nyckeln
+    /// finns betyder att mötet hör hit — så även ett möte som ingen regel
+    /// känner igen (inga deltagare, inget kundnamn i titeln) kan tas i
+    /// anspråk för hand. Tom sträng är kundnivå.
     func kopplaMöte(_ mötesID: String, till projekt: String?, för kund: Kund) throws {
         var alla = möteskopplingar(för: kund)
-        alla[mötesID] = projekt
+        alla[mötesID] = projekt ?? ""
+        try skrivMöteskopplingar(alla, för: kund)
+    }
+
+    func taBortMöteskoppling(_ mötesID: String, för kund: Kund) throws {
+        var alla = möteskopplingar(för: kund)
+        alla.removeValue(forKey: mötesID)
+        try skrivMöteskopplingar(alla, för: kund)
+    }
+
+    private func skrivMöteskopplingar(_ alla: [String: String], för kund: Kund) throws {
         try fm.createDirectory(at: kund.mapp.appending(path: ".kundkoll"),
                                withIntermediateDirectories: true)
         let data = try JSONEncoder.kundkoll.encode(alla)

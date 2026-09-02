@@ -34,6 +34,7 @@ struct Kundinnehåll: View {
     @State private var attKasta: Öppnad?
     @State private var ofullständiga: [(mapp: URL, storlek: Int)] = []
     @State private var briefing: Kalendern.Möte?
+    @State private var visaMötesplockare = false
     /// Mötes-id → projektnamn, valt för hand.
     @State private var möteskopplingar: [String: String] = [:]
     @State private var slutför: URL?
@@ -116,6 +117,12 @@ struct Kundinnehåll: View {
             Transkriptvy(kund: kund, inspelning: v.inspelning, mapp: v.mapp)
                 .onDisappear(perform: läsOm)
         }
+        .sheet(isPresented: $visaMötesplockare) {
+            Mötesplockare(kund: kund) {
+                Task { await hämtaMöten() }
+                läsOm()
+            }
+        }
         .sheet(item: $briefing) { m in
             Briefingvy(kund: kund, möte: m) { i, mapp in
                 öppnad = Öppnad(inspelning: i, mapp: mapp)
@@ -183,16 +190,20 @@ struct Kundinnehåll: View {
     @ViewBuilder
     private var mötesavsnitt: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
+            HStack(spacing: 6) {
                 Avsnittsrubrik(möten.isEmpty ? "Möten" : "Kommande möten")
                 Image(systemName: "info.circle")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                     .help("Ett möte räknas som kundens om någon deltagare finns "
                           + "bland kundens kontakter, har kundens mejldomän, eller "
-                          + "om kundnamnet står i mötets titel. Vilket projekt det "
-                          + "hör till väljs för hand — det kan ingen regel gissa.")
+                          + "om kundnamnet står i mötets titel. Andra möten läggs "
+                          + "till för hand, och projektet väljs på raden.")
                 Spacer()
+                Button("Lägg till möte") { visaMötesplockare = true }
+                    .buttonStyle(.link)
+                    .help("Ta ett möte i anspråk som reglerna inte känner igen — "
+                          + "till exempel ett utan deltagarlista")
             }
             mötesinnehåll
         }
@@ -236,8 +247,15 @@ struct Kundinnehåll: View {
                                 ForEach(projekt) { p in
                                     Button(p.namn) { koppla(m, till: p.namn) }
                                 }
+                                Divider()
+                                Button("Hör inte till \(kund.namn)", role: .destructive) {
+                                    try? arkiv.taBortMöteskoppling(m.id, för: kund)
+                                    läsOm()
+                                    Task { await hämtaMöten() }
+                                }
                             } label: {
-                                Label(möteskopplingar[m.id] ?? "Projekt",
+                                Label({ let p = möteskopplingar[m.id]
+                                        return (p?.isEmpty == false) ? p! : "Projekt" }(),
                                       systemImage: "folder")
                                     .font(.caption)
                             }
@@ -616,7 +634,13 @@ struct Kundinnehåll: View {
     private func hämtaMöten() async {
         guard kalender.harTillgång else { return }
         let mina = arkiv.kontakter(för: kund)
-        möten = kalender.möten().filter { Kalendern.hör($0, till: kund, kontakter: mina) }
+        let kopplade = arkiv.möteskopplingar(för: kund)
+        // Reglerna tar de flesta, men ett möte utan deltagare och utan
+        // kundnamn i titeln kan ingen regel känna igen — de tas i anspråk
+        // för hand och känns igen på att nyckeln finns.
+        möten = kalender.möten().filter {
+            kopplade[$0.id] != nil || Kalendern.hör($0, till: kund, kontakter: mina)
+        }
     }
 
     /// - Parameter äldreÄn: hämta om cachen är äldre än så här. Timern och
@@ -797,5 +821,84 @@ struct Inspelningslista: View {
             return "Transkriberar \(Int(session.efterbearbetningsandel * 100)) % …"
         }
         return nil
+    }
+}
+
+/// Väljaren för möten som reglerna inte känner igen.
+///
+/// Kalenderposter utan deltagarlista och utan kundnamn i titeln — vanligt
+/// när en inbjudan vidarebefordrats eller skrivits in för hand — kan ingen
+/// regel para ihop med en kund. Här tas de i anspråk med ett klick.
+struct Mötesplockare: View {
+    let kund: Kund
+    var vidVal: () -> Void
+
+    @EnvironmentObject private var arkiv: Arkivet
+    @EnvironmentObject private var kalender: Kalendern
+    @Environment(\.dismiss) private var stäng
+
+    @State private var kandidater: [Kalendern.Möte] = []
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Lägg till möte hos \(kund.namn)").font(.headline)
+                Spacer()
+            }
+            .padding(16)
+            Divider()
+
+            if kandidater.isEmpty {
+                TomtLäge(ikon: "calendar", rubrik: "Inga fler möten",
+                         text: "Alla kommande möten i kalendern hör redan till någon kund.")
+                    .frame(maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(Array(kandidater.enumerated()), id: \.element.id) { i, m in
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(m.titel)
+                                    Text(DateFormatter.klocka.string(from: m.start))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Button("Lägg till") {
+                                    try? arkiv.kopplaMöte(m.id, till: nil, för: kund)
+                                    vidVal()
+                                    stäng()
+                                }
+                            }
+                            .padding(.horizontal, 16).padding(.vertical, 10)
+                            if i < kandidater.count - 1 { Divider() }
+                        }
+                    }
+                }
+            }
+
+            Divider()
+            HStack {
+                Spacer()
+                Button("Stäng") { stäng() }.keyboardShortcut(.defaultAction)
+            }
+            .padding(16)
+        }
+        .frame(width: 480, height: 380)
+        .onAppear(perform: läsIn)
+    }
+
+    /// Alla kommande möten som inte redan hör till någon kund.
+    private func läsIn() {
+        var tagna = Set<String>()
+        for k in arkiv.kunder {
+            let kontakter = arkiv.kontakter(för: k)
+            let kopplade = arkiv.möteskopplingar(för: k)
+            for m in kalender.möten()
+            where kopplade[m.id] != nil || Kalendern.hör(m, till: k, kontakter: kontakter) {
+                tagna.insert(m.id)
+            }
+        }
+        kandidater = kalender.möten().filter { !tagna.contains($0.id) }
     }
 }

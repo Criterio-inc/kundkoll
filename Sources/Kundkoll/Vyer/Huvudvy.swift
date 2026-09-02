@@ -152,7 +152,9 @@ struct Huvudvy: View {
         var par: [(kund: String, möte: Kalendern.Möte)] = []
         for kund in arkiv.kunder {
             let kontakter = arkiv.kontakter(för: kund)
-            for m in möten where Kalendern.hör(m, till: kund, kontakter: kontakter) {
+            let kopplade = arkiv.möteskopplingar(för: kund)
+            for m in möten
+            where kopplade[m.id] != nil || Kalendern.hör(m, till: kund, kontakter: kontakter) {
                 par.append((kund.namn, m))
             }
         }
