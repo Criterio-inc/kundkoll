@@ -14,6 +14,8 @@ struct Projektinnehåll: View {
     @State private var inspelningar: [(Inspelning, URL)] = []
     @State private var öppnad: Kundinnehåll.Öppnad?
     @State private var attKasta: Kundinnehåll.Öppnad?
+    @State private var visaImport = false
+    @State private var släpptFil: URL?
     @State private var lägesbild: Lägesbild?
     @State private var skriverLäget = false
     @State private var lägesfel: String?
@@ -76,6 +78,18 @@ struct Projektinnehåll: View {
         .sheet(item: $öppnad) { v in
             Transkriptvy(kund: kund, inspelning: v.inspelning, mapp: v.mapp)
                 .onDisappear(perform: läsIn)
+        }
+        .sheet(isPresented: $visaImport) {
+            Importvy(kund: kund, projekt: arkiv.projekt(för: kund),
+                     förvald: släpptFil, förvaltProjekt: projekt, vidKlar: läsIn)
+        }
+        .onDrop(of: [.fileURL], isTargeted: nil) { leverantörer in
+            guard let l = leverantörer.first else { return false }
+            _ = l.loadObject(ofClass: URL.self) { url, _ in
+                guard let url, Import.format.contains(url.pathExtension.lowercased()) else { return }
+                Task { @MainActor in släpptFil = url; visaImport = true }
+            }
+            return true
         }
         .confirmationDialog(
             "Flytta inspelningen till papperskorgen?",
@@ -245,8 +259,12 @@ struct Projektinnehåll: View {
     private var inspelningsflik: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Inspelningar").font(.headline)
+                Avsnittsrubrik("Inspelningar")
                 Spacer()
+                // Samma två vägar som hos kunden: spela in nytt, eller lägg
+                // till en färdig fil — den hamnar då i projektet direkt.
+                Button("Lägg till") { släpptFil = nil; visaImport = true }
+                    .buttonStyle(.link)
                 Button("Spela in") {
                     Inspelningsfönster.öppna(kund: kund, projekt: projekt, möte: nil)
                 }
@@ -254,7 +272,8 @@ struct Projektinnehåll: View {
                 .disabled(session.pågår)
             }
             if inspelningar.isEmpty {
-                Text("Inga inspelningar än.").foregroundStyle(.secondary)
+                Text("Inga inspelningar än. Släpp en ljud- eller videofil här för att lägga till en.")
+                    .foregroundStyle(.secondary)
             } else {
                 Inspelningslista(
                     rader: inspelningar,

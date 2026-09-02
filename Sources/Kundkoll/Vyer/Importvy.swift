@@ -8,14 +8,27 @@ struct Importvy: View {
     let projekt: [Projekt]
     /// Fil som redan valts, till exempel genom att släppas på fönstret.
     var förvald: URL?
+    /// Projektet som är öppet när importen startas — förvalt i väljaren.
+    var förvaltProjekt: Projekt?
     var vidKlar: () -> Void
 
     @EnvironmentObject private var arkiv: Arkivet
     @Environment(\.dismiss) private var stäng
 
+    init(kund: Kund, projekt: [Projekt], förvald: URL? = nil,
+         förvaltProjekt: Projekt? = nil, vidKlar: @escaping () -> Void) {
+        self.kund = kund
+        self.projekt = projekt
+        self.förvald = förvald
+        self.förvaltProjekt = förvaltProjekt
+        self.vidKlar = vidKlar
+        _valtProjekt = State(initialValue: förvaltProjekt)
+    }
+
     @State private var fil: URL?
     @State private var titel = ""
     @State private var valtProjekt: Projekt?
+
     @State private var läge: Läge = .väljer
     @State private var steg = ""
     @State private var andel: Double?
