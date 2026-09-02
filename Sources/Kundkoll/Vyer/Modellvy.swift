@@ -57,6 +57,30 @@ struct Modellvy: View {
                         }
                     }
 
+                    if val.leverantör == .lokal {
+                        // De tre vanliga lokala servrarna talar alla
+                        // OpenAI-formatet men lyssnar på olika portar.
+                        // Knapparna fyller i adressen; modellnamnet är det
+                        // som står i serverns egen lista.
+                        fält("Vanliga servrar") {
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack(spacing: 8) {
+                                    förval("Ollama", port: 11434, modell: "llama3.1:8b")
+                                    förval("LM Studio", port: 1234, modell: nil)
+                                    förval("MLX", port: 8080, modell: nil)
+                                }
+                                if val.adress.contains(":8080") {
+                                    Text("MLX startas med `mlx_lm.server --model "
+                                         + "mlx-community/…` och modellfältet ska "
+                                         + "vara samma namn.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        }
+                    }
+
                     if val.leverantör.behöverNyckel {
                         fält(harNyckel ? "API-nyckel (sparad)" : "API-nyckel") {
                             VStack(alignment: .leading, spacing: 6) {
@@ -115,6 +139,19 @@ struct Modellvy: View {
         }
         .frame(width: 520, height: 560)
         .onAppear(perform: läsNyckel)
+    }
+
+    /// En knapp som fyller i adressen för en känd lokal server.
+    private func förval(_ namn: String, port: Int, modell: String?) -> some View {
+        let adress = "http://127.0.0.1:\(port)/v1/chat/completions"
+        return Button(namn) {
+            val.adress = adress
+            if let modell { val.modell = modell }
+            meddelande = nil
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .tint(val.adress == adress ? Color.accentColor : Color.secondary)
     }
 
     private func fält<I: View>(_ rubrik: String, @ViewBuilder _ innehåll: () -> I) -> some View {

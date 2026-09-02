@@ -2,9 +2,11 @@ import Foundation
 
 /// Ett skarpt anrop mot den valda modellen.
 ///
-///     Kundkoll --prov-chatt [leverantör] [modell]
+///     Kundkoll --prov-chatt [leverantör] [modell] [adress]
 ///
 /// Kostar en bråkdel av en cent hos en molnleverantör, ingenting lokalt.
+/// Adressen gör att en lokal server på en annan port — LM Studio, mlx_lm —
+/// kan provas utan att röra appens sparade inställning.
 enum Chattprov {
     static func kör(argument: [String]) async -> Int32 {
         var val = Modellval.läs()
@@ -14,6 +16,7 @@ enum Chattprov {
             val.adress = l.behöverEgenAdress ? l.standardadress : ""
         }
         if argument.count > 1 { val.modell = argument[1] }
+        if argument.count > 2 { val.adress = argument[2] }
 
         print("Leverantör: \(val.leverantör.namn)")
         print("Modell:     \(val.modell.isEmpty ? "(ur adressen)" : val.modell)")

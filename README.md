@@ -175,7 +175,10 @@ sökning bara träffar i ett fall av fyra. Mätningen står i
 `docs/KUNSKAPSBANK.md`.
 
 Modellen väljs med ⌘, och kan köras hos OpenRouter, Anthropic, OpenAI, Azure
-eller lokalt (Ollama, LM Studio). Chatten är det enda i appen som går ut på nätet, och bara
+eller lokalt (Ollama, LM Studio, MLX). De lokala servrarna talar alla
+OpenAI-formatet; inställningarna har förvalsknappar som fyller i rätt port.
+MLX startas med `mlx_lm.server --model mlx-community/…` och är uppmätt genom
+hela provsviten — svar, hänvisningar, strömning och ärligt nej. Chatten är det enda i appen som går ut på nätet, och bara
 när du ställer en fråga — väljer du en lokal modell lämnar ingenting datorn.
 Nyckeln sparas i macOS nyckelring.
 

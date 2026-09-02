@@ -27,7 +27,7 @@ enum Leverantör: String, Codable, CaseIterable, Identifiable {
         case .anthropic: "Claude direkt från Anthropic."
         case .openai: "GPT direkt från OpenAI."
         case .azure: "OpenAI-modeller i din egen Azure-resurs."
-        case .lokal: "Ollama, LM Studio eller llama.cpp på den här datorn. Inget material lämnar maskinen."
+        case .lokal: "Ollama, LM Studio, MLX (mlx_lm) eller llama.cpp på den här datorn. Inget material lämnar maskinen."
         }
     }
 
