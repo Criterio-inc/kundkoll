@@ -14,6 +14,9 @@ struct Modellvy: View {
     @State private var provar = false
     @State private var insiktsmodell = Inställningar.insiktsmodell
     @State private var delaRöster = Inställningar.delaRöstprofiler
+    @State private var transkribering = Transkriberingsval.läs()
+    @State private var elevenNyckel = ""
+    @State private var harElevenNyckel = Nyckelring.hämta("kundkoll-elevenlabs") != nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -102,6 +105,77 @@ struct Modellvy: View {
 
                     Divider().padding(.vertical, 4)
 
+                    fält("Transkribering av färdiga möten") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Picker("", selection: $transkribering.motor) {
+                                ForEach(Transkriberingsmotor.allCases) { m in
+                                    Text(m.namn).tag(m)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                            .onChange(of: transkribering.motor) { transkribering.modell = "" }
+
+                            Text(transkribering.motor.beskrivning)
+                                .font(.caption)
+                                .foregroundStyle(transkribering.motor.lokal ? Color.secondary : Color.orange)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            if transkribering.motor == .whisperCpp {
+                                Picker("Modell", selection: bindningArkivmodell) {
+                                    ForEach(Transkriberingsval.lokalaModeller(), id: \.self) { m in
+                                        Text(m.replacingOccurrences(of: ".bin", with: "")).tag(m)
+                                    }
+                                }
+                            } else {
+                                TextField(transkribering.motor.standardmodell,
+                                          text: $transkribering.modell)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+
+                            if transkribering.motor == .elevenlabs {
+                                SecureField(harElevenNyckel
+                                            ? "•••••••• — skriv en ny för att byta"
+                                            : "API-nyckel från elevenlabs.io",
+                                            text: $elevenNyckel)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                            if transkribering.motor == .openai {
+                                Text(Transkriberingsmotor.openai.nyckel == nil
+                                     ? "Använder OpenAI-nyckeln från chatten — lägg in en under OpenAI ovan."
+                                     : "Använder OpenAI-nyckeln som redan finns.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if let brist = Arkivtranskribering.brister(transkribering).first,
+                               !(transkribering.motor == .elevenlabs && !elevenNyckel.isEmpty) {
+                                Label(brist, systemImage: "exclamationmark.triangle")
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                    }
+
+                    fält("Livetranskribering — alltid lokal") {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Picker("", selection: $transkribering.livemodell) {
+                                ForEach(Transkriberingsval.lokalaModeller(), id: \.self) { m in
+                                    Text(m.replacingOccurrences(of: ".bin", with: "")).tag(m)
+                                }
+                            }
+                            .labelsHidden()
+                            Text("Fönstren under ett samtal är sekunder långa och går genom "
+                                 + "whisper-server som håller modellen varm. Gäller från nästa "
+                                 + "inspelning.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
+                    Divider().padding(.vertical, 4)
+
                     fält("Modell för insikter under samtal") {
                         VStack(alignment: .leading, spacing: 6) {
                             TextField(Insikter.standardmodell, text: $insiktsmodell)
@@ -154,6 +228,14 @@ struct Modellvy: View {
         .tint(val.adress == adress ? Color.accentColor : Color.secondary)
     }
 
+    /// whisper.cpp-väljaren skriver tomt när standarden valts, så att en
+    /// framtida standardhöjning slår igenom av sig själv.
+    private var bindningArkivmodell: Binding<String> {
+        Binding(get: { transkribering.arkivmodell },
+                set: { transkribering.modell =
+                    $0 == transkribering.motor.standardmodell ? "" : $0 })
+    }
+
     private func fält<I: View>(_ rubrik: String, @ViewBuilder _ innehåll: () -> I) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(rubrik).font(.subheadline.weight(.medium))
@@ -177,6 +259,11 @@ struct Modellvy: View {
     private func spara() {
         sparaNyckel()
         val.spara()
+        transkribering.spara()
+        if !elevenNyckel.isEmpty {
+            Nyckelring.spara(elevenNyckel.trimmingCharacters(in: .whitespaces),
+                             som: "kundkoll-elevenlabs")
+        }
         let ren = insiktsmodell.trimmingCharacters(in: .whitespacesAndNewlines)
         Inställningar.insiktsmodell = ren.isEmpty ? Insikter.standardmodell : ren
         Inställningar.delaRöstprofiler = delaRöster

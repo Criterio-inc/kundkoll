@@ -38,7 +38,8 @@ Mikrofonen och datorljudet fångas som **två skilda spår** i samma ström
 spår är du, det andra är motparten.
 
 Ljudet delas i fönster vid naturliga pauser i talet och skickas till KB-Whisper
-(Kungliga bibliotekets svenska modell) medan samtalet pågår. Fönster utan tal
+(Kungliga bibliotekets svenska modell) medan samtalet pågår. Vilken lokal
+modell liven använder väljs under ⌘,. Fönster utan tal
 skickas aldrig iväg: whisper hittar annars på text ur tystnad — se avsnittet i
 `docs/VERIFIERAD-STACK.md`. Efter samtalet går
 en större modell igenom hela ljudet en gång till och ersätter live-transkriptet
@@ -54,6 +55,12 @@ och personer kunden är känd för sedan tidigare känns igen automatiskt via
 röstavtryck. Vet du antalet röster kan du ange det i «Vem är vem» — det ger
 märkbart bättre uppdelning. Osäkra röster lämnas
 namnlösa hellre än att gissa fel.
+
+Arkivpasset — genomlyssningen efter mötet — har fyra valbara motorer:
+whisper.cpp (standard, bäst svenska i mätningen), whisper via Apples MLX,
+Whisper hos OpenAI och Scribe hos ElevenLabs. De lokala lämnar aldrig datorn;
+molnen skickar ljudet och säger det i klartext i inställningarna. Alla fyra
+är uppmätta på samma inspelning — tabellen står i `docs/VERIFIERAD-STACK.md`.
 
 Se `docs/VERIFIERAD-STACK.md` och `docs/RÖSTANALYS.md` för mätningarna bakom
 varje val.
@@ -251,7 +258,7 @@ fönstret först, gör flera försök, och faller tillbaka på hela skärmen.
 
 ```bash
 ./scripts/bygg-app.sh                                        # dist/Kundkoll.app
-.build/arm64-apple-macosx/debug/Kundkoll --test              # 500 enhetstester
+.build/arm64-apple-macosx/debug/Kundkoll --test              # 516 enhetstester
 .build/arm64-apple-macosx/debug/Kundkoll --prov-ljud f.wav   # hela kedjan skarpt
 .build/arm64-apple-macosx/debug/Kundkoll --prov-röst ljud.wav w.json facit.json
 .build/arm64-apple-macosx/debug/Kundkoll --prov-import fil.mp4 fil.m4a
@@ -261,6 +268,7 @@ fönstret först, gör flera försök, och faller tillbaka på hela skärmen.
 .build/arm64-apple-macosx/debug/Kundkoll --prov-kodagent <mapp> "<fråga>"
 .build/arm64-apple-macosx/debug/Kundkoll --prov-insikter [modell …]
 .build/arm64-apple-macosx/debug/Kundkoll --prov-datum   # relativa uttryck → riktiga datum
+.build/arm64-apple-macosx/debug/Kundkoll --prov-transkribering f.wav [motor] [modell]
 ```
 
 Xcode behövs inte — Command Line Tools räcker. Appen signeras med Developer ID

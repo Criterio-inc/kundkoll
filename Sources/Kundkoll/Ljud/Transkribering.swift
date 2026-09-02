@@ -1,0 +1,399 @@
+import Foundation
+
+/// Vilken motor som transkriberar färdiga inspelningar, och med vilken modell.
+///
+/// Livetranskriberingen är alltid lokal — fönstren är sekunder långa och går
+/// genom whisper-server som håller modellen varm. Det här valet gäller
+/// arkivpasset: genomlyssningen efter mötet och importerade filer.
+enum Transkriberingsmotor: String, Codable, CaseIterable, Identifiable {
+    case whisperCpp, mlx, openai, elevenlabs
+
+    var id: String { rawValue }
+
+    var namn: String {
+        switch self {
+        case .whisperCpp: "Lokal (whisper.cpp)"
+        case .mlx: "Lokal (MLX)"
+        case .openai: "OpenAI"
+        case .elevenlabs: "ElevenLabs"
+        }
+    }
+
+    var beskrivning: String {
+        switch self {
+        case .whisperCpp:
+            "KB-Whisper på den här datorn. Slog large-v3-turbo på svenska i "
+            + "mätningarna, och ljudet lämnar aldrig maskinen."
+        case .mlx:
+            "Whisper via Apples MLX, på den här datorn. Snabb på Apple Silicon; "
+            + "large-v3-turbo låg dock under KB-Whisper på svenska i mätningarna."
+        case .openai:
+            "Whisper hos OpenAI. Ljudet skickas dit, komprimerat till m4a."
+        case .elevenlabs:
+            "Scribe hos ElevenLabs. Ljudet skickas dit. Bäst av molnen på "
+            + "svenska i mätningen."
+        }
+    }
+
+    var standardmodell: String {
+        switch self {
+        case .whisperCpp: "kb_whisper_ggml_medium.bin"
+        case .mlx: "mlx-community/whisper-large-v3-turbo"
+        case .openai: "whisper-1"
+        case .elevenlabs: "scribe_v2"
+        }
+    }
+
+    var lokal: Bool { self == .whisperCpp || self == .mlx }
+    var behöverNyckel: Bool { !lokal }
+
+    var nyckelkonto: String? {
+        switch self {
+        case .openai: Leverantör.openai.nyckelkonto
+        case .elevenlabs: "kundkoll-elevenlabs"
+        default: nil
+        }
+    }
+
+    var miljövariabel: String? {
+        switch self {
+        case .openai: "OPENAI_API_KEY"
+        case .elevenlabs: "ELEVENLABS_API_KEY"
+        default: nil
+        }
+    }
+
+    var nyckel: String? {
+        guard let konto = nyckelkonto else { return nil }
+        return Nyckelring.hämta(konto, miljö: miljövariabel)
+    }
+}
+
+/// Valet, sparat som inställning — det gäller hela appen, inte en kund.
+struct Transkriberingsval: Codable {
+    var motor: Transkriberingsmotor = .whisperCpp
+    /// Arkivmodellen. Tom betyder motorns standard.
+    var modell: String = ""
+    /// Modellen för livetranskriberingen, alltid en ggml-fil i whisper.cpp.
+    var livemodell: String = Whisper.Sökvägar.standard.livemodell
+
+    var arkivmodell: String { modell.isEmpty ? motor.standardmodell : modell }
+
+    init(motor: Transkriberingsmotor = .whisperCpp, modell: String = "",
+         livemodell: String = Whisper.Sökvägar.standard.livemodell) {
+        self.motor = motor
+        self.modell = modell
+        self.livemodell = livemodell
+    }
+
+    /// Skriven för hand: se `Inspelning`.
+    init(from avkodare: Decoder) throws {
+        let c = try avkodare.container(keyedBy: CodingKeys.self)
+        motor = try c.decodeIfPresent(Transkriberingsmotor.self, forKey: .motor) ?? .whisperCpp
+        modell = try c.decodeIfPresent(String.self, forKey: .modell) ?? ""
+        livemodell = try c.decodeIfPresent(String.self, forKey: .livemodell)
+            ?? Whisper.Sökvägar.standard.livemodell
+    }
+
+    private static let nyckel = "kundkoll.transkribering"
+
+    static func läs() -> Transkriberingsval {
+        guard let data = UserDefaults.standard.data(forKey: nyckel),
+              let v = try? JSONDecoder().decode(Transkriberingsval.self, from: data)
+        else { return Transkriberingsval() }
+        return v
+    }
+
+    func spara() {
+        guard let data = try? JSONEncoder().encode(self) else { return }
+        UserDefaults.standard.set(data, forKey: Self.nyckel)
+    }
+
+    /// Modellerna som finns att välja på för whisper.cpp — ggml-filerna i
+    /// modellkatalogen, utan testfixturer och taldetektorer.
+    static func lokalaModeller(i rot: URL = Whisper.Sökvägar.standard.rot) -> [String] {
+        let mapp = rot.appending(path: "models")
+        guard let filer = try? FileManager.default.contentsOfDirectory(atPath: mapp.path)
+        else { return [] }
+        return filer
+            .filter { $0.hasSuffix(".bin") }
+            .filter { !$0.hasPrefix("for-tests") }
+            .filter { !$0.contains("silero") && !$0.contains("vad") }
+            .sorted()
+    }
+}
+
+/// Arkivtranskriberingen: en ingång, fyra motorer.
+enum Arkivtranskribering {
+
+    static func kör(fil: URL, röst: Röst, totalLängd: Double? = nil,
+                    vidFramsteg: (@Sendable (Whisper.Framsteg) -> Void)? = nil)
+    async throws -> [Yttrande] {
+        let val = Transkriberingsval.läs()
+        switch val.motor {
+        case .whisperCpp:
+            return try await Whisper.delad.arkivtranskribera(
+                fil: fil, röst: röst, modell: val.modell.isEmpty ? nil : val.modell,
+                totalLängd: totalLängd, vidFramsteg: vidFramsteg)
+        case .mlx:
+            return try await MlxWhisper.transkribera(
+                fil: fil, röst: röst, modell: val.arkivmodell,
+                totalLängd: totalLängd, vidFramsteg: vidFramsteg)
+        case .openai:
+            return try await Molntranskribering.openai(
+                fil: fil, röst: röst, modell: val.arkivmodell, vidFramsteg: vidFramsteg)
+        case .elevenlabs:
+            return try await Molntranskribering.scribe(
+                fil: fil, röst: röst, modell: val.arkivmodell, vidFramsteg: vidFramsteg)
+        }
+    }
+
+    /// Vad som saknas för att det valda ska kunna köra. Tomt är gott.
+    static func brister(_ val: Transkriberingsval = .läs()) -> [String] {
+        switch val.motor {
+        case .whisperCpp:
+            return Whisper.Sökvägar.standard.brister
+        case .mlx:
+            return FileManager.default.isExecutableFile(atPath: MlxWhisper.körbar.path)
+                ? [] : ["mlx_whisper saknas — installera med: "
+                        + "\(MlxWhisper.venv.path)/bin/pip install mlx-whisper"]
+        case .openai, .elevenlabs:
+            return val.motor.nyckel == nil
+                ? ["API-nyckel för \(val.motor.namn) saknas"] : []
+        }
+    }
+}
+
+// MARK: - MLX
+
+/// Whisper via Apples MLX. Samma pythonmiljö som röstanalysen lånar.
+enum MlxWhisper {
+    static var venv: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appending(path: "Projekt/transcriber/venv")
+    }
+    static var körbar: URL { venv.appending(path: "bin/mlx_whisper") }
+
+    static func transkribera(fil: URL, röst: Röst, modell: String,
+                             totalLängd: Double?,
+                             vidFramsteg: (@Sendable (Whisper.Framsteg) -> Void)?)
+    async throws -> [Yttrande] {
+        guard FileManager.default.isExecutableFile(atPath: körbar.path) else {
+            throw Enkeltfel("mlx_whisper saknas i \(venv.path). "
+                            + "Installera med: pip install mlx-whisper")
+        }
+        let ut = FileManager.default.temporaryDirectory
+            .appending(path: "kundkoll-mlx-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: ut, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: ut) }
+
+        let p = Process()
+        p.executableURL = körbar
+        p.arguments = [fil.path,
+                       "--model", modell,
+                       "--language", "sv",
+                       "--output-dir", ut.path,
+                       "--output-format", "json"]
+
+        // mlx_whisper skriver segmenten till stdout medan den arbetar, på
+        // samma form som whisper-cli — framstegen läses därifrån.
+        let rör = Pipe()
+        p.standardOutput = rör
+        p.standardError = FileHandle.nullDevice
+        if let vidFramsteg {
+            let längd = totalLängd ?? 0
+            nonisolated(unsafe) var rest = ""
+            vidFramsteg(Whisper.Framsteg(andel: 0, senasteRad: ""))
+            rör.fileHandleForReading.readabilityHandler = { handtag in
+                guard let text = String(data: handtag.availableData, encoding: .utf8),
+                      !text.isEmpty else { return }
+                rest += text
+                while let träff = Whisper.nästaSegment(&rest) {
+                    let andel = längd > 0 ? min(1, träff.slut / längd) : 0
+                    vidFramsteg(Whisper.Framsteg(andel: andel, senasteRad: träff.text))
+                }
+            }
+        }
+
+        try p.run()
+        await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+            p.terminationHandler = { _ in c.resume() }
+        }
+        rör.fileHandleForReading.readabilityHandler = nil
+        vidFramsteg?(Whisper.Framsteg(andel: 1, senasteRad: ""))
+
+        let namn = fil.deletingPathExtension().lastPathComponent
+        let json = ut.appending(path: "\(namn).json")
+        guard let data = try? Data(contentsOf: json) else {
+            throw Enkeltfel("mlx_whisper lämnade ingen utdata.")
+        }
+        return tolka(data, röst: röst)
+    }
+
+    /// mlx_whispers JSON: segments[].start/end i sekunder.
+    static func tolka(_ data: Data, röst: Röst) -> [Yttrande] {
+        struct Fil: Decodable {
+            struct Segment: Decodable { let start: Double; let end: Double; let text: String }
+            let segments: [Segment]
+        }
+        guard let f = try? JSONDecoder().decode(Fil.self, from: data) else { return [] }
+        return f.segments.compactMap { s in
+            let t = s.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !t.isEmpty, !Whisper.ärTomtLjud(t) else { return nil }
+            return Yttrande(röst: röst, text: t, start: s.start, slut: s.end)
+        }
+    }
+}
+
+// MARK: - Molnen
+
+/// OpenAI och ElevenLabs. Ljudet lämnar datorn — det är hela skillnaden,
+/// och det står i inställningarna i klartext.
+enum Molntranskribering {
+
+    // MARK: OpenAI
+
+    static func openai(fil: URL, röst: Röst, modell: String,
+                       vidFramsteg: (@Sendable (Whisper.Framsteg) -> Void)?)
+    async throws -> [Yttrande] {
+        guard let nyckel = Transkriberingsmotor.openai.nyckel else {
+            throw Enkeltfel("Ingen API-nyckel för OpenAI. Lägg in den under ⌘,.")
+        }
+        vidFramsteg?(Whisper.Framsteg(andel: 0, senasteRad: "Komprimerar ljudet …"))
+        // WAV är för stort att skicka: 39 minuter väger 75 MB och gränsen är
+        // 25. AAC i m4a klarar samma ljud på ett par megabyte.
+        let m4a = try komprimera(fil)
+        defer { try? FileManager.default.removeItem(at: m4a) }
+        let storlek = (try? FileManager.default.attributesOfItem(atPath: m4a.path)[.size] as? Int) ?? 0
+        guard storlek < 24_000_000 else {
+            throw Enkeltfel("Inspelningen är för lång för OpenAI (över 25 MB "
+                            + "komprimerad). Välj den lokala motorn för den här.")
+        }
+
+        vidFramsteg?(Whisper.Framsteg(andel: 0.2, senasteRad: "Skickar till OpenAI …"))
+        var delar: [(String, String)] = [("model", modell), ("language", "sv"),
+                                         ("response_format", "verbose_json")]
+        let data = try await skickaMultipart(
+            till: URL(string: "https://api.openai.com/v1/audio/transcriptions")!,
+            huvuden: ["Authorization": "Bearer \(nyckel)"],
+            fält: delar, fil: m4a, filtyp: "audio/mp4")
+        vidFramsteg?(Whisper.Framsteg(andel: 1, senasteRad: ""))
+        delar.removeAll()
+        return tolkaOpenAI(data, röst: röst)
+    }
+
+    /// verbose_json: segments[].start/end i sekunder.
+    static func tolkaOpenAI(_ data: Data, röst: Röst) -> [Yttrande] {
+        struct Svar: Decodable {
+            struct Segment: Decodable { let start: Double; let end: Double; let text: String }
+            let segments: [Segment]?
+        }
+        guard let s = try? JSONDecoder().decode(Svar.self, from: data) else { return [] }
+        return (s.segments ?? []).compactMap { seg in
+            let t = seg.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !t.isEmpty, !Whisper.ärTomtLjud(t) else { return nil }
+            return Yttrande(röst: röst, text: t, start: seg.start, slut: seg.end)
+        }
+    }
+
+    // MARK: ElevenLabs
+
+    static func scribe(fil: URL, röst: Röst, modell: String,
+                       vidFramsteg: (@Sendable (Whisper.Framsteg) -> Void)?)
+    async throws -> [Yttrande] {
+        guard let nyckel = Transkriberingsmotor.elevenlabs.nyckel else {
+            throw Enkeltfel("Ingen API-nyckel för ElevenLabs. Lägg in den under ⌘,.")
+        }
+        vidFramsteg?(Whisper.Framsteg(andel: 0.1, senasteRad: "Skickar till ElevenLabs …"))
+        let data = try await skickaMultipart(
+            till: URL(string: "https://api.elevenlabs.io/v1/speech-to-text")!,
+            huvuden: ["xi-api-key": nyckel],
+            fält: [("model_id", modell)], fil: fil, filtyp: "audio/wav")
+        vidFramsteg?(Whisper.Framsteg(andel: 1, senasteRad: ""))
+        return tolkaScribe(data, röst: röst)
+    }
+
+    /// Scribe ger ord med tider, inte segment. Orden sys ihop till yttranden
+    /// vid pauserna — samma gräns som livebuffringen använder för att stänga
+    /// ett fönster.
+    static func tolkaScribe(_ data: Data, röst: Röst, paus: Double = 0.9,
+                            maxLängd: Double = 15) -> [Yttrande] {
+        struct Svar: Decodable {
+            struct Ord: Decodable {
+                let text: String; let start: Double?; let end: Double?; let type: String
+            }
+            let words: [Ord]?
+            let detail: Detalj?
+            struct Detalj: Decodable { let message: String? }
+        }
+        guard let s = try? JSONDecoder().decode(Svar.self, from: data) else { return [] }
+
+        var ut: [Yttrande] = []
+        var text = ""
+        var start: Double?
+        var slut: Double = 0
+        func stäng() {
+            let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let start, !t.isEmpty, !Whisper.ärTomtLjud(t) {
+                ut.append(Yttrande(röst: röst, text: t, start: start, slut: slut))
+            }
+            text = ""; start = nil
+        }
+        for ord in s.words ?? [] where ord.type == "word" {
+            guard let ordStart = ord.start, let ordSlut = ord.end else { continue }
+            if start != nil, ordStart - slut >= paus || ordSlut - (start ?? 0) > maxLängd {
+                stäng()
+            }
+            if start == nil { start = ordStart }
+            text += (text.isEmpty ? "" : " ") + ord.text
+            slut = ordSlut
+        }
+        stäng()
+        return ut
+    }
+
+    // MARK: Gemensamt
+
+    private static func komprimera(_ fil: URL) throws -> URL {
+        let ut = FileManager.default.temporaryDirectory
+            .appending(path: "kundkoll-\(UUID().uuidString).m4a")
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/afconvert")
+        p.arguments = ["-f", "m4af", "-d", "aac", fil.path, ut.path]
+        p.standardError = FileHandle.nullDevice
+        try p.run()
+        p.waitUntilExit()
+        guard p.terminationStatus == 0 else {
+            throw Enkeltfel("Ljudet gick inte att komprimera inför uppladdningen.")
+        }
+        return ut
+    }
+
+    private static func skickaMultipart(till url: URL, huvuden: [String: String],
+                                        fält: [(String, String)],
+                                        fil: URL, filtyp: String) async throws -> Data {
+        let gräns = "kundkoll-\(UUID().uuidString)"
+        var kropp = Data()
+        for (namn, värde) in fält {
+            kropp.append("--\(gräns)\r\nContent-Disposition: form-data; name=\"\(namn)\"\r\n\r\n\(värde)\r\n".data(using: .utf8)!)
+        }
+        kropp.append("--\(gräns)\r\nContent-Disposition: form-data; name=\"file\"; filename=\"\(fil.lastPathComponent)\"\r\nContent-Type: \(filtyp)\r\n\r\n".data(using: .utf8)!)
+        kropp.append(try Data(contentsOf: fil))
+        kropp.append("\r\n--\(gräns)--\r\n".data(using: .utf8)!)
+
+        var r = URLRequest(url: url)
+        r.httpMethod = "POST"
+        r.setValue("multipart/form-data; boundary=\(gräns)", forHTTPHeaderField: "Content-Type")
+        for (namn, värde) in huvuden { r.setValue(värde, forHTTPHeaderField: namn) }
+        r.httpBody = kropp
+        r.timeoutInterval = 600
+
+        let (data, svar) = try await URLSession.shared.data(for: r)
+        guard let http = svar as? HTTPURLResponse, http.statusCode == 200 else {
+            let kod = (svar as? HTTPURLResponse)?.statusCode ?? 0
+            let text = String(data: data.prefix(300), encoding: .utf8) ?? ""
+            throw Enkeltfel("Transkriberingstjänsten svarade \(kod): \(text)")
+        }
+        return data
+    }
+}

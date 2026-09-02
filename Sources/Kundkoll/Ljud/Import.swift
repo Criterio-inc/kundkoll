@@ -111,7 +111,7 @@ actor Import {
         await MainActor.run {
             vidLäge(Läge(steg: "Transkriberar \(formateraLängd(längd)) med KB-Whisper", andel: 0))
         }
-        let rader = try await whisper.arkivtranskribera(
+        let rader = try await Arkivtranskribering.kör(
             fil: wav, röst: .motpart, totalLängd: längd,
             vidFramsteg: { f in
                 vidLäge(Läge(steg: "Transkriberar \(formateraLängd(längd)) med KB-Whisper",
@@ -173,7 +173,7 @@ actor Import {
         await MainActor.run {
             vidLäge(Läge(steg: "Transkriberar \(formateraLängd(längd)) med KB-Whisper", andel: 0))
         }
-        let rader = try await whisper.arkivtranskribera(
+        let rader = try await Arkivtranskribering.kör(
             fil: wav, röst: .motpart, totalLängd: längd,
             vidFramsteg: { f in
                 vidLäge(Läge(steg: "Transkriberar \(formateraLängd(längd)) med KB-Whisper",

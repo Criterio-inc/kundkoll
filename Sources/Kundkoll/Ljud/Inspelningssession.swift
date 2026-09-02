@@ -213,7 +213,7 @@ final class Inspelningssession: ObservableObject {
                 guard FileManager.default.fileExists(atPath: url.path) else { continue }
                 // Två spår, så varje spår är halva arbetet.
                 let bas = Double(n) / Double(spår.count)
-                if let r = try? await self.whisper.arkivtranskribera(
+                if let r = try? await Arkivtranskribering.kör(
                     fil: url, röst: röst, totalLängd: i.längd,
                     vidFramsteg: { f in
                         Task { @MainActor in

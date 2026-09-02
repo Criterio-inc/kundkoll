@@ -13,6 +13,20 @@ struct Ingång {
             sem.wait()
             exit(kod)
         }
+        if let i = CommandLine.arguments.firstIndex(of: "--prov-transkribering"),
+           i + 1 < CommandLine.arguments.count {
+            let a = CommandLine.arguments
+            let motor = i + 2 < a.count ? a[i + 2] : nil
+            let modell = i + 3 < a.count ? a[i + 3] : nil
+            let sem = DispatchSemaphore(value: 0)
+            nonisolated(unsafe) var kod: Int32 = 1
+            Task.detached {
+                kod = await Transkriberingsprov.kör(fil: a[i + 1], motor: motor, modell: modell)
+                sem.signal()
+            }
+            sem.wait()
+            exit(kod)
+        }
         if CommandLine.arguments.contains("--prov-datum") {
             let sem = DispatchSemaphore(value: 0)
             nonisolated(unsafe) var kod: Int32 = 1

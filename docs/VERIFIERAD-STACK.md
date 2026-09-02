@@ -300,3 +300,26 @@ läsningen.
 Andra ledet: en `möte.json` som ändå blir oläslig — avbruten skrivning, trasig
 disk — får inspelningen att listas som påbörjad i stället för att bara
 försvinna.
+
+## Fyra arkivmotorer, uppmätta på samma inspelning
+
+Livetranskriberingen är alltid whisper.cpp — fönstren är sekunder långa och
+kräver en varm server. Arkivpasset kan däremot väljas, och alla fyra är
+uppmätta på samma 51-sekundersinspelning genom appens egen kodväg:
+
+| motor | modell | tid | notering |
+|---|---|---|---|
+| whisper.cpp | kb_whisper_ggml_medium | 12,8 s | bäst svenska: enda som tog «upp ett 20-tal uppgifter» rätt tillsammans med Scribe |
+| MLX | whisper-large-v3-turbo | 3,3 s | «definierat öppet 20-tal», sista raden blev fel |
+| OpenAI | whisper-1 | 2,6 s | «definierat i öppet 20-tal»; ljudet skickas ut, m4a-komprimerat (WAV-gränsen är 25 MB) |
+| ElevenLabs | scribe_v2 | 1,9 s | «upp ett tjugotal uppgifter» — rätt; ord med tider, inte segment; sys ihop vid pauser ≥ 0,9 s |
+
+⚠️ **mlx-whisper kräver mlx == 0.31.2 på den här maskinen.** Nyare mlx (0.32.2)
+faller mot macOS 26.1:s Metal-kompilator med «unsupported
+deferred-static-alloca-size function body» och lämnar ingen utdata. Paketet
+ligger i transcriber-venven, samma som röstanalysen lånar.
+
+Scribe finns som scribe_v1 och scribe_v2 — båda svarar, v2 är standard.
+Svarsformatet är ord (word/spacing/audio_event) med start/slut; bara
+word-raderna används. Whispers påhittsfilter (`ärTomtLjud`, loopdetektorn)
+körs på alla motorers utdata — text är text, oavsett var den kom ifrån.

@@ -65,11 +65,17 @@ actor Whisper {
         if let brist = sökvägar.brister.first { throw Fel.saknas(brist) }
 
         port = try Self.ledigPort()
+        // Livemodellen kan väljas i inställningarna; en vald fil som inte
+        // finns faller tillbaka på standarden.
+        var livemodell = Transkriberingsval.läs().livemodell
+        if !FileManager.default.fileExists(atPath: sökvägar.modell(livemodell).path) {
+            livemodell = sökvägar.livemodell
+        }
         let p = Process()
         p.executableURL = sökvägar.server
         p.currentDirectoryURL = sökvägar.rot
         p.arguments = [
-            "-m", sökvägar.modell(sökvägar.livemodell).path,
+            "-m", sökvägar.modell(livemodell).path,
             "-l", "sv",
             "--host", "127.0.0.1",
             "--port", String(port),
@@ -157,17 +163,25 @@ actor Whisper {
     /// bara 40, 80 och 121 procent; tidsstämplarna på varje segment säger
     /// exakt var i ljudet den är, och texten är dessutom värd att visa.
     func arkivtranskribera(fil: URL, röst: Röst, förskjutning: Double = 0,
+                           modell: String? = nil,
                            totalLängd: Double? = nil,
                            vidFramsteg: (@Sendable (Framsteg) -> Void)? = nil) async throws -> [Yttrande] {
         if let brist = sökvägar.brister.first { throw Fel.saknas(brist) }
         let ut = FileManager.default.temporaryDirectory
             .appending(path: "kundkoll-\(UUID().uuidString)")
 
+        // En vald modell som inte finns faller tillbaka på standarden i
+        // stället för att fälla hela efterbearbetningen.
+        var vald = modell ?? sökvägar.arkivmodell
+        if !FileManager.default.fileExists(atPath: sökvägar.modell(vald).path) {
+            vald = sökvägar.arkivmodell
+        }
+
         let p = Process()
         p.executableURL = sökvägar.cli
         p.currentDirectoryURL = sökvägar.rot
         p.arguments = [
-            "-m", sökvägar.modell(sökvägar.arkivmodell).path,
+            "-m", sökvägar.modell(vald).path,
             "-l", "sv",
             "-f", fil.path,
             "-oj",                       // JSON bredvid, med tider
