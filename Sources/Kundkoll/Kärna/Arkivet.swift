@@ -179,6 +179,58 @@ final class Arkivet: ObservableObject {
         try fm.trashItem(at: mapp, resultingItemURL: nil)
     }
 
+    // MARK: - Tid
+
+    private func tidsfil(_ kund: Kund) -> URL {
+        kund.mapp.appending(path: "tid.json")
+    }
+
+    func tidsposter(för kund: Kund) -> [Tidspost] {
+        guard let data = try? Data(contentsOf: tidsfil(kund)),
+              let t = try? JSONDecoder.kundkoll.decode([Tidspost].self, from: data)
+        else { return [] }
+        return t.sorted { $0.start > $1.start }
+    }
+
+    func läggTill(_ post: Tidspost, för kund: Kund) throws {
+        try sparaTidsposter(tidsposter(för: kund) + [post], för: kund)
+    }
+
+    func taBort(_ post: Tidspost, för kund: Kund) throws {
+        try sparaTidsposter(tidsposter(för: kund).filter { $0.id != post.id }, för: kund)
+    }
+
+    private func sparaTidsposter(_ poster: [Tidspost], för kund: Kund) throws {
+        let data = try JSONEncoder.kundkoll.encode(poster)
+        try data.write(to: tidsfil(kund), options: .atomic)
+        try? skrivTidsnot(poster, hos: kund)
+        sparningar += 1
+    }
+
+    /// Tidsloggen som markdown, så att den syns i Obsidian.
+    private func skrivTidsnot(_ poster: [Tidspost], hos kund: Kund) throws {
+        var text = """
+        ---
+        typ: tid
+        kund: "\(kund.namn)"
+        ---
+
+        # Tid · \(kund.namn)
+
+        """
+        let perProjekt = Dictionary(grouping: poster) { $0.projekt ?? "" }
+        for (projekt, rader) in perProjekt.sorted(by: { $0.key < $1.key }) {
+            let summa = rader.reduce(0) { $0 + $1.sekunder }
+            text += "\n## \(projekt.isEmpty ? kund.namn : projekt) · \(Tidspost.längdtext(summa))\n\n"
+            for r in rader.sorted(by: { $0.start > $1.start }) {
+                text += "- \(DateFormatter.iso.string(from: r.start)) · "
+                    + "\(Tidspost.längdtext(r.sekunder)) · \(r.vad)\n"
+            }
+        }
+        try text.write(to: kund.mapp.appending(path: "Tid.md"),
+                       atomically: true, encoding: .utf8)
+    }
+
     // MARK: - Möteskopplingar
 
     /// Vilket projekt ett kalendermöte hör till, per mötes-id.

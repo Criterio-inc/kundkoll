@@ -72,8 +72,11 @@ struct Huvudvy: View {
             .toolbar { verktyg }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if session.pågår || session.efterbearbetar {
-                Inspelningsrad()
+            VStack(spacing: 0) {
+                if session.pågår || session.efterbearbetar {
+                    Inspelningsrad()
+                }
+                Tidursrad()
             }
         }
         .sheet(isPresented: $visaSök) {

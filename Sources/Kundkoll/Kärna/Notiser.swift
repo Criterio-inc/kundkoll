@@ -63,7 +63,27 @@ enum Notiser {
     /// Tar emot klick på notiser och skickar dem vidare in i appen.
     static func startaMottagning() {
         guard kanNotisa else { return }
-        UNUserNotificationCenter.current().delegate = Mottagare.delad
+        let central = UNUserNotificationCenter.current()
+        central.delegate = Mottagare.delad
+        // Tidursfrågan har två svar direkt i notisen.
+        let logga = UNNotificationAction(identifier: "tidur-logga", title: "Logga tiden")
+        let fortsätt = UNNotificationAction(identifier: "tidur-fortsätt",
+                                            title: "Fortsätt räkna")
+        central.setNotificationCategories([
+            UNNotificationCategory(identifier: "tidur", actions: [logga, fortsätt],
+                                   intentIdentifiers: []),
+        ])
+    }
+
+    /// Frågan när datorn vaknat med uret pausat.
+    static func tidursfråga(_ text: String) {
+        guard kanNotisa else { return }
+        let innehåll = UNMutableNotificationContent()
+        innehåll.title = "Uret står stilla"
+        innehåll.body = text
+        innehåll.categoryIdentifier = "tidur"
+        UNUserNotificationCenter.current().add(
+            UNNotificationRequest(identifier: "tidur-paus", content: innehåll, trigger: nil))
     }
 
     final class Mottagare: NSObject, UNUserNotificationCenterDelegate {
@@ -71,6 +91,16 @@ enum Notiser {
 
         func userNotificationCenter(_ central: UNUserNotificationCenter,
                                     didReceive svar: UNNotificationResponse) async {
+            switch svar.actionIdentifier {
+            case "tidur-logga":
+                await MainActor.run { Tidur.delad.stoppa() }
+                return
+            case "tidur-fortsätt":
+                await MainActor.run { Tidur.delad.fortsätt() }
+                return
+            default:
+                break
+            }
             let info = svar.notification.request.content.userInfo
             guard let kund = info["kund"] as? String else { return }
             let möte = info["möte"] as? String

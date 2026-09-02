@@ -24,7 +24,7 @@ struct Projektinnehåll: View {
     @State private var harFörsöktSkriva = false
 
     enum Flik: String, CaseIterable, Identifiable {
-        case översikt, attGöra, inspelningar, anteckningar
+        case översikt, attGöra, inspelningar, anteckningar, tid
         var id: String { rawValue }
         var namn: String {
             switch self {
@@ -32,6 +32,7 @@ struct Projektinnehåll: View {
             case .attGöra: "Att göra"
             case .inspelningar: "Inspelningar"
             case .anteckningar: "Anteckningar"
+            case .tid: "Tid"
             }
         }
         var ikon: String {
@@ -40,6 +41,7 @@ struct Projektinnehåll: View {
             case .attGöra: "checklist"
             case .inspelningar: "waveform"
             case .anteckningar: "note.text"
+            case .tid: "clock"
             }
         }
     }
@@ -66,6 +68,7 @@ struct Projektinnehåll: View {
                     case .attGöra: Kanbanvy(kund: kund, projekt: projekt)
                     case .inspelningar: inspelningsflik
                     case .anteckningar: Anteckningslista(mapp: projekt.anteckningsmapp)
+                    case .tid: Tidsvy(kund: kund, projekt: projekt)
                     }
                 }
                 .padding(20)

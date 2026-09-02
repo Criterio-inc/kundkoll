@@ -115,6 +115,21 @@ Briefen byggs helt ur det som redan finns: ingen modell, ingen väntan.
 Mötesvyn visar «Förra gången», och mötets chatt får förra sammanfattningen som
 stående underlag.
 
+## Läget och tiden i ett projekt
+
+Projektöversikten inleds med **Läget just nu** — en lägesbild skriven av
+modellen ur mötessammanfattningar, tavlan, mejl och anteckningar, cachead och
+omskriven när underlaget ändrats. Bredvid en faktarad som alltid stämmer:
+möten, öppna uppgifter, försenade. Bilden sparas som `Läget.md` i
+projektmappen och syns i Obsidian.
+
+Projektet har också en **tidslogg**: ett ur att starta och stoppa med en rad
+om vad du gör, och fält för att skriva in tid i efterhand («1:30», «1,5»
+eller «90»). Går datorn i vila fryser uret vid insomningen; vid uppvaknandet
+frågar en notis om tiden ska loggas eller räknas vidare — sovtid smyger
+aldrig in i loggen. En smal rad längst ned i fönstret visar uret var du än
+är, och loggen skrivs som `Tid.md` med summor per projekt.
+
 ## Att göra
 
 Åtaganden hamnar på en tavla med tre spalter, utan att någon skriver in dem.
@@ -258,7 +273,7 @@ fönstret först, gör flera försök, och faller tillbaka på hela skärmen.
 
 ```bash
 ./scripts/bygg-app.sh                                        # dist/Kundkoll.app
-.build/arm64-apple-macosx/debug/Kundkoll --test              # 516 enhetstester
+.build/arm64-apple-macosx/debug/Kundkoll --test              # 547 enhetstester
 .build/arm64-apple-macosx/debug/Kundkoll --prov-ljud f.wav   # hela kedjan skarpt
 .build/arm64-apple-macosx/debug/Kundkoll --prov-röst ljud.wav w.json facit.json
 .build/arm64-apple-macosx/debug/Kundkoll --prov-import fil.mp4 fil.m4a
