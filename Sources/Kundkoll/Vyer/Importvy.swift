@@ -31,13 +31,6 @@ struct Importvy: View {
     /// "sv", "en" eller nil — motorn avgör själv.
     @State private var språk: String? = "sv"
 
-    @State private var läge: Läge = .väljer
-    @State private var steg = ""
-    @State private var andel: Double?
-    @State private var senaste = ""
-    @State private var start = Date()
-
-    private enum Läge: Equatable { case väljer, arbetar, klar(String), fel(String) }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -48,12 +41,7 @@ struct Importvy: View {
             .padding(16)
             Divider()
 
-            switch läge {
-            case .väljer: väljare
-            case .arbetar: arbetar
-            case .klar(let namn): klar(namn)
-            case .fel(let text): felruta(text)
-            }
+            väljare
         }
         .frame(width: 560, height: 420)
         .onAppear {
@@ -113,88 +101,11 @@ struct Importvy: View {
             HStack {
                 Button("Avbryt") { stäng() }
                 Spacer()
-                Button("Lägg till", action: kör)
+                Button(Importkö.delad.pågår ? "Lägg i kön" : "Lägg till", action: kör)
                     .keyboardShortcut(.defaultAction)
                     .disabled(fil == nil)
             }
         }
-        .padding(24)
-    }
-
-    private var arbetar: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Spacer()
-            HStack {
-                Text(steg).foregroundStyle(.secondary)
-                Spacer()
-                if let andel {
-                    Text("\(Int(andel * 100)) %")
-                        .font(.callout.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                }
-            }
-            if let andel {
-                ProgressView(value: andel)
-                Text(kvarText(andel))
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            } else {
-                ProgressView().frame(maxWidth: .infinity)
-            }
-
-            // Texten allteftersom säger mer än en siffra: man ser att det
-            // faktiskt är rätt ljud som läses.
-            if !senaste.isEmpty {
-                Text("«\(senaste)»")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 8))
-                    .animation(.default, value: senaste)
-            }
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(24)
-    }
-
-    /// Uppskattad tid kvar, räknad på hur fort det gått hittills.
-    private func kvarText(_ andel: Double) -> String {
-        let gått = Date().timeIntervalSince(start)
-        guard andel > 0.02, gått > 2 else { return "Beräknar tid …" }
-        let kvar = gått / andel - gått
-        if kvar < 60 { return "Ungefär \(Int(kvar)) sekunder kvar" }
-        return "Ungefär \(Int((kvar / 60).rounded())) minuter kvar"
-    }
-
-    private func klar(_ namn: String) -> some View {
-        VStack(spacing: 16) {
-            Image(systemName: "checkmark.circle").font(.system(size: 44)).foregroundStyle(.green)
-            Text("Inspelningen är tillagd").font(.title3.weight(.semibold))
-            Text(namn).font(.callout).foregroundStyle(.secondary)
-            Text("Öppna den och sätt namn på rösterna under «Vem är vem».")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            Button("Klar") { vidKlar(); stäng() }.keyboardShortcut(.defaultAction)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(24)
-    }
-
-    private func felruta(_ text: String) -> some View {
-        VStack(spacing: 16) {
-            Image(systemName: "exclamationmark.triangle").font(.system(size: 40)).foregroundStyle(.orange)
-            Text(text).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-            HStack {
-                Button("Försök igen") { läge = .väljer }
-                Button("Stäng") { stäng() }.keyboardShortcut(.defaultAction)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(24)
     }
 
@@ -214,37 +125,17 @@ struct Importvy: View {
         if titel.isEmpty { titel = url.deletingPathExtension().lastPathComponent }
     }
 
+    /// Lägger jobbet i kön och stänger bladet. Arbetet syns i raden längst
+    /// ned i fönstret — appen ska inte stå still i minuter bakom ett blad.
     private func kör() {
         guard let fil else { return }
         let placering: Placering = valtProjekt.map { .projekt($0) } ?? .kund(kund)
         let namn = titel.trimmingCharacters(in: .whitespaces)
-        let profiler = arkiv.röstprofiler(för: kund)
-        läge = .arbetar
-        steg = "Förbereder"
-        andel = nil
-        senaste = ""
-        start = Date()
-
-        Task {
-            let importör = Import()
-            do {
-                let (_, mapp) = try await importör.importera(
-                    fil, placering: placering,
-                    titel: namn.isEmpty ? fil.deletingPathExtension().lastPathComponent : namn,
-                    kund: kund, profiler: profiler,
-                    språk: språk,
-                    vidLäge: { l in
-                        Task { @MainActor in
-                            steg = l.steg
-                            andel = l.andel
-                            if let s = l.senaste, !s.isEmpty { senaste = s }
-                        }
-                    })
-                läge = .klar(mapp.lastPathComponent)
-                vidKlar()
-            } catch {
-                läge = .fel(error.localizedDescription)
-            }
-        }
+        Importkö.delad.köa(
+            källa: fil, placering: placering,
+            titel: namn.isEmpty ? fil.deletingPathExtension().lastPathComponent : namn,
+            kund: kund, språk: språk)
+        vidKlar()
+        stäng()
     }
 }

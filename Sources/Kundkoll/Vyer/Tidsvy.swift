@@ -254,3 +254,53 @@ struct Tidursrad: View {
         }
     }
 }
+
+/// Raden längst ned när en import arbetar i bakgrunden.
+struct Importrad: View {
+    @ObservedObject private var kö = Importkö.delad
+
+    var body: some View {
+        if let fel = kö.fel {
+            HStack(spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                Text(fel).lineLimit(1).foregroundStyle(.secondary)
+                Spacer()
+                Button("OK") { kö.stängFel() }
+            }
+            .controlSize(.small)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(.bar)
+            .overlay(alignment: .top) { Divider() }
+        }
+        if let jobb = kö.aktuell {
+            HStack(spacing: 10) {
+                Image(systemName: "arrow.down.circle.fill")
+                    .foregroundStyle(Color.accentColor)
+                Text("\(jobb.titel) — \(kö.steg)")
+                    .lineLimit(1)
+                    .foregroundStyle(.secondary)
+                if let andel = kö.andel {
+                    ProgressView(value: andel).frame(width: 120)
+                    Text("\(Int(andel * 100)) %")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                } else {
+                    ProgressView().controlSize(.small)
+                }
+                if !kö.väntande.isEmpty {
+                    Text("+\(kö.väntande.count) i kö")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                Spacer()
+            }
+            .controlSize(.small)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(.bar)
+            .overlay(alignment: .top) { Divider() }
+        }
+    }
+}

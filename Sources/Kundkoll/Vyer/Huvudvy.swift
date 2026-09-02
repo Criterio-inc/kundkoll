@@ -76,6 +76,7 @@ struct Huvudvy: View {
                 if session.pågår || session.efterbearbetar {
                     Inspelningsrad()
                 }
+                Importrad()
                 Tidursrad()
             }
         }
