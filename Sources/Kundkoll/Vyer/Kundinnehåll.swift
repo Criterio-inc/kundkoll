@@ -43,6 +43,7 @@ struct Kundinnehåll: View {
     /// ligger i kunskapsbanken.
     @State private var kopplade: [Kopplad] = []
     @State private var dokumentantal: [String: Int] = [:]
+    @State private var läserIn = false
 
     enum Flik: String, CaseIterable, Identifiable {
         case översikt, attGöra, inspelningar, anteckningar, mail
@@ -650,7 +651,7 @@ struct Kundinnehåll: View {
                                 HStack(spacing: 6) {
                                     Text(k.visatNamn)
                                     if let n = dokumentantal[k.väg] {
-                                        Märke(text: n == 0 ? "inga dokument än" : "\(n) dokument",
+                                        Märke(text: Indexering.dokumentetikett(n, pågår: läserIn),
                                               ikon: "doc.richtext")
                                     }
                                 }
@@ -702,6 +703,7 @@ struct Kundinnehåll: View {
 
     /// Hur många dokument ur varje mapp som ligger i kunskapsbanken.
     private func räknaDokument() {
+        läserIn = Indexering.pågår(kund)
         guard !kopplade.isEmpty, let bank = try? Kunskapsbank(kund: kund) else {
             dokumentantal = [:]
             return

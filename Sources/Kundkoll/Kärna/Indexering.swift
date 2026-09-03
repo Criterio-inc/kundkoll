@@ -225,6 +225,11 @@ enum Indexering {
                 // inte läsas med Vision på nytt varje gång.
                 try bank.markeraIndexerad(url)
                 r.indexerade += 1
+                // Räknarna i vyerna får ticka medan det pågår — 593 filer
+                // tar minuter, och en stilla siffra ser ut som ett stopp.
+                if r.indexerade % 20 == 0 {
+                    NotificationCenter.default.post(name: .dokumentIndexerade, object: nil)
+                }
             }
             // Det som tagits bort ur mappen ska inte spöka i svaren.
             for gammal in bank.källor(under: rot + "/") where !sedda.contains(gammal) {
@@ -247,6 +252,15 @@ enum Indexering {
     /// genomgångar av samma mapp skulle båda se filerna som nya och
     /// dubblera dem.
     private static var dokumentPågår: Set<String> = []
+
+    /// Om kundens dokument håller på att läsas in just nu.
+    static func pågår(_ kund: Kund) -> Bool { dokumentPågår.contains(kund.id) }
+
+    /// Texten i räknaren vid en kopplad mapp.
+    nonisolated static func dokumentetikett(_ antal: Int, pågår: Bool) -> String {
+        if pågår { return "läser in · \(antal) dokument hittills" }
+        return antal == 0 ? "inga dokument" : "\(antal) dokument"
+    }
 
     /// Läser in dokumenten utan att hålla någon vy väntande, och säger till
     /// när det är klart så att räknarna kan uppdateras.

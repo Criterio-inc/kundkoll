@@ -11,14 +11,22 @@ APP="dist/Critero-kundkoll.app"
 # Utan certifikat signeras appen ad hoc — det fungerar, men macOS frågar om
 # mikrofon och skärminspelning på nytt efter varje ombygge.
 IDENTITET="${KUNDKOLL_SIGNERING:-}"
+# Giltiga Developer ID i nyckelringen, rader som «1) <hash> "Developer ID Application: …"».
+# «|| true» överallt: under set -e dödar en grep utan träff annars hela skriptet.
+GILTIGA="$(security find-identity -v -p codesigning 2>/dev/null | grep 'Developer ID Application' || true)"
 if [ -z "$IDENTITET" ]; then
-    # Finns exakt ett Developer ID i nyckelringen används det utan att behöva
-    # anges — ett personligt utvecklarkonto duger lika bra som ett företags.
-    HITTADE="$(security find-identity -v -p codesigning 2>/dev/null \
-        | grep -o '"Developer ID Application: [^"]*"' | tr -d '"' | sort -u)"
-    if [ -n "$HITTADE" ] && [ "$(printf '%s\n' "$HITTADE" | grep -c .)" -eq 1 ]; then
-        IDENTITET="$HITTADE"
+    # Finns exakt ett namn används det utan att behöva anges — ett personligt
+    # utvecklarkonto duger lika bra som ett företags.
+    NAMN="$(printf '%s\n' "$GILTIGA" | grep -o '"Developer ID Application: [^"]*"' | tr -d '"' | sort -u || true)"
+    if [ -n "$NAMN" ] && [ "$(printf '%s\n' "$NAMN" | grep -c . || true)" -eq 1 ]; then
+        IDENTITET="$NAMN"
     fi
+fi
+# Signeras med certifikatets hash, inte namnet. Samma certifikat kan ligga två
+# gånger i nyckelringen, och då svarar codesign «ambiguous» på namnet — uppmätt.
+HASH=""
+if [ -n "$IDENTITET" ]; then
+    HASH="$(printf '%s\n' "$GILTIGA" | grep -F "\"$IDENTITET\"" | head -1 | awk '{print $2}' || true)"
 fi
 
 echo "→ kompilerar ($KONFIG)"
@@ -42,11 +50,11 @@ printf 'APPL????' > "$APP/Contents/PkgInfo"
 echo "→ signerar"
 # En stabil signatur gör att macOS kommer ihåg beviljade behörigheter
 # mellan ombyggen i stället för att fråga om mikrofon och skärminspelning varje gång.
-if [ -n "$IDENTITET" ] && security find-identity -v -p codesigning | grep -q "$IDENTITET"; then
-    echo "  med $IDENTITET"
+if [ -n "$HASH" ]; then
+    echo "  med $IDENTITET ($HASH)"
     codesign --force --deep --options runtime --timestamp=none \
         --entitlements Resources/Kundkoll.entitlements \
-        --sign "$IDENTITET" "$APP"
+        --sign "$HASH" "$APP"
 else
     if [ -n "$IDENTITET" ]; then
         echo "  (certifikatet «$IDENTITET» hittades inte i nyckelringen — signerar ad hoc)"
