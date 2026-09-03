@@ -398,7 +398,7 @@ final class Arkivet: ObservableObject {
                 let ändrad = (try? url.resourceValues(forKeys: [.contentModificationDateKey])
                     .contentModificationDate) ?? .distantPast
                 return Anteckning(titel: url.deletingPathExtension().lastPathComponent,
-                                  text: text, ändrad: ändrad ?? .distantPast, fil: url)
+                                  text: text, ändrad: ändrad, fil: url)
             }
             .sorted { $0.ändrad > $1.ändrad }
     }

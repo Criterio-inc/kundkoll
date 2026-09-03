@@ -38,8 +38,11 @@ enum Läget {
 
     /// När det senaste underlaget kom — har något hänt efter att lägesbilden
     /// skrevs är den gammal.
+    // `arkiv` är valfritt i stället för `= .shared`: ett standardvärde
+    // räknas ut hos anroparen, som inte är på huvudaktören.
     static func senasteUnderlag(kund: Kund, projekt: Projekt,
-                                arkiv: Arkivet = .shared) -> Date? {
+                                arkiv: Arkivet? = nil) -> Date? {
+        let arkiv = arkiv ?? .shared
         var tider: [Date] = []
         tider += arkiv.inspelningar(för: kund)
             .filter { $0.0.projekt == projekt.namn }
@@ -53,7 +56,7 @@ enum Läget {
     }
 
     static func gammal(_ bild: Lägesbild, kund: Kund, projekt: Projekt,
-                       arkiv: Arkivet = .shared) -> Bool {
+                       arkiv: Arkivet? = nil) -> Bool {
         guard let senaste = senasteUnderlag(kund: kund, projekt: projekt, arkiv: arkiv)
         else { return false }
         return bild.skriven < senaste
@@ -61,7 +64,8 @@ enum Läget {
 
     /// Skriver en ny lägesbild och sparar den.
     static func skriv(kund: Kund, projekt: Projekt,
-                      arkiv: Arkivet = .shared) async throws -> Lägesbild {
+                      arkiv: Arkivet? = nil) async throws -> Lägesbild {
+        let arkiv = arkiv ?? .shared
         let träffar = underlag(
             projekt: projekt.namn,
             inspelningar: arkiv.inspelningar(för: kund).map(\.0),

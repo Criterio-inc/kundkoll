@@ -431,7 +431,7 @@ struct Transkriptvy: View {
     private func läggTill() {
         let text = ny.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return }
-        try? arkiv.läggTill([Uppgift(vad: text, ursprung: .möte, källa: mapp.path,
+        _ = try? arkiv.läggTill([Uppgift(vad: text, ursprung: .möte, källa: mapp.path,
                                      källtitel: inspelning.titel,
                                      projekt: inspelning.projekt)], för: kund)
         ny = ""

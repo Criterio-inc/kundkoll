@@ -624,7 +624,7 @@ struct Kundinnehåll: View {
             for var k in arkiv.kontakter(för: kund)
             where k.systemID != nil && k.bild == nil {
                 guard let data = adressbok.bilddata(för: k) else { continue }
-                try? arkiv.sparaKontaktbild(data, för: &k, hos: kund)
+                _ = try? arkiv.sparaKontaktbild(data, för: &k, hos: kund)
                 ändrade = true
             }
             if ändrade { kontakter = arkiv.kontakter(för: kund) }
@@ -740,8 +740,8 @@ struct Kundinnehåll: View {
     private func indexeraIBakgrunden() {
         let kund = kund
         Task.detached(priority: .utility) {
-            guard let bank = try? await Kunskapsbank(kund: kund) else { return }
-            try? await Indexering.kör(för: kund, bank: bank)
+            guard let bank = try? Kunskapsbank(kund: kund) else { return }
+            _ = try? await Indexering.kör(för: kund, bank: bank)
             await Inbäddare.kör(bank: bank)
         }
     }

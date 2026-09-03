@@ -110,13 +110,21 @@ förut: ordsökning i stället för betydelse, och inga insikter under samtal.
 open dist/Critero-kundkoll.app
 ```
 
-Bygget signeras **ad hoc** om inget certifikat anges. Det fungerar, men
+Bygget signeras **ad hoc** om inget certifikat finns. Det fungerar, men
 macOS kopplar behörigheter till signaturen, så mikrofon och skärminspelning
-måste beviljas om efter varje ombygge. Har du ett Developer ID:
+måste beviljas om efter varje ombygge. Ligger exakt ett Developer
+ID-certifikat i nyckelringen använder skriptet det av sig självt; finns
+flera anges vilket med `KUNDKOLL_SIGNERING`:
 
 ```bash
-KUNDKOLL_SIGNERING="Developer ID Application: Criterio AB (XXXXXXXXXX)" ./scripts/bygg-app.sh
+KUNDKOLL_SIGNERING="Developer ID Application: Namn (XXXXXXXXXX)" ./scripts/bygg-app.sh
 ```
+
+Ett personligt Apple Developer-konto duger: Developer ID ges till
+individer också, och appen körs bara på din egen dator. Certifikatet
+skapas i Xcode → Settings → Accounts → Manage Certificates → + →
+Developer ID Application, och syns sedan i
+`security find-identity -v -p codesigning`.
 
 Provsviten körs i terminalen, utan Xcode:
 

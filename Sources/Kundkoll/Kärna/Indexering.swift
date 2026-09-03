@@ -9,7 +9,7 @@ enum Indexering {
 
     /// Ungefär så här långa stycken blir transkriptet. Kort nog att en träff
     /// pekar på rätt ställe i samtalet, långt nog att svaret får sammanhang.
-    static let styckestorlek = 900
+    nonisolated static let styckestorlek = 900
 
     struct Resultat {
         var indexerade = 0

@@ -190,7 +190,7 @@ struct Röstvy: View {
         // hen en gång till som kontakt vore onödigt dubbelarbete.
         for personnamn in Set(inspelning.röstnamn.values)
         where !kontakter.contains(where: { $0.namn == personnamn }) {
-            try? arkiv.läggTill(Kontakt(namn: personnamn), hos: kund)
+            _ = try? arkiv.läggTill(Kontakt(namn: personnamn), hos: kund)
         }
 
         vidSparat(inspelning)

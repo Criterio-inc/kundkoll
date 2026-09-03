@@ -18,7 +18,7 @@ actor Mailen {
     /// ingenting händer. Det inträffade när brödtexten lades till: hela
     /// mejlcachen blev oläsbar och bilagorna hämtades aldrig.
     struct Mejl: Identifiable, Hashable, Codable {
-        var id: String { meddelandeID.isEmpty ? "\(datum)-\(ämne)" : meddelandeID }
+        var id: String { meddelandeID.isEmpty ? "\(String(describing: datum))-\(ämne)" : meddelandeID }
         var datum: Date?
         var datumText: String
         var avsändare: String

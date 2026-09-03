@@ -126,7 +126,7 @@ struct Kontaktredigering: View {
         panel.message = "Välj en profilbild för \(kontakt.namn)"
         guard panel.runModal() == .OK, let url = panel.url,
               let data = try? Data(contentsOf: url) else { return }
-        try? arkiv.sparaKontaktbild(data, för: &kontakt, hos: kund)
+        _ = try? arkiv.sparaKontaktbild(data, för: &kontakt, hos: kund)
         vidSparat(kontakt)
     }
 
@@ -135,7 +135,7 @@ struct Kontaktredigering: View {
             meddelande = Meddelande(text: "Posten i Kontakter har ingen bild.", fel: false)
             return
         }
-        try? arkiv.sparaKontaktbild(data, för: &kontakt, hos: kund)
+        _ = try? arkiv.sparaKontaktbild(data, för: &kontakt, hos: kund)
         vidSparat(kontakt)
     }
 

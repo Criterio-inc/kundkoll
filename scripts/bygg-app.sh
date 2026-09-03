@@ -11,6 +11,15 @@ APP="dist/Critero-kundkoll.app"
 # Utan certifikat signeras appen ad hoc — det fungerar, men macOS frågar om
 # mikrofon och skärminspelning på nytt efter varje ombygge.
 IDENTITET="${KUNDKOLL_SIGNERING:-}"
+if [ -z "$IDENTITET" ]; then
+    # Finns exakt ett Developer ID i nyckelringen används det utan att behöva
+    # anges — ett personligt utvecklarkonto duger lika bra som ett företags.
+    HITTADE="$(security find-identity -v -p codesigning 2>/dev/null \
+        | grep -o '"Developer ID Application: [^"]*"' | tr -d '"' | sort -u)"
+    if [ -n "$HITTADE" ] && [ "$(printf '%s\n' "$HITTADE" | grep -c .)" -eq 1 ]; then
+        IDENTITET="$HITTADE"
+    fi
+fi
 
 echo "→ kompilerar ($KONFIG)"
 swift build -c "$KONFIG" --disable-sandbox
@@ -34,6 +43,7 @@ echo "→ signerar"
 # En stabil signatur gör att macOS kommer ihåg beviljade behörigheter
 # mellan ombyggen i stället för att fråga om mikrofon och skärminspelning varje gång.
 if [ -n "$IDENTITET" ] && security find-identity -v -p codesigning | grep -q "$IDENTITET"; then
+    echo "  med $IDENTITET"
     codesign --force --deep --options runtime --timestamp=none \
         --entitlements Resources/Kundkoll.entitlements \
         --sign "$IDENTITET" "$APP"
