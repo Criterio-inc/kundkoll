@@ -61,9 +61,13 @@ Modellen som delar upp rösterna i ett möte (`pyannote/speaker-diarization-3.1`
 är gratis men grindad. En gång:
 
 1. Skapa konto på [huggingface.co](https://huggingface.co).
-2. Godkänn villkoren på
-   [pyannote/speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1)
-   och [pyannote/segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0).
+2. Godkänn villkoren på alla tre:
+   [pyannote/speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1),
+   [pyannote/segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0)
+   och [pyannote/speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1).
+   Den tredje står inte på 3.1:s modellkort, men pyannote 4 hämtar delar
+   av pipelinen därifrån — uppmätt: `403 … community-1 is restricted` med
+   bara de två första godkända.
 3. Skapa en läs-token under *Settings → Access Tokens*.
 4. `HF_TOKEN=hf_… ./scripts/installera.sh`
 

@@ -214,9 +214,12 @@ else
     if [ -z "$TOKEN" ]; then
         brist "hämtas inte: kräver ett Hugging Face-konto som godkänt villkoren."
         cat <<'TEXT'
-    1. Skapa konto på huggingface.co och godkänn villkoren på
+    1. Skapa konto på huggingface.co och godkänn villkoren på alla tre:
          https://huggingface.co/pyannote/speaker-diarization-3.1
          https://huggingface.co/pyannote/segmentation-3.0
+         https://huggingface.co/pyannote/speaker-diarization-community-1
+       (pyannote 4 hämtar delar av 3.1-pipelinen ur community-1, fast
+        modellkortet för 3.1 inte säger det — uppmätt: 403 utan den)
     2. Skapa en läs-token under Settings → Access Tokens.
     3. Kör:  HF_TOKEN=hf_… scripts/installera.sh
     Utan modellen fungerar appen ändå, men uppdelningen av flera röster i
@@ -235,8 +238,9 @@ try:
 except TypeError:
     p = Pipeline.from_pretrained(namn, use_auth_token=token)  # pyannote 3
 if p is None:
-    raise SystemExit("modellen gick inte att ladda — är villkoren godkända för både "
-                     "speaker-diarization-3.1 och segmentation-3.0?")
+    raise SystemExit("modellen gick inte att ladda — är villkoren godkända för alla tre: "
+                     "speaker-diarization-3.1, segmentation-3.0 och "
+                     "speaker-diarization-community-1?")
 print("  ✓ pyannote-modellen ligger nu i ~/.cache/huggingface")
 PY
     fi
