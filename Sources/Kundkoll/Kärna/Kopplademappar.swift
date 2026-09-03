@@ -109,6 +109,16 @@ enum Kopplademappar {
         !vandra(kopplad, ändelser: kodändelser, maxStorlek: maxStorlek, max: 1).isEmpty
     }
 
+    /// Om filen bara är en platshållare vars innehåll ligger kvar i molnet.
+    /// OneDrive, iCloud och Dropbox visar sådana som vanliga filer i Finder,
+    /// men läsning ger ingenting eller väntar på nedladdning. Uppmätt på en
+    /// OneDrive-mapp: 361 av 583 filer. Flaggan är SF_DATALESS i stat().
+    static func ärPlatshållare(_ url: URL) -> Bool {
+        var st = stat()
+        guard stat(url.path, &st) == 0 else { return false }
+        return st.st_flags & UInt32(SF_DATALESS) != 0
+    }
+
     private static func vandra(_ kopplad: Kopplad, ändelser: Set<String>,
                                maxStorlek: Int, max antal: Int) -> [URL] {
         let fm = FileManager.default

@@ -54,8 +54,10 @@ final class Kunskapsbank {
     /// ingenting alls.
     ///
     /// Version 2: kontorsfilsläsaren skrevs om (Excel cell för cell,
-    /// talarnoteringar, kommentarer).
-    static let läsarversion: Int32 = 2
+    /// talarnoteringar, kommentarer). Version 3: platshållare i molnet
+    /// hade markerats som lästa utan text; källor utan dokument glöms så
+    /// att de läses när innehållet hämtats hem.
+    static let läsarversion: Int32 = 3
 
     private func läsOmEfterBättreLäsare() {
         var s: OpaquePointer?
@@ -69,6 +71,10 @@ final class Kunskapsbank {
             where kontor.contains((källa as NSString).pathExtension.lowercased()) {
                 try? glöm(källa: källa)
             }
+        }
+        if nuvarande < 3 {
+            sqlite3_exec(db, "DELETE FROM källor WHERE källa NOT IN (SELECT DISTINCT källa FROM dokument)",
+                         nil, nil, nil)
         }
         sqlite3_exec(db, "PRAGMA user_version = \(Self.läsarversion)", nil, nil, nil)
     }

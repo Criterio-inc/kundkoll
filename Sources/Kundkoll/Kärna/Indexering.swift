@@ -18,6 +18,9 @@ enum Indexering {
         /// Filer som inte gick att läsa in. Se `fel` för den första.
         var fällda = 0
         var fel: String?
+        /// Filer vars innehåll ligger kvar i molnet. De hoppas över utan att
+        /// markeras, så att de läses när de hämtats hem.
+        var platshållare = 0
     }
 
     @discardableResult
@@ -208,6 +211,10 @@ enum Indexering {
             for url in Kopplademappar.dokument(i: kopplad) {
                 let väg = url.path
                 sedda.insert(väg)
+                // En platshållare markeras inte: ändringsdatumet står kvar när
+                // OneDrive hämtar hem innehållet, och en markerad fil hade
+                // därför aldrig lästs om.
+                if Kopplademappar.ärPlatshållare(url) { r.platshållare += 1; continue }
                 guard bank.behöverIndexeras(url) else { r.oförändrade += 1; continue }
                 // En fil som faller får inte fälla resten. Tidigare låg hela
                 // genomgången i ett enda try, och det första felet — en låst

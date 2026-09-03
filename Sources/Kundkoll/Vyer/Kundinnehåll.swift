@@ -45,6 +45,7 @@ struct Kundinnehåll: View {
     @State private var dokumentantal: [String: (filer: Int, medText: Int)] = [:]
     @State private var läserIn = false
     @State private var dokumentfel: String?
+    @State private var iMolnet = 0
 
     enum Flik: String, CaseIterable, Identifiable {
         case översikt, attGöra, inspelningar, anteckningar, mail
@@ -642,14 +643,21 @@ struct Kundinnehåll: View {
                 Text("Peka ut en mapp med kundens material — OneDrive, en delad mapp, ett arkiv. Word, Excel, PowerPoint, PDF, text och bilder läses in i kunskapsbanken så att chatten kan svara ur dem. Mappen rörs inte.")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-            } else if let dokumentfel {
-                Label("Någon fil gick inte att läsa: \(dokumentfel)",
-                      systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .fixedSize(horizontal: false, vertical: true)
-                mapplista
             } else {
+                if iMolnet > 0 {
+                    Label("\(iMolnet) filer ligger kvar i molnet och kan inte läsas. Högerklicka mappen i Finder och välj «Behåll alltid på den här enheten».",
+                          systemImage: "icloud.and.arrow.down")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if let dokumentfel {
+                    Label("Någon fil gick inte att läsa: \(dokumentfel)",
+                          systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 mapplista
             }
         }
@@ -718,6 +726,7 @@ struct Kundinnehåll: View {
     private func räknaDokument() {
         läserIn = Indexering.pågår(kund)
         dokumentfel = Indexering.senasteUtfall[kund.id]?.fel
+        iMolnet = Indexering.senasteUtfall[kund.id]?.platshållare ?? 0
         guard !kopplade.isEmpty, let bank = try? Kunskapsbank(kund: kund) else {
             dokumentantal = [:]
             return
