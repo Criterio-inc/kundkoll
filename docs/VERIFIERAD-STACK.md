@@ -10,7 +10,8 @@ Bara Command Line Tools är installerat (`xcodebuild` saknas). Verifierat att
 ScreenCaptureKit, Speech och FoundationModels. Appen byggs med SwiftPM och
 paketeras till en `.app` av `scripts/bygg-app.sh`.
 
-Signering: `Developer ID Application: Brattoo AB (V783A2L763)` finns i nyckelringen.
+Signering: ursprungsförfattaren signerade med ett Developer ID; i den här
+forken anges ett eget med `KUNDKOLL_SIGNERING`, annars signeras ad hoc.
 Det spelar roll — en stabil signatur gör att TCC-behörigheter (mikrofon,
 skärminspelning, kalender, kontakter) överlever ombyggen i stället för att
 behöva godkännas om varje gång.

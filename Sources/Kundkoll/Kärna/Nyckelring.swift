@@ -6,7 +6,7 @@ import Security
 /// Inte i en fil i kundmappen: den mappen ligger i Dokument och kan hamna i
 /// iCloud, i en säkerhetskopia eller i ett delat valv.
 enum Nyckelring {
-    private static let tjänst = "com.brattoo.kundkoll"
+    private static let tjänst = "se.critero.kundkoll"
 
     static func hämta(_ konto: String, miljö: String? = nil) -> String? {
         // En nyckel i miljön vinner, så att en nyckel man redan har i skalet
