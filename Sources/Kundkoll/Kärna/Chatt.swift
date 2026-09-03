@@ -152,7 +152,7 @@ actor Chatt {
             r.setValue(nyckel, forHTTPHeaderField: "api-key")
         case .openrouter:
             r.setValue("Bearer \(nyckel ?? "")", forHTTPHeaderField: "Authorization")
-            r.setValue("Kundkoll", forHTTPHeaderField: "X-Title")
+            r.setValue("Critero-kundkoll", forHTTPHeaderField: "X-Title")
         case .openai:
             r.setValue("Bearer \(nyckel ?? "")", forHTTPHeaderField: "Authorization")
         case .lokal:
@@ -352,7 +352,7 @@ actor Chatt {
         var errorDescription: String? {
             switch self {
             case .ingenNyckel(let l):
-                "Ingen API-nyckel för \(l.namn). Lägg in den under Kundkoll → API-nyckel."
+                "Ingen API-nyckel för \(l.namn). Lägg in den under Critero-kundkoll → API-nyckel."
             case .ingetSvar: "Fick inget svar från modellen."
             case .tomtSvar: "Modellen svarade utan innehåll."
             case .trasigAdress: "Adressen till modellen går inte att tolka."

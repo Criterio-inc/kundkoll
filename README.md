@@ -290,7 +290,7 @@ fönstret först, gör flera försök, och faller tillbaka på hela skärmen.
 ## Bygga
 
 ```bash
-./scripts/bygg-app.sh                                        # dist/Kundkoll.app
+./scripts/bygg-app.sh                                        # dist/Critero-kundkoll.app
 .build/arm64-apple-macosx/debug/Kundkoll --test              # 552 enhetstester
 .build/arm64-apple-macosx/debug/Kundkoll --prov-ljud f.wav   # hela kedjan skarpt
 .build/arm64-apple-macosx/debug/Kundkoll --prov-röst ljud.wav w.json facit.json

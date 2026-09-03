@@ -169,7 +169,7 @@ actor Mailen {
         var errorDescription: String? {
             switch self {
             case .skriptSaknas: "Sökskriptet för Mail saknas i appen."
-            case .nekad: "Kundkoll får inte styra Mail. Ge tillstånd i Systeminställningar → Integritet och säkerhet → Automatisering."
+            case .nekad: "Critero-kundkoll får inte styra Mail. Ge tillstånd i Systeminställningar → Integritet och säkerhet → Automatisering."
             case .frånMail(let f): "Mail svarade med ett fel: \(f)"
             }
         }

@@ -81,7 +81,7 @@ final class Inspelningssession: ObservableObject {
         do {
             läge = .förbereder("Kontrollerar behörigheter …")
             guard await Ljudinfångning.begärMikrofon() else {
-                throw Enkeltfel("Kundkoll behöver tillgång till mikrofonen. Ge den i Systeminställningar → Integritet och säkerhet → Mikrofon.")
+                throw Enkeltfel("Critero-kundkoll behöver tillgång till mikrofonen. Ge den i Systeminställningar → Integritet och säkerhet → Mikrofon.")
             }
             guard await Ljudinfångning.harSkärmbehörighet() else {
                 throw Enkeltfel("Datorljudet kräver behörigheten Skärminspelning. Ge den i Systeminställningar → Integritet och säkerhet → Skärminspelning och starta om appen.")

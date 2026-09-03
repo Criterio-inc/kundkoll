@@ -102,8 +102,8 @@ förut: ordsökning i stället för betydelse, och inga insikter under samtal.
 ## 3. Bygga och starta appen
 
 ```bash
-./scripts/bygg-app.sh        # dist/Kundkoll.app
-open dist/Kundkoll.app
+./scripts/bygg-app.sh        # dist/Critero-kundkoll.app
+open dist/Critero-kundkoll.app
 ```
 
 Bygget signeras **ad hoc** om inget certifikat anges. Det fungerar, men
@@ -167,7 +167,7 @@ falla under tröskeln. Se avsnittet i `docs/VERIFIERAD-STACK.md` innan du
 
 **Röster delas inte upp.** Kontrollera att pyannote ligger i cachen
 (`--kontrollera`). Loggen från Pythonprocessen går till stderr och syns i
-Konsol-appen under Kundkoll.
+Konsol-appen under Critero-kundkoll.
 
 **Engelskt möte blev svenska.** Mötet transkriberades med KB-modellen. Öppna
 mötet, välj engelska och «transkribera om»; det kräver MLX eller en

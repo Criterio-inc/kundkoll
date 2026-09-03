@@ -58,14 +58,14 @@ final class Påminnelser {
 
     /// Listan Kundkoll i Påminnelser. Skapas första gången.
     private func lista() -> EKCalendar? {
-        if let c = butik.calendars(for: .reminder).first(where: { $0.title == "Kundkoll" }) {
+        if let c = butik.calendars(for: .reminder).first(where: { $0.title == "Critero-kundkoll" }) {
             return c
         }
         guard let källa = butik.defaultCalendarForNewReminders()?.source
                 ?? butik.sources.first(where: { $0.sourceType == .calDAV })
                 ?? butik.sources.first else { return nil }
         let c = EKCalendar(for: .reminder, eventStore: butik)
-        c.title = "Kundkoll"
+        c.title = "Critero-kundkoll"
         c.source = källa
         do { try butik.saveCalendar(c, commit: true) } catch { return nil }
         return c

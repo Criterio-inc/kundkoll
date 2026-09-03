@@ -1,10 +1,12 @@
 #!/bin/bash
-# Bygger Kundkoll.app. Xcode behövs inte — Command Line Tools räcker.
+# Bygger Critero-kundkoll.app. Xcode behövs inte — Command Line Tools räcker.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 KONFIG="${1:-release}"
-APP="dist/Kundkoll.app"
+# Namnet som syns i Finder, menyraden och behörighetsdialogerna. Det
+# tekniska målet i Package.swift heter fortfarande Kundkoll.
+APP="dist/Critero-kundkoll.app"
 # Eget certifikat: KUNDKOLL_SIGNERING="Developer ID Application: Ditt AB (XXXXXXXXXX)"
 # Utan certifikat signeras appen ad hoc — det fungerar, men macOS frågar om
 # mikrofon och skärminspelning på nytt efter varje ombygge.

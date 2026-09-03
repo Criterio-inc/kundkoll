@@ -263,5 +263,5 @@ fi
 # ---------------------------------------------------------------- summering
 
 printf '\n=========================================================\n'
-kontrollera && printf '\nAllt appen kräver finns. Bygg nu appen:\n\n    ./scripts/bygg-app.sh\n    open dist/Kundkoll.app\n\n' \
+kontrollera && printf '\nAllt appen kräver finns. Bygg nu appen:\n\n    ./scripts/bygg-app.sh\n    open dist/Critero-kundkoll.app\n\n' \
             || printf '\nNågot saknas, se ovan. Kör om skriptet när det är åtgärdat.\n\n'

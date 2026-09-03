@@ -2,8 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key><string>Kundkoll</string>
-    <key>CFBundleDisplayName</key><string>Kundkoll</string>
+    <key>CFBundleName</key><string>Critero-kundkoll</string>
+    <key>CFBundleDisplayName</key><string>Critero-kundkoll</string>
     <key>CFBundleExecutable</key><string>Kundkoll</string>
     <key>CFBundleIdentifier</key><string>se.critero.kundkoll</string>
     <key>CFBundlePackageType</key><string>APPL</string>
@@ -16,16 +16,16 @@
     <key>NSHumanReadableCopyright</key><string>Critero</string>
 
     <key>NSMicrophoneUsageDescription</key>
-    <string>Kundkoll spelar in din röst under möten och telefonsamtal för att kunna transkribera dem lokalt på datorn.</string>
+    <string>Critero-kundkoll spelar in din röst under möten och telefonsamtal för att kunna transkribera dem lokalt på datorn.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
-    <string>Kundkoll transkriberar samtal på den här datorn.</string>
+    <string>Critero-kundkoll transkriberar samtal på den här datorn.</string>
     <key>NSCalendarsFullAccessUsageDescription</key>
-    <string>Kundkoll kopplar möten i kalendern till rätt kund och projekt.</string>
+    <string>Critero-kundkoll kopplar möten i kalendern till rätt kund och projekt.</string>
     <key>NSRemindersFullAccessUsageDescription</key>
-    <string>Kundkoll kan lägga uppgifter från tavlan i Påminnelser, så att de följer med till telefonen.</string>
+    <string>Critero-kundkoll kan lägga uppgifter från tavlan i Påminnelser, så att de följer med till telefonen.</string>
     <key>NSContactsUsageDescription</key>
-    <string>Kundkoll hämtar kontaktuppgifter för att koppla personer till rätt kund.</string>
+    <string>Critero-kundkoll hämtar kontaktuppgifter för att koppla personer till rätt kund.</string>
     <key>NSAppleEventsUsageDescription</key>
-    <string>Kundkoll läser mejl i Mail för att koppla korrespondens till rätt kund.</string>
+    <string>Critero-kundkoll läser mejl i Mail för att koppla korrespondens till rätt kund.</string>
 </dict>
 </plist>
