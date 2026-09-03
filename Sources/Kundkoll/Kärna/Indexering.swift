@@ -15,6 +15,9 @@ enum Indexering {
         var indexerade = 0
         var stycken = 0
         var oförändrade = 0
+        /// Filer som inte gick att läsa in. Se `fel` för den första.
+        var fällda = 0
+        var fel: String?
     }
 
     @discardableResult
@@ -206,34 +209,47 @@ enum Indexering {
                 let väg = url.path
                 sedda.insert(väg)
                 guard bank.behöverIndexeras(url) else { r.oförändrade += 1; continue }
-                try bank.glöm(källa: väg)
-                let värden = try? url.resourceValues(
-                    forKeys: [.fileSizeKey, .contentModificationDateKey])
-                let bilaga = Bilagor.Bilaga(ämne: "", namn: url.lastPathComponent,
-                                            fil: väg, storlek: värden?.fileSize ?? 0)
-                let text = await Bilagor.text(ur: bilaga) ?? ""
-                let relativ = väg.hasPrefix(rot + "/")
-                    ? String(väg.dropFirst(rot.count + 1)) : url.lastPathComponent
-                let titel = "\(kopplad.visatNamn)/\(relativ)"
-                for (i, stycke) in dela(text).enumerated() {
-                    try bank.läggTill(titel: i == 0 ? titel : "\(titel) (\(i + 1))",
-                                      text: stycke, typ: "dokument",
-                                      källa: väg, tid: värden?.contentModificationDate)
-                    r.stycken += 1
+                // En fil som faller får inte fälla resten. Tidigare låg hela
+                // genomgången i ett enda try, och det första felet — en låst
+                // databas, ett trasigt dokument — avbröt tyst mitt i: 219 av
+                // 593 filer inlästa och inget som sa varför.
+                do {
+                    try bank.glöm(källa: väg)
+                    let värden = try? url.resourceValues(
+                        forKeys: [.fileSizeKey, .contentModificationDateKey])
+                    let bilaga = Bilagor.Bilaga(ämne: "", namn: url.lastPathComponent,
+                                                fil: väg, storlek: värden?.fileSize ?? 0)
+                    let text = await Bilagor.text(ur: bilaga) ?? ""
+                    let relativ = väg.hasPrefix(rot + "/")
+                        ? String(väg.dropFirst(rot.count + 1)) : url.lastPathComponent
+                    let titel = "\(kopplad.visatNamn)/\(relativ)"
+                    for (i, stycke) in dela(text).enumerated() {
+                        try bank.läggTill(titel: i == 0 ? titel : "\(titel) (\(i + 1))",
+                                          text: stycke, typ: "dokument",
+                                          källa: väg, tid: värden?.contentModificationDate)
+                        r.stycken += 1
+                    }
+                    // Markeras även när texten blev tom — en bild utan text ska
+                    // inte läsas med Vision på nytt varje gång.
+                    try bank.markeraIndexerad(url)
+                    r.indexerade += 1
+                } catch {
+                    r.fällda += 1
+                    if r.fel == nil {
+                        r.fel = "\(url.lastPathComponent): \(error.localizedDescription)"
+                    }
+                    FileHandle.standardError.write(Data(
+                        "dokument \(väg): \(error)\n".utf8))
                 }
-                // Markeras även när texten blev tom — en bild utan text ska
-                // inte läsas med Vision på nytt varje gång.
-                try bank.markeraIndexerad(url)
-                r.indexerade += 1
                 // Räknarna i vyerna får ticka medan det pågår — 593 filer
                 // tar minuter, och en stilla siffra ser ut som ett stopp.
-                if r.indexerade % 20 == 0 {
+                if (r.indexerade + r.fällda) % 20 == 0 {
                     NotificationCenter.default.post(name: .dokumentIndexerade, object: nil)
                 }
             }
             // Det som tagits bort ur mappen ska inte spöka i svaren.
             for gammal in bank.källor(under: rot + "/") where !sedda.contains(gammal) {
-                try bank.glöm(källa: gammal)
+                try? bank.glöm(källa: gammal)
             }
         }
         return r
@@ -262,20 +278,31 @@ enum Indexering {
         return antal == 0 ? "inga dokument" : "\(antal) dokument"
     }
 
-    /// Läser in dokumenten utan att hålla någon vy väntande, och säger till
-    /// när det är klart så att räknarna kan uppdateras.
+    /// Senaste utfallet per kund, så att vyn kan säga vad som gick fel.
+    private(set) static var senasteUtfall: [String: Resultat] = [:]
+
+    /// Läser in allt som hör till kunden i bakgrunden, i ett enda spår.
+    ///
+    /// Ett spår med flit: kundvyn och chatten startade tidigare var sin
+    /// genomgång på egna anslutningar, och de skrev om varandra.
     static func dokumentIBakgrunden(för kund: Kund) {
         guard !dokumentPågår.contains(kund.id) else { return }
         dokumentPågår.insert(kund.id)
-        Task.detached(priority: .utility) {
-            if let bank = try? Kunskapsbank(kund: kund) {
-                _ = try? await indexeraDokument(för: kund, bank: bank)
-                await Inbäddare.kör(bank: bank)
-            }
-            await MainActor.run {
+        // Task, inte Task.detached: allt här är huvudaktörsbundet ändå, och
+        // varje await släpper aktören så att gränssnittet svarar under tiden.
+        Task {
+            defer {
                 dokumentPågår.remove(kund.id)
                 NotificationCenter.default.post(name: .dokumentIndexerade, object: nil)
             }
+            guard let bank = try? Kunskapsbank(kund: kund) else { return }
+            _ = try? kör(för: kund, bank: bank)
+            if let r = try? await indexeraDokument(för: kund, bank: bank) {
+                senasteUtfall[kund.id] = r
+            }
+            // Inbäddningen sist: den skriver till samma databas, och att köra
+            // den samtidigt var det som knäckte genomgången.
+            await Inbäddare.kör(bank: bank)
         }
     }
 

@@ -35,9 +35,15 @@ final class Kunskapsbank {
         try FileManager.default.createDirectory(at: mapp, withIntermediateDirectories: true)
         fil = mapp.appending(path: "index.db")
         guard sqlite3_open(fil.path, &db) == SQLITE_OK else { throw Fel.kanInteÖppna }
-        // Inbäddningen skriver från en egen anslutning i bakgrunden; en kort
-        // väntan i stället för «database is locked».
-        sqlite3_busy_timeout(db, 2000)
+        // Flera anslutningar skriver: dokumentgenomgången, inbäddningen och
+        // chattens egen indexering. Med rollback-journal låser en skrivning
+        // ut de andra helt, och 2 s räckte inte — uppmätt stannade en
+        // dokumentgenomgång på 219 av 593 filer när inbäddningen skrev
+        // vektorer samtidigt. WAL låter en läsare och en skrivare arbeta
+        // parallellt, och en halv minut är gott och väl längre än något
+        // enskilt parti tar.
+        sqlite3_exec(db, "PRAGMA journal_mode=WAL", nil, nil, nil)
+        sqlite3_busy_timeout(db, 30_000)
         try skapaTabeller()
     }
 
@@ -120,6 +126,28 @@ final class Kunskapsbank {
         bind(s, 1, prefix + "%")
         var ut: [String] = []
         while sqlite3_step(s) == SQLITE_ROW { ut.append(text(s, 0)) }
+        return ut
+    }
+
+    /// De senast ändrade dokumenten ur kopplade mappar, ett stycke per fil.
+    /// Underlag åt lägesbilden: det som ändrats sist säger var arbetet står.
+    func senasteDokument(max antal: Int = 8) -> [Träff] {
+        var s: OpaquePointer?
+        defer { sqlite3_finalize(s) }
+        guard sqlite3_prepare_v2(db, """
+            SELECT rowid, typ, titel, text, källa, tid FROM dokument
+            WHERE typ = 'dokument' AND tid != ''
+            GROUP BY källa
+            ORDER BY CAST(tid AS REAL) DESC LIMIT ?
+            """, -1, &s, nil) == SQLITE_OK else { return [] }
+        sqlite3_bind_int(s, 1, Int32(antal))
+        var ut: [Träff] = []
+        while sqlite3_step(s) == SQLITE_ROW {
+            let tid = Double(text(s, 5)).map { Date(timeIntervalSince1970: $0) }
+            ut.append(Träff(id: sqlite3_column_int64(s, 0), typ: text(s, 1),
+                            titel: text(s, 2), text: text(s, 3),
+                            källa: text(s, 4), tid: tid, poäng: 0))
+        }
         return ut
     }
 

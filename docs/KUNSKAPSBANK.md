@@ -65,6 +65,20 @@ agentsökningen nedan aldrig hade kunnat läsa.
 
 Agenten får bara mappar som innehåller kod (`Kopplademappar.harKod`).
 
+⚠️ **En fil som faller får inte fälla genomgången.** Första versionen låg i
+ett enda `try` och avbröt tyst vid första felet: uppmätt stannade en
+OneDrive-mapp på 219 av 593 filer, utan ett ord om varför. Orsaken var
+skrivlås — inbäddningen skrev vektorer på en egen anslutning samtidigt.
+Tre ändringar: varje fil läses i sitt eget `do/catch` och räknas som fälld
+i stället för att avbryta, databasen körs i WAL-läge med 30 sekunders
+väntan i stället för rollback-journal med 2, och kundvyns bakgrundsarbete
+går i ett spår där inbäddningen kommer sist. Det första felet visas vid
+mappen i kundvyn.
+
+Lägesbilden räknar också dokumenten som underlag (de åtta senast ändrade,
+600 tecken var). Ett projekt med ett dokumentarkiv men inga möten fick
+annars «inget underlag att bygga en lägesbild på».
+
 ## Kopplade kodmappar indexeras inte — de genomsöks
 
 En kopplad kodmapp hör inte hemma i indexet. Uppmätt på det här projektets egen

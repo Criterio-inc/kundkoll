@@ -391,6 +391,35 @@ enum Tester {
             try! bank.glöm(källa: "/m/a.docx")
             Prov.lika(bank.antalDokument(under: "/m/"), 1, "att glömma tar bort dokumentet")
             Prov.lika(bank.källor(under: "/m/").count, 1, "och källan, så att den läses på nytt om filen kommer tillbaka")
+
+            // Lägesbilden vill ha de senast ändrade, ett stycke per fil.
+            let gammalt = Date(timeIntervalSince1970: 1_000_000)
+            let nytt = Date(timeIntervalSince1970: 2_000_000)
+            try! bank.läggTill(titel: "gammal", text: "gammal text", typ: "dokument",
+                               källa: "/m/gammal.pdf", tid: gammalt)
+            try! bank.läggTill(titel: "ny (1)", text: "ny text", typ: "dokument",
+                               källa: "/m/ny.pdf", tid: nytt)
+            try! bank.läggTill(titel: "ny (2)", text: "mer ny text", typ: "dokument",
+                               källa: "/m/ny.pdf", tid: nytt)
+            try! bank.läggTill(titel: "inte dokument", text: "ett mejl", typ: "mejl",
+                               källa: "/m/mejl.json", tid: nytt)
+            let senaste = bank.senasteDokument(max: 5)
+            Prov.lika(senaste.first?.källa, "/m/ny.pdf", "nyast ändrad först")
+            Prov.lika(senaste.count, 3, "ett stycke per fil, och mejlet räknas inte")
+            Prov.kolla(senaste.allSatisfy { $0.typ == "dokument" }, "bara dokument")
+        }
+
+        do {   // lägesbilden bygger på dokument när inget annat finns
+            let dok = Kunskapsbank.Träff(id: 1, typ: "dokument", titel: "AP2/DPIA.docx",
+                                         text: "Bedömningen visar att behandlingen kräver DPIA.",
+                                         källa: "/m/DPIA.docx", tid: Date(), poäng: 0)
+            let bara = Läget.underlag(projekt: "M365", inspelningar: [], uppgifter: [],
+                                      mejl: [], anteckningar: [], dokument: [dok])
+            Prov.lika(bara.count, 1, "ett dokument räcker som underlag")
+            Prov.kolla(bara.first?.text.contains("DPIA") == true, "och innehållet följer med")
+            Prov.lika(Läget.underlag(projekt: "Tomt", inspelningar: [], uppgifter: [],
+                                     mejl: [], anteckningar: [], dokument: []).count, 0,
+                      "utan något alls blir det inget underlag")
         }
 
         do {   // samtal

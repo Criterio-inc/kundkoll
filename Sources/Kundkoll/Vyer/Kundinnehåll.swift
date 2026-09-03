@@ -44,6 +44,7 @@ struct Kundinnehåll: View {
     @State private var kopplade: [Kopplad] = []
     @State private var dokumentantal: [String: Int] = [:]
     @State private var läserIn = false
+    @State private var dokumentfel: String?
 
     enum Flik: String, CaseIterable, Identifiable {
         case översikt, attGöra, inspelningar, anteckningar, mail
@@ -641,50 +642,62 @@ struct Kundinnehåll: View {
                 Text("Peka ut en mapp med kundens material — OneDrive, en delad mapp, ett arkiv. Word, Excel, PowerPoint, PDF, text och bilder läses in i kunskapsbanken så att chatten kan svara ur dem. Mappen rörs inte.")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            } else if let dokumentfel {
+                Label("Någon fil gick inte att läsa: \(dokumentfel)",
+                      systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+                mapplista
             } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(kopplade.enumerated()), id: \.element.id) { i, k in
-                        HStack(spacing: 10) {
-                            Image(systemName: k.finns ? "folder" : "questionmark.folder")
-                                .foregroundStyle(k.finns ? Color.secondary : Color.orange)
-                            VStack(alignment: .leading, spacing: 2) {
-                                HStack(spacing: 6) {
-                                    Text(k.visatNamn)
-                                    if let n = dokumentantal[k.väg] {
-                                        Märke(text: Indexering.dokumentetikett(n, pågår: läserIn),
-                                              ikon: "doc.richtext")
-                                    }
-                                }
-                                Text(k.finns ? k.väg : "Mappen finns inte längre")
-                                    .font(.caption)
-                                    .foregroundStyle(k.finns ? Color.secondary : Color.orange)
-                                    .lineLimit(1)
-                                    .truncationMode(.head)
-                            }
-                            Spacer()
-                            if k.finns {
-                                Button { NSWorkspace.shared.open(k.url) } label: {
-                                    Image(systemName: "arrow.up.forward.square")
-                                }
-                                .buttonStyle(.borderless)
-                                .help("Visa i Finder")
-                            }
-                            Button {
-                                kopplade = (try? arkiv.koppla(bort: k, från: kund)) ?? kopplade
-                                Indexering.glöm(k, hos: kund)
-                            } label: {
-                                Image(systemName: "minus.circle")
-                            }
-                            .buttonStyle(.borderless)
-                            .help("Koppla bort mappen. Innehållet rörs inte, men försvinner ur kunskapsbanken.")
-                        }
-                        .padding(.horizontal, 12).padding(.vertical, 9)
-                        if i < kopplade.count - 1 { Divider() }
-                    }
-                }
-                .kort(hörn: Stil.radhörn)
+                mapplista
             }
         }
+    }
+
+    @ViewBuilder
+    private var mapplista: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(kopplade.enumerated()), id: \.element.id) { i, k in
+                HStack(spacing: 10) {
+                    Image(systemName: k.finns ? "folder" : "questionmark.folder")
+                        .foregroundStyle(k.finns ? Color.secondary : Color.orange)
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(k.visatNamn)
+                            if let n = dokumentantal[k.väg] {
+                                Märke(text: Indexering.dokumentetikett(n, pågår: läserIn),
+                                      ikon: "doc.richtext")
+                            }
+                        }
+                        Text(k.finns ? k.väg : "Mappen finns inte längre")
+                            .font(.caption)
+                            .foregroundStyle(k.finns ? Color.secondary : Color.orange)
+                            .lineLimit(1)
+                            .truncationMode(.head)
+                    }
+                    Spacer()
+                    if k.finns {
+                        Button { NSWorkspace.shared.open(k.url) } label: {
+                            Image(systemName: "arrow.up.forward.square")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Visa i Finder")
+                    }
+                    Button {
+                        kopplade = (try? arkiv.koppla(bort: k, från: kund)) ?? kopplade
+                        Indexering.glöm(k, hos: kund)
+                    } label: {
+                        Image(systemName: "minus.circle")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Koppla bort mappen. Innehållet rörs inte, men försvinner ur kunskapsbanken.")
+                }
+                .padding(.horizontal, 12).padding(.vertical, 9)
+                if i < kopplade.count - 1 { Divider() }
+            }
+        }
+        .kort(hörn: Stil.radhörn)
     }
 
     private func väljMapp() {
@@ -704,6 +717,7 @@ struct Kundinnehåll: View {
     /// Hur många dokument ur varje mapp som ligger i kunskapsbanken.
     private func räknaDokument() {
         läserIn = Indexering.pågår(kund)
+        dokumentfel = Indexering.senasteUtfall[kund.id]?.fel
         guard !kopplade.isEmpty, let bank = try? Kunskapsbank(kund: kund) else {
             dokumentantal = [:]
             return
@@ -836,12 +850,9 @@ struct Kundinnehåll: View {
     /// Sökningen bygger inga index — den läser dem som finns. Utan det här
     /// blev nyhämtade mejl och bilagor osökbara tills chatten öppnats.
     private func indexeraIBakgrunden() {
-        let kund = kund
-        Task.detached(priority: .utility) {
-            guard let bank = try? Kunskapsbank(kund: kund) else { return }
-            _ = try? await Indexering.kör(för: kund, bank: bank)
-            await Inbäddare.kör(bank: bank)
-        }
+        // Ett spår: dokumentgenomgången tar transkript, anteckningar och mejl
+        // med sig. Två parallella genomgångar på egna anslutningar skrev om
+        // varandra och fällde den ena.
         Indexering.dokumentIBakgrunden(för: kund)
     }
 }
