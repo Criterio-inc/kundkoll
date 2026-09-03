@@ -45,6 +45,32 @@ final class Kunskapsbank {
         sqlite3_exec(db, "PRAGMA journal_mode=WAL", nil, nil, nil)
         sqlite3_busy_timeout(db, 30_000)
         try skapaTabeller()
+        läsOmEfterBättreLäsare()
+    }
+
+    /// Läsarversionen, i SQLites `user_version`. När en läsare blir bättre
+    /// måste dess filer läsas om — annars står de kvar som «indexerade» med
+    /// den gamla läsningens resultat, och för 366 kontorsfiler var det
+    /// ingenting alls.
+    ///
+    /// Version 2: kontorsfilsläsaren skrevs om (Excel cell för cell,
+    /// talarnoteringar, kommentarer).
+    static let läsarversion: Int32 = 2
+
+    private func läsOmEfterBättreLäsare() {
+        var s: OpaquePointer?
+        sqlite3_prepare_v2(db, "PRAGMA user_version", -1, &s, nil)
+        let nuvarande = sqlite3_step(s) == SQLITE_ROW ? sqlite3_column_int(s, 0) : 0
+        sqlite3_finalize(s)
+        guard nuvarande < Self.läsarversion else { return }
+        if nuvarande < 2 {
+            let kontor: Set<String> = ["docx", "pptx", "xlsx", "docm", "pptm", "xlsm", "potx", "xltx"]
+            for källa in källor(under: "/")
+            where kontor.contains((källa as NSString).pathExtension.lowercased()) {
+                try? glöm(källa: källa)
+            }
+        }
+        sqlite3_exec(db, "PRAGMA user_version = \(Self.läsarversion)", nil, nil, nil)
     }
 
     deinit { sqlite3_close(db) }

@@ -425,6 +425,34 @@ enum Tester {
             Prov.lika(Mailen.adresser(ur: []), [], "utan kontakter finns inget att söka på")
         }
 
+        do {   // en bättre läsare får sina filer lästa om, inte alla andra
+            let rot = FileManager.default.temporaryDirectory
+                .appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: rot) }
+            try! FileManager.default.createDirectory(at: rot, withIntermediateDirectories: true)
+            let kund = Kund(namn: "Prov", mapp: rot)
+            do {
+                let bank = try! Kunskapsbank(kund: kund)
+                try! bank.läggTill(titel: "x", text: "gammal läsning", typ: "dokument",
+                                   källa: "/m/Risker.xlsx", tid: nil)
+                try! bank.markeraIndexerad(URL(fileURLWithPath: "/m/Risker.xlsx"))
+                try! bank.markeraIndexerad(URL(fileURLWithPath: "/m/Tom.docx"))
+                try! bank.läggTill(titel: "y", text: "en pdf", typ: "dokument",
+                                   källa: "/m/Avtal.pdf", tid: nil)
+                try! bank.markeraIndexerad(URL(fileURLWithPath: "/m/Avtal.pdf"))
+                // Låtsas att banken skrevs av en äldre version.
+                let db = rot.appending(path: ".kundkoll/index.db")
+                var h: OpaquePointer?
+                sqlite3_open(db.path, &h)
+                sqlite3_exec(h, "PRAGMA user_version = 1", nil, nil, nil)
+                sqlite3_close(h)
+            }
+            let bank = try! Kunskapsbank(kund: kund)
+            Prov.lika(bank.källor(under: "/m/").sorted(), ["/m/Avtal.pdf"],
+                      "kontorsfilerna glöms så att de läses om, PDF:en står kvar")
+            Prov.lika(bank.antalDokument(under: "/m/"), 1, "och deras gamla text är borta")
+        }
+
         do {   // kontorsfiler: Excel cell för cell, PowerPoint i ordning, Words kommentarer
             let rot = FileManager.default.temporaryDirectory
                 .appending(path: "kundkoll-test-\(UUID().uuidString)")
