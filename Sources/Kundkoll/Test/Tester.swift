@@ -406,7 +406,8 @@ enum Tester {
                                källa: "/m/mejl.json", tid: nytt)
             let senaste = bank.senasteDokument(max: 5)
             Prov.lika(senaste.first?.källa, "/m/ny.pdf", "nyast ändrad först")
-            Prov.lika(senaste.count, 3, "ett stycke per fil, och mejlet räknas inte")
+            Prov.lika(senaste.count, 2,
+                      "ett stycke per fil; mejlet och ett dokument utan datum räknas inte")
             Prov.kolla(senaste.allSatisfy { $0.typ == "dokument" }, "bara dokument")
         }
 
