@@ -55,8 +55,8 @@ enum Kontorsfiler {
         // unzip svarar 1 på varningar men packar ändå upp; bara högre koder
         // betyder att det inte gick.
         guard p.terminationStatus <= 1 else {
-            return .tom("filen gick inte att packa upp (unzip \(p.terminationStatus)) "
-                        + "— kan vara en molnplatshållare som inte hämtats hem")
+            return .tom("gick inte att packa upp (unzip \(p.terminationStatus)): "
+                        + Filsignatur.beskriv(url))
         }
 
         let text: String
@@ -352,5 +352,37 @@ private final class Bladläsare: NSObject, XMLParserDelegate {
         default:
             return värde
         }
+    }
+}
+
+/// Vad en fil egentligen är, när läsningen inte gav något.
+///
+/// Uppmätt på en OneDrive-mapp: 362 av 583 filer gav ingen text, tvärs över
+/// alla format. Det kan ingen läsare förklara — det är filerna. Tre orsaker
+/// ser likadana ut utifrån men kräver helt olika åtgärd: en platshållare som
+/// OneDrive inte hämtat hem, en Office-fil krypterad med känslighetsetikett
+/// (en OLE-behållare, inte ett zip-arkiv), och en inskannad PDF utan
+/// textlager. Det här säger vilken.
+enum Filsignatur {
+    /// SF_DATALESS i st_flags: innehållet ligger i molnet, inte på disken.
+    static let dataless: UInt32 = 0x4000_0000
+
+    static func beskriv(_ url: URL) -> String {
+        var st = stat()
+        guard stat(url.path, &st) == 0 else { return "filen finns inte" }
+        if st.st_flags & dataless != 0 {
+            return "molnplatshållare — innehållet är inte hämtat till datorn"
+        }
+        if st.st_size == 0 { return "tom fil" }
+        guard let h = FileHandle(forReadingAtPath: url.path) else { return "går inte att öppna" }
+        defer { try? h.close() }
+        let huvud = [UInt8]((try? h.read(upToCount: 8)) ?? Data())
+        if huvud.starts(with: [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]) {
+            return "OLE-behållare — krypterad med känslighetsetikett, eller ett gammalt Office-format"
+        }
+        if huvud.starts(with: [0x50, 0x4B]) { return "zip-arkiv" }
+        if huvud.starts(with: Array("%PDF".utf8)) { return "PDF utan textlager — troligen inskannad" }
+        let hex = huvud.prefix(4).map { String(format: "%02x", $0) }.joined(separator: " ")
+        return "okänt innehåll (\(hex))"
     }
 }

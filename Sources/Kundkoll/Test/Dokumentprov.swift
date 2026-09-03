@@ -27,6 +27,8 @@ enum Dokumentprov {
         print("\(filer.count) filer att läsa\n")
 
         var perTyp: [String: Rad] = [:]
+        // Varför de utan text saknar den, räknat över alla typer.
+        var orsaker: [String: Int] = [:]
         let t0 = Date()
         for (i, url) in filer.enumerated() {
             let ändelse = url.pathExtension.lowercased()
@@ -37,9 +39,11 @@ enum Dokumentprov {
             var rad = perTyp[ändelse] ?? Rad()
             rad.antal += 1
             if text.isEmpty {
-                var skäl = ""
-                if ["docx", "pptx", "xlsx", "docm", "pptm", "xlsm", "potx", "xltx"].contains(ändelse) {
-                    skäl = Kontorsfiler.text(ur: url).skäl ?? ""
+                var skäl = Filsignatur.beskriv(url)
+                orsaker[skäl, default: 0] += 1
+                if ["docx", "pptx", "xlsx", "docm", "pptm", "xlsm", "potx", "xltx"].contains(ändelse),
+                   let k = Kontorsfiler.text(ur: url).skäl {
+                    skäl = k
                 }
                 if rad.utan.count < 5 {
                     rad.utan.append(url.lastPathComponent + (skäl.isEmpty ? "" : " — \(skäl)"))
@@ -66,6 +70,12 @@ enum Dokumentprov {
             medText += rad.medText
         }
         print(String(format: "\n%d av %d filer gav text på %.1f s", medText, totalt, tid))
+        if !orsaker.isEmpty {
+            print("\nde utan text, per orsak:")
+            for (orsak, n) in orsaker.sorted(by: { $0.value > $1.value }) {
+                print("  \(n)  \(orsak)")
+            }
+        }
         for (typ, rad) in perTyp.sorted(by: { $0.key < $1.key }) where !rad.utan.isEmpty {
             print("\nutan text (\(typ), de första):")
             for u in rad.utan { print("  · \(u)") }
