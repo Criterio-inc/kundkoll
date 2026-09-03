@@ -175,3 +175,30 @@ actor Mailen {
         }
     }
 }
+
+extension Mailen {
+    /// AppleScript tar ungefär 0,7 s per bestämd adress, uppmätt. Tolv
+    /// adresser är runt tio sekunder, vilket är vad en hämtning i bakgrunden
+    /// får kosta.
+    static let maxAdresser = 12
+
+    /// Adresserna mejlen söks på: kontakternas, i den ordning de står,
+    /// utan dubbletter.
+    ///
+    /// Ordningen måste vara bestämd. Tidigare gick listan genom ett `Set`,
+    /// och Swift saltar hashningen per process — med fler kontakter än
+    /// gränsen söktes alltså olika personers mejl vid varje start, och
+    /// cachen skrev över sig själv med ett nytt urval varje gång. Nu styr
+    /// du urvalet: de kontakter du lägger upp först är de som söks.
+    static func adresser(ur kontakter: [Kontakt], max antal: Int = maxAdresser) -> [String] {
+        var sedda = Set<String>()
+        var ut: [String] = []
+        for e in kontakter.flatMap(\.epost) {
+            let ren = e.trimmingCharacters(in: .whitespaces).lowercased()
+            guard !ren.isEmpty, ren.contains("@"), sedda.insert(ren).inserted else { continue }
+            ut.append(ren)
+            if ut.count >= antal { break }
+        }
+        return ut
+    }
+}

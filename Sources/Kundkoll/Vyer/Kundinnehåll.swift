@@ -762,7 +762,7 @@ struct Kundinnehåll: View {
     private func visaMejl(äldreÄn: TimeInterval = 15 * 60) async {
         // Kontakterna läses här och inte ur vyns tillstånd: den fylls av
         // onAppear, som kan hinna köra efter den här uppgiften.
-        let adresser = Array(Set(arkiv.kontakter(för: kund).flatMap(\.epost))).prefix(5)
+        let adresser = Mailen.adresser(ur: arkiv.kontakter(för: kund))
         guard !adresser.isEmpty else { return }
 
         guard let cache = arkiv.mailcache(för: kund) else {
@@ -781,19 +781,22 @@ struct Kundinnehåll: View {
             // Mejlen kan vara färska men hämtade innan bilagorna fanns med.
             // Då ska bilagorna hämtas för sig, inte vänta på att cachen
             // åldras ut.
-            await hämtaBilagor(Array(adresser))
+            await hämtaBilagor(adresser)
             mejlLäge = .klar
         }
     }
 
     private func hämtaMejl() async {
-        let adresser = Array(Set(arkiv.kontakter(för: kund).flatMap(\.epost))).prefix(5)
+        let adresser = Mailen.adresser(ur: arkiv.kontakter(för: kund))
         guard !adresser.isEmpty else { return }
         mejlLäge = .hämtar("Söker i Mail …")
         let mailen = Mailen()
         var samlat: [Mailen.Mejl] = []
         do {
-            for a in adresser { samlat += try await mailen.sök(adress: a, max: 20) }
+            for (i, a) in adresser.enumerated() {
+                mejlLäge = .hämtar("Söker i Mail: \(a) (\(i + 1) av \(adresser.count))")
+                samlat += try await mailen.sök(adress: a, max: 20)
+            }
         } catch {
             mejlLäge = .fel(error.localizedDescription)
             return
@@ -803,7 +806,7 @@ struct Kundinnehåll: View {
             .sorted { ($0.datum ?? .distantPast) > ($1.datum ?? .distantPast) }
         try? arkiv.sparaMail(mejl, bilagor: bilagor, för: kund)
 
-        await hämtaBilagor(Array(adresser))
+        await hämtaBilagor(adresser)
         mejlLäge = .klar
     }
 

@@ -96,6 +96,8 @@ delas med telefonen, så appen ändrar inget där i bakgrunden. En person du sat
 namn på i ett transkript läggs upp som kontakt automatiskt.
 
 **Mail** (AppleScript): söker mejl på kundens adresser, öppnar dem i Mail.
+Adresserna är kontakternas, i den ordning de står och högst tolv — utan
+kontakter med adress är fliken tom, och de du lägger upp först är de som söks.
 Vägen är vald efter mätning — mejlen ligger också som filer under
 `~/Library/Mail`, vilket är snabbare vid breda sökningar men kräver Full Disk
 Access. Eftersom vi alltid söker på bestämda kundadresser räcker AppleScript,

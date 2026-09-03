@@ -409,6 +409,22 @@ enum Tester {
             Prov.kolla(senaste.allSatisfy { $0.typ == "dokument" }, "bara dokument")
         }
 
+        do {   // adresserna mejlen söks på
+            let kontakter = [
+                Kontakt(namn: "Anna", epost: ["Anna@Boras.se", "anna@boras.se"]),
+                Kontakt(namn: "Bo", epost: ["bo@boras.se"]),
+                Kontakt(namn: "Utan adress", epost: []),
+                Kontakt(namn: "Trasig", epost: ["inte en adress"]),
+                Kontakt(namn: "Cecilia", epost: ["cecilia@boras.se"]),
+            ]
+            let a = Mailen.adresser(ur: kontakter)
+            Prov.lika(a, ["anna@boras.se", "bo@boras.se", "cecilia@boras.se"],
+                      "kontakternas ordning behålls, skiftläge normaliseras, dubbletter bort")
+            Prov.lika(Mailen.adresser(ur: kontakter, max: 2), ["anna@boras.se", "bo@boras.se"],
+                      "gränsen tar de första, inte ett slumpat urval")
+            Prov.lika(Mailen.adresser(ur: []), [], "utan kontakter finns inget att söka på")
+        }
+
         do {   // lägesbilden bygger på dokument när inget annat finns
             let dok = Kunskapsbank.Träff(id: 1, typ: "dokument", titel: "AP2/DPIA.docx",
                                          text: "Bedömningen visar att behandlingen kräver DPIA.",
