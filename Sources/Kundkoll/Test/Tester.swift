@@ -472,8 +472,9 @@ enum Tester {
             let pptx = Kontorsfiler.text(ur: packa("p", som: "dragning.pptx")).text
             Prov.kolla(pptx.contains("Bild 2: Andra bilden\nTalarnotering: Säg detta"),
                        "bilden följs av sin talarnotering")
-            Prov.kolla(pptx.range(of: "Bild 2:")!.lowerBound < pptx.range(of: "Bild 10:")!.lowerBound,
-                       "bild 2 kommer före bild 10, inte lexikalt efter")
+            let bild2 = pptx.range(of: "Bild 2:")?.lowerBound ?? pptx.endIndex
+            let bild10 = pptx.range(of: "Bild 10:")?.lowerBound ?? pptx.startIndex
+            Prov.kolla(bild2 < bild10, "bild 2 kommer före bild 10, inte lexikalt efter")
 
             skriv("d/word/document.xml", "<w:document><w:t>Brödtext &amp; mer</w:t></w:document>")
             skriv("d/word/comments.xml", "<w:comments><w:t>Invändning</w:t></w:comments>")
