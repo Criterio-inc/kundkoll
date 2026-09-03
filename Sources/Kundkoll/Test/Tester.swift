@@ -425,6 +425,94 @@ enum Tester {
             Prov.lika(Mailen.adresser(ur: []), [], "utan kontakter finns inget att söka på")
         }
 
+        do {   // kontorsfiler: Excel cell för cell, PowerPoint i ordning, Words kommentarer
+            let rot = FileManager.default.temporaryDirectory
+                .appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: rot) }
+            let fm = FileManager.default
+            func skriv(_ väg: String, _ innehåll: String) {
+                let url = rot.appending(path: väg)
+                try! fm.createDirectory(at: url.deletingLastPathComponent(),
+                                        withIntermediateDirectories: true)
+                try! innehåll.write(to: url, atomically: true, encoding: .utf8)
+            }
+            func packa(_ mapp: String, som namn: String) -> URL {
+                let ut = rot.appending(path: namn)
+                let p = Process()
+                p.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
+                p.currentDirectoryURL = rot.appending(path: mapp)
+                p.arguments = ["-qr", ut.path, "."]
+                p.standardOutput = FileHandle.nullDevice
+                try! p.run()
+                p.waitUntilExit()
+                return ut
+            }
+
+            skriv("x/xl/workbook.xml",
+                  #"<workbook><sheets><sheet name="Risker" sheetId="1" r:id="rId1"/></sheets></workbook>"#)
+            skriv("x/xl/sharedStrings.xml",
+                  "<sst><si><t>Risk</t></si><si><r><t>Åt</t></r><r><t>gärd</t></r></si>"
+                  + "<si><t>Servern faller</t></si></sst>")
+            skriv("x/xl/worksheets/sheet1.xml", """
+                <worksheet><sheetData>
+                <row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c></row>
+                <row r="2"><c r="A2" t="s"><v>2</v></c><c r="B2"><v>42</v></c>\
+                <c r="C2" t="inlineStr"><is><t>inline</t></is></c></row>
+                <row r="3"><c r="A3"/></row>
+                </sheetData></worksheet>
+                """)
+            let xlsx = Kontorsfiler.text(ur: packa("x", som: "risker.xlsx"))
+            Prov.lika(xlsx.text, "Blad: Risker\nRisk\tÅtgärd\nServern faller\t42\tinline",
+                      "bladnamn, rader med tabb mellan cellerna, strängtabellen uppslagen, "
+                      + "delad sträng ihopsatt, inline-sträng och tal med, tom rad borta")
+
+            skriv("p/ppt/slides/slide2.xml", "<p:sld><a:t>Andra bilden</a:t></p:sld>")
+            skriv("p/ppt/slides/slide10.xml", "<p:sld><a:t>Tionde</a:t></p:sld>")
+            skriv("p/ppt/notesSlides/notesSlide2.xml", "<p:notes><a:t>Säg detta</a:t></p:notes>")
+            let pptx = Kontorsfiler.text(ur: packa("p", som: "dragning.pptx")).text
+            Prov.kolla(pptx.contains("Bild 2: Andra bilden\nTalarnotering: Säg detta"),
+                       "bilden följs av sin talarnotering")
+            Prov.kolla(pptx.range(of: "Bild 2:")!.lowerBound < pptx.range(of: "Bild 10:")!.lowerBound,
+                       "bild 2 kommer före bild 10, inte lexikalt efter")
+
+            skriv("d/word/document.xml", "<w:document><w:t>Brödtext &amp; mer</w:t></w:document>")
+            skriv("d/word/comments.xml", "<w:comments><w:t>Invändning</w:t></w:comments>")
+            skriv("d/word/settings.xml", "<w:settings><w:zoom w:percent=\"100\"/></w:settings>")
+            let docx = Kontorsfiler.text(ur: packa("d", som: "underlag.docx")).text
+            Prov.lika(docx, "Brödtext & mer\n\nKommentarer: Invändning",
+                      "brödtext först, kommentarerna märkta, inställningarna borta, entiteten avkodad")
+
+            Prov.lika(Kontorsfiler.nummer(i: "slide12.xml"), 12, "numret i filnamnet")
+            Prov.lika(Kontorsfiler.avkoda("a &amp;lt; b"), "a &lt; b",
+                      "&amp; avkodas sist, annars blir det två steg")
+            Prov.kolla(Kontorsfiler.text(ur: rot.appending(path: "finns-inte.xlsx")).skäl != nil,
+                       "en fil som inte går att packa upp får ett skäl")
+        }
+
+        do {   // «Hör inte till» måste vinna över domänregeln
+            let kund = Kund(namn: "Borås stad", mapp: URL(fileURLWithPath: "/tmp/x"))
+            let kontakter = [Kontakt(namn: "Philip", epost: ["philip@boras.se"])]
+            let m = Kalendern.Möte(
+                id: "m1", titel: "Curago Puls", start: Date(), slut: Date(),
+                deltagare: [Kalendern.Deltagare(namn: "Helena", epost: "helena@boras.se", ärJag: false)],
+                plats: nil, möteslänk: nil)
+            Prov.kolla(Kalendern.hör(m, till: kund, kontakter: kontakter), "domänregeln tar mötet")
+            Prov.kolla(Kalendern.hörTill(m, kund: kund, kontakter: kontakter, kopplingar: [:]),
+                       "utan beslut gäller regeln")
+            Prov.kolla(!Kalendern.hörTill(m, kund: kund, kontakter: kontakter,
+                                          kopplingar: ["m1": Arkivet.uteslutetMöte]),
+                       "uteslutet vinner över regeln")
+            Prov.kolla(Kalendern.hörTill(m, kund: kund, kontakter: kontakter, kopplingar: ["m1": ""]),
+                       "taget i anspråk vinner också")
+            let annat = Kalendern.Möte(id: "m2", titel: "Lunch", start: Date(), slut: Date(),
+                                       deltagare: [], plats: nil, möteslänk: nil)
+            Prov.kolla(!Kalendern.hörTill(annat, kund: kund, kontakter: kontakter, kopplingar: [:]),
+                       "ett möte utan spår hör inte hit")
+            Prov.kolla(Kalendern.hörTill(annat, kund: kund, kontakter: kontakter,
+                                         kopplingar: ["m2": "Projekt"]),
+                       "om det inte tagits i anspråk")
+        }
+
         do {   // lägesbilden bygger på dokument när inget annat finns
             let dok = Kunskapsbank.Träff(id: 1, typ: "dokument", titel: "AP2/DPIA.docx",
                                          text: "Bedömningen visar att behandlingen kräver DPIA.",

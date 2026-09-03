@@ -272,10 +272,14 @@ enum Indexering {
     /// Om kundens dokument håller på att läsas in just nu.
     static func pågår(_ kund: Kund) -> Bool { dokumentPågår.contains(kund.id) }
 
-    /// Texten i räknaren vid en kopplad mapp.
-    nonisolated static func dokumentetikett(_ antal: Int, pågår: Bool) -> String {
-        if pågår { return "läser in · \(antal) dokument hittills" }
-        return antal == 0 ? "inga dokument" : "\(antal) dokument"
+    /// Texten i räknaren vid en kopplad mapp. Säger både hur många filer som
+    /// gåtts igenom och hur många som gav text — uppmätt visade räknaren
+    /// «219 dokument» och lät som klar, när 366 filer till lästs utan att ge
+    /// något, och ingen kunde se det.
+    nonisolated static func dokumentetikett(filer: Int, medText: Int, pågår: Bool) -> String {
+        let del = medText == filer ? "\(filer) dokument" : "\(filer) filer · \(medText) med text"
+        if pågår { return "läser in · \(del)" }
+        return filer == 0 ? "inga dokument" : del
     }
 
     /// Senaste utfallet per kund, så att vyn kan säga vad som gick fel.

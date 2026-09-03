@@ -86,7 +86,9 @@ Kundvyn visar kommande möten, kontakter och mejl som hör till kunden.
 **Kalender** (EventKit): ett möte räknas som kundens om någon deltagare finns
 bland kundens kontakter, har kundens e-postdomän, eller om kundnamnet står i
 titeln. Startas inspelningen från ett möte följer titeln med — och de kallade
-blir förslagen när rösterna ska märkas.
+blir förslagen när rösterna ska märkas. Reglerna är trubbiga: ett möte de
+missar tas i anspråk med «Lägg till möte», och ett de tar fel på skickas bort
+med «Hör inte till». Beslutet går före regeln, åt båda hållen.
 
 **Kontakter** (Contacts): personer hämtas ur adressboken eller skrivs upp för
 hand, och redigeras i appen — namn, roll, flera adresser och telefonnummer. En
@@ -303,6 +305,7 @@ fönstret först, gör flera försök, och faller tillbaka på hela skärmen.
 .build/arm64-apple-macosx/debug/Kundkoll --prov-import fil.mp4 fil.m4a
 .build/arm64-apple-macosx/debug/Kundkoll --prov-chatt [leverantör] [modell]
 .build/arm64-apple-macosx/debug/Kundkoll --prov-bilaga fil.pdf bild.png
+.build/arm64-apple-macosx/debug/Kundkoll --prov-dokument <mapp>   # hur många filer som ger text, per typ
 .build/arm64-apple-macosx/debug/Kundkoll --prov-omröst <inspelningsmapp> [antal]
 .build/arm64-apple-macosx/debug/Kundkoll --prov-kodagent <mapp> "<fråga>"
 .build/arm64-apple-macosx/debug/Kundkoll --prov-insikter [modell …]

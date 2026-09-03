@@ -75,6 +75,21 @@ väntan i stället för rollback-journal med 2, och kundvyns bakgrundsarbete
 går i ett spår där inbäddningen kommer sist. Det första felet visas vid
 mappen i kundvyn.
 
+**Kontorsfilerna läses av `Kontorsfiler`.** Den gamla vägen strippade
+taggarna i några utvalda XML-delar, och för Excel var det bara
+strängtabellen: en osorterad hög med ord utan rader, kolumner eller
+bladnamn, och för många filer ingenting alls. Uppmätt på samma 593 filer:
+219 gav text. Nu läses Excel cell för cell med XMLParser och strängtabellen
+slås upp, så en riskmatris blir rader med tabb mellan cellerna och bladets
+namn överst. PowerPoint får bilderna i nummerordning med talarnoteringen
+efter varje bild, Word får kommentarer, noter och sidhuvuden. Datum i
+Excel blir tal — vilka celler som är datum står i `styles.xml`, och att
+gissa på talets storlek skulle göra «45 000 kr» till ett datum.
+`--prov-dokument <mapp>` säger per filtyp hur många som ger text.
+
+Räknaren vid mappen säger både filer och filer med text, så att skillnaden
+syns.
+
 Lägesbilden räknar också dokumenten som underlag (de åtta senast ändrade,
 600 tecken var). Ett projekt med ett dokumentarkiv men inga möten fick
 annars «inget underlag att bygga en lägesbild på».

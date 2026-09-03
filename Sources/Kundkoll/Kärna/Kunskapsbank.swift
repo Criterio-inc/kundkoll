@@ -151,6 +151,18 @@ final class Kunskapsbank {
         return ut
     }
 
+    /// Antal filer ur en mapp som gåtts igenom, med eller utan text. Skiljer
+    /// sig från `antalDokument` när filer inte gav någon text — och den
+    /// skillnaden är det man vill se, inte dölja.
+    func antalKällor(under prefix: String) -> Int {
+        var s: OpaquePointer?
+        defer { sqlite3_finalize(s) }
+        guard sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM källor WHERE källa LIKE ?",
+                                 -1, &s, nil) == SQLITE_OK else { return 0 }
+        bind(s, 1, prefix + "%")
+        return sqlite3_step(s) == SQLITE_ROW ? Int(sqlite3_column_int64(s, 0)) : 0
+    }
+
     /// Antal dokument som kommer ur en mapp, för räknaren i kundvyn.
     func antalDokument(under prefix: String) -> Int {
         var s: OpaquePointer?

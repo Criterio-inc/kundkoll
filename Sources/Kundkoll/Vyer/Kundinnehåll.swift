@@ -42,7 +42,7 @@ struct Kundinnehåll: View {
     /// Mappar utanför kundmappen, och hur många dokument ur var och en som
     /// ligger i kunskapsbanken.
     @State private var kopplade: [Kopplad] = []
-    @State private var dokumentantal: [String: Int] = [:]
+    @State private var dokumentantal: [String: (filer: Int, medText: Int)] = [:]
     @State private var läserIn = false
     @State private var dokumentfel: String?
 
@@ -259,7 +259,7 @@ struct Kundinnehåll: View {
                                 }
                                 Divider()
                                 Button("Hör inte till \(kund.namn)", role: .destructive) {
-                                    try? arkiv.taBortMöteskoppling(m.id, för: kund)
+                                    try? arkiv.uteslutMöte(m.id, för: kund)
                                     läsOm()
                                     Task { await hämtaMöten() }
                                 }
@@ -666,7 +666,7 @@ struct Kundinnehåll: View {
                         HStack(spacing: 6) {
                             Text(k.visatNamn)
                             if let n = dokumentantal[k.väg] {
-                                Märke(text: Indexering.dokumentetikett(n, pågår: läserIn),
+                                Märke(text: Indexering.dokumentetikett(filer: n.filer, medText: n.medText, pågår: läserIn),
                                       ikon: "doc.richtext")
                             }
                         }
@@ -722,8 +722,11 @@ struct Kundinnehåll: View {
             dokumentantal = [:]
             return
         }
-        var ut: [String: Int] = [:]
-        for k in kopplade { ut[k.väg] = bank.antalDokument(under: k.väg + "/") }
+        var ut: [String: (filer: Int, medText: Int)] = [:]
+        for k in kopplade {
+            ut[k.väg] = (bank.antalKällor(under: k.väg + "/"),
+                         bank.antalDokument(under: k.väg + "/"))
+        }
         dokumentantal = ut
     }
 
@@ -751,7 +754,7 @@ struct Kundinnehåll: View {
         // kundnamn i titeln kan ingen regel känna igen — de tas i anspråk
         // för hand och känns igen på att nyckeln finns.
         möten = kalender.möten().filter {
-            kopplade[$0.id] != nil || Kalendern.hör($0, till: kund, kontakter: mina)
+            Kalendern.hörTill($0, kund: kund, kontakter: mina, kopplingar: kopplade)
         }
     }
 

@@ -259,6 +259,19 @@ final class Arkivet: ObservableObject {
         try skrivMöteskopplingar(alla, för: kund)
     }
 
+    /// Värdet i kopplingarna som betyder «hör inte hit». Ett projekt kan
+    /// inte heta så, och tom sträng är upptagen av «kunden utan projekt».
+    nonisolated static let uteslutetMöte = "!"
+
+    /// Utesluter ett möte som reglerna annars skulle ta med. Att bara ta
+    /// bort kopplingen räckte inte: domänregeln tog mötet tillbaka på nästa
+    /// hämtning, så «Hör inte till» såg ut att inte göra något.
+    func uteslutMöte(_ mötesID: String, för kund: Kund) throws {
+        var alla = möteskopplingar(för: kund)
+        alla[mötesID] = Self.uteslutetMöte
+        try skrivMöteskopplingar(alla, för: kund)
+    }
+
     func taBortMöteskoppling(_ mötesID: String, för kund: Kund) throws {
         var alla = möteskopplingar(för: kund)
         alla.removeValue(forKey: mötesID)

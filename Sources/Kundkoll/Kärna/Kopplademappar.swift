@@ -72,7 +72,8 @@ enum Kopplademappar {
     /// när mappen är dokument snarare än kod. Läsarna är Bilagors — Word,
     /// Excel och PowerPoint ur deras XML, PDF via PDFKit, bilder via Vision.
     static let dokumentändelser: Set<String> = [
-        "pdf", "docx", "pptx", "xlsx", "md", "markdown", "txt", "rtf",
+        "pdf", "docx", "pptx", "xlsx", "docm", "pptm", "xlsm", "potx", "xltx",
+        "md", "markdown", "txt", "rtf",
         "csv", "tsv", "html", "htm",
         "png", "jpg", "jpeg", "heic", "tiff", "tif",
     ]

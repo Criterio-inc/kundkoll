@@ -12,7 +12,7 @@ struct Projektinnehåll: View {
     @State private var flik: Flik = .översikt
     @State private var kopplade: [Kopplad] = []
     /// Dokument ur varje kopplad mapp i kunskapsbanken, och om inläsningen pågår.
-    @State private var dokumentantal: [String: Int] = [:]
+    @State private var dokumentantal: [String: (filer: Int, medText: Int)] = [:]
     @State private var läserIn = false
     @State private var inspelningar: [(Inspelning, URL)] = []
     @State private var öppnad: Kundinnehåll.Öppnad?
@@ -236,7 +236,7 @@ struct Projektinnehåll: View {
                                 HStack(spacing: 6) {
                                     Text(k.visatNamn)
                                     if let n = dokumentantal[k.väg] {
-                                        Märke(text: Indexering.dokumentetikett(n, pågår: läserIn),
+                                        Märke(text: Indexering.dokumentetikett(filer: n.filer, medText: n.medText, pågår: läserIn),
                                               ikon: "doc.richtext")
                                     }
                                 }
@@ -320,8 +320,11 @@ struct Projektinnehåll: View {
             dokumentantal = [:]
             return
         }
-        var ut: [String: Int] = [:]
-        for k in kopplade { ut[k.väg] = bank.antalDokument(under: k.väg + "/") }
+        var ut: [String: (filer: Int, medText: Int)] = [:]
+        for k in kopplade {
+            ut[k.väg] = (bank.antalKällor(under: k.väg + "/"),
+                         bank.antalDokument(under: k.väg + "/"))
+        }
         dokumentantal = ut
     }
 

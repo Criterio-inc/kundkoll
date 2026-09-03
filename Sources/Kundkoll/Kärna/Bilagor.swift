@@ -126,7 +126,7 @@ enum Bilagor {
             return textUrFil(url)
         case "png", "jpg", "jpeg", "heic", "tiff", "tif", "gif", "bmp", "webp":
             return await textUrBild(url)
-        case "docx", "pptx", "xlsx":
+        case "docx", "pptx", "xlsx", "docm", "pptm", "xlsm", "potx", "xltx":
             return textUrKontorsfil(url)
         default:
             return nil
@@ -179,31 +179,13 @@ enum Bilagor {
     }
 
     /// docx, pptx och xlsx är zip-arkiv med XML. Texten sitter mellan taggarna.
+    /// Word, PowerPoint och Excel läses av `Kontorsfiler`, som slår upp
+    /// Excels strängtabell cell för cell och tar med talarnoteringar och
+    /// kommentarer. Den gamla vägen — strippa taggarna i några utvalda
+    /// XML-delar — gav text ur 219 av 593 filer i en riktig kundmapp.
     private static func textUrKontorsfil(_ url: URL) -> String? {
-        let temp = FileManager.default.temporaryDirectory
-            .appending(path: "kundkoll-\(UUID().uuidString)")
-        defer { try? FileManager.default.removeItem(at: temp) }
-
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
-        p.arguments = ["-qq", "-o", url.path, "-d", temp.path]
-        p.standardOutput = FileHandle.nullDevice
-        p.standardError = FileHandle.nullDevice
-        guard (try? p.run()) != nil else { return nil }
-        p.waitUntilExit()
-        guard p.terminationStatus == 0 else { return nil }
-
-        guard let filer = FileManager.default.enumerator(at: temp, includingPropertiesForKeys: nil)
-        else { return nil }
-        var ut = ""
-        for fall in filer {
-            guard let f = fall as? URL, f.pathExtension == "xml",
-                  ärInnehåll(f), let xml = try? String(contentsOf: f, encoding: .utf8)
-            else { continue }
-            ut += strippaTaggar(xml) + "\n"
-        }
-        let rent = ut.trimmingCharacters(in: .whitespacesAndNewlines)
-        return rent.count > 20 ? rent : nil
+        let utfall = Kontorsfiler.text(ur: url)
+        return utfall.skäl == nil ? utfall.text : nil
     }
 
     /// Bara filerna som bär text. Ett kontorsdokument innehåller också
