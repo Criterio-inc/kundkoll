@@ -201,9 +201,13 @@ kontakter och tidigare samtal. Tidigare samtal viktas ner: de säger vad modelle
 svarade, inte vad som faktiskt hände. Ett svar kan sparas som anteckning direkt ur
 chatten.
 
-**Kopplade mappar** — källkod, ritningar, offerter — indexeras däremot inte.
-De genomsöks i stället av en agent när du ställer frågan, så att svaret bygger
-på hur filerna ser ut just nu. Det tar en halv minut, så det svaret dyker upp
+**Kopplade mappar** finns i två slag, och appen ser själv vilket. En mapp
+med dokument — OneDrive-mappen om kunden, ett projektarkiv — läses in i
+kunskapsbanken: Word, Excel, PowerPoint, PDF, text och bilder, bara det som
+ändrats sedan sist, och det som tagits bort glöms. Mappen kopplas på kunden
+eller på ett projekt och rörs aldrig. En mapp med källkod indexeras däremot
+inte; den genomsöks av en agent när du ställer frågan, så att svaret bygger på
+hur filerna ser ut just nu. Det tar en halv minut, så det svaret dyker upp
 asynkront efter det snabba ur kunskapsbanken.
 
 Sökningen är SQLite FTS5 med trunkerade sökord; svenskans böjningar gör att rak

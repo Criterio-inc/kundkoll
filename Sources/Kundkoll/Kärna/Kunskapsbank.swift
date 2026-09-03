@@ -101,6 +101,37 @@ final class Kunskapsbank {
         sqlite3_prepare_v2(db, "DELETE FROM dokument WHERE källa = ?", -1, &s, nil)
         bind(s, 1, källa)
         sqlite3_step(s)
+
+        // Källan glöms också, så att en fil som tagits bort inte ligger kvar
+        // som «indexerad» och en som kommer tillbaka läses på nytt.
+        var k: OpaquePointer?
+        defer { sqlite3_finalize(k) }
+        sqlite3_prepare_v2(db, "DELETE FROM källor WHERE källa = ?", -1, &k, nil)
+        bind(k, 1, källa)
+        sqlite3_step(k)
+    }
+
+    /// Källorna under en mapp — för att glömma filer som försvunnit ur den.
+    func källor(under prefix: String) -> [String] {
+        var s: OpaquePointer?
+        defer { sqlite3_finalize(s) }
+        guard sqlite3_prepare_v2(db, "SELECT källa FROM källor WHERE källa LIKE ?",
+                                 -1, &s, nil) == SQLITE_OK else { return [] }
+        bind(s, 1, prefix + "%")
+        var ut: [String] = []
+        while sqlite3_step(s) == SQLITE_ROW { ut.append(text(s, 0)) }
+        return ut
+    }
+
+    /// Antal dokument som kommer ur en mapp, för räknaren i kundvyn.
+    func antalDokument(under prefix: String) -> Int {
+        var s: OpaquePointer?
+        defer { sqlite3_finalize(s) }
+        guard sqlite3_prepare_v2(db,
+            "SELECT COUNT(DISTINCT källa) FROM dokument WHERE källa LIKE ?",
+            -1, &s, nil) == SQLITE_OK else { return 0 }
+        bind(s, 1, prefix + "%")
+        return sqlite3_step(s) == SQLITE_ROW ? Int(sqlite3_column_int64(s, 0)) : 0
     }
 
     func läggTill(titel: String, text: String, typ: String, källa: String, tid: Date?) throws {

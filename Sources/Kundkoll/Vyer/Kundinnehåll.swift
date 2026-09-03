@@ -39,6 +39,10 @@ struct Kundinnehåll: View {
     @State private var möteskopplingar: [String: String] = [:]
     @State private var slutför: URL?
     @State private var slutförsteg = ""
+    /// Mappar utanför kundmappen, och hur många dokument ur var och en som
+    /// ligger i kunskapsbanken.
+    @State private var kopplade: [Kopplad] = []
+    @State private var dokumentantal: [String: Int] = [:]
 
     enum Flik: String, CaseIterable, Identifiable {
         case översikt, attGöra, inspelningar, anteckningar, mail
@@ -153,6 +157,9 @@ struct Kundinnehåll: View {
         // Ett avslutat möte — och senare arkivtranskriptet, rösterna och
         // sammanfattningen — ska dyka upp utan att appen startas om.
         .onChange(of: arkiv.sparningar) { läsOm() }
+        .onReceive(NotificationCenter.default.publisher(for: .dokumentIndexerade)) { _ in
+            räknaDokument()
+        }
         .task(id: kund.id) { await hämtaMöten() }
         .task(id: kund.id) { await visaMejl() }
         // Ett nyinbokat eller flyttat möte ska synas direkt.
@@ -179,6 +186,7 @@ struct Kundinnehåll: View {
     private var översikt: some View {
         mötesavsnitt
         projektavsnitt
+        mappavsnitt
         kontaktavsnitt
         if !inspelningar.isEmpty {
             avsnitt("Senaste inspelningarna") {
@@ -613,6 +621,94 @@ struct Kundinnehåll: View {
         kontakter = arkiv.kontakter(för: kund)
         inspelningar = arkiv.inspelningar(för: kund)
         ofullständiga = arkiv.ofullständiga(för: kund)
+        kopplade = arkiv.kopplade(för: kund)
+        räknaDokument()
+    }
+
+    // MARK: - Kopplade mappar
+
+    /// Mappar utanför kundmappen — OneDrive, en delad mapp, ett arkiv. De
+    /// rörs inte; dokumenten i dem läses in i kunskapsbanken.
+    private var mappavsnitt: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Avsnittsrubrik("Kopplade mappar")
+                Spacer()
+                Button("Koppla mapp", action: väljMapp).buttonStyle(.link)
+            }
+            if kopplade.isEmpty {
+                Text("Peka ut en mapp med kundens material — OneDrive, en delad mapp, ett arkiv. Word, Excel, PowerPoint, PDF, text och bilder läses in i kunskapsbanken så att chatten kan svara ur dem. Mappen rörs inte.")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(kopplade.enumerated()), id: \.element.id) { i, k in
+                        HStack(spacing: 10) {
+                            Image(systemName: k.finns ? "folder" : "questionmark.folder")
+                                .foregroundStyle(k.finns ? Color.secondary : Color.orange)
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 6) {
+                                    Text(k.visatNamn)
+                                    if let n = dokumentantal[k.väg] {
+                                        Märke(text: n == 0 ? "inga dokument än" : "\(n) dokument",
+                                              ikon: "doc.richtext")
+                                    }
+                                }
+                                Text(k.finns ? k.väg : "Mappen finns inte längre")
+                                    .font(.caption)
+                                    .foregroundStyle(k.finns ? Color.secondary : Color.orange)
+                                    .lineLimit(1)
+                                    .truncationMode(.head)
+                            }
+                            Spacer()
+                            if k.finns {
+                                Button { NSWorkspace.shared.open(k.url) } label: {
+                                    Image(systemName: "arrow.up.forward.square")
+                                }
+                                .buttonStyle(.borderless)
+                                .help("Visa i Finder")
+                            }
+                            Button {
+                                kopplade = (try? arkiv.koppla(bort: k, från: kund)) ?? kopplade
+                                Indexering.glöm(k, hos: kund)
+                            } label: {
+                                Image(systemName: "minus.circle")
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Koppla bort mappen. Innehållet rörs inte, men försvinner ur kunskapsbanken.")
+                        }
+                        .padding(.horizontal, 12).padding(.vertical, 9)
+                        if i < kopplade.count - 1 { Divider() }
+                    }
+                }
+                .kort(hörn: Stil.radhörn)
+            }
+        }
+    }
+
+    private func väljMapp() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = true
+        panel.message = "Välj en mapp med material om \(kund.namn)"
+        guard panel.runModal() == .OK else { return }
+        for url in panel.urls {
+            kopplade = (try? arkiv.koppla(url, till: kund)) ?? kopplade
+        }
+        räknaDokument()
+        Indexering.dokumentIBakgrunden(för: kund)
+    }
+
+    /// Hur många dokument ur varje mapp som ligger i kunskapsbanken.
+    private func räknaDokument() {
+        guard !kopplade.isEmpty, let bank = try? Kunskapsbank(kund: kund) else {
+            dokumentantal = [:]
+            return
+        }
+        var ut: [String: Int] = [:]
+        for k in kopplade { ut[k.väg] = bank.antalDokument(under: k.väg + "/") }
+        dokumentantal = ut
     }
 
     /// Kopplade kontakter utan bild får sin profilbild ur macOS Kontakter,
@@ -744,6 +840,7 @@ struct Kundinnehåll: View {
             _ = try? await Indexering.kör(för: kund, bank: bank)
             await Inbäddare.kör(bank: bank)
         }
+        Indexering.dokumentIBakgrunden(för: kund)
     }
 }
 

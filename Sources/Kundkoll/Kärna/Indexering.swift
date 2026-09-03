@@ -128,11 +128,12 @@ enum Indexering {
             r.indexerade += 1
         }
 
-        // Kopplade mappar indexeras med flit inte. En enda liten kodmapp gav
-        // 481 stycken mot 70 för allt annat material om kunden tillsammans, och
-        // kod är gammal i ett index nästan direkt. Frågor om dem besvaras i
-        // stället av en agent som söker i mappen när frågan ställs — se
-        // Kodagent.
+        // Kod i kopplade mappar indexeras med flit inte. En enda liten
+        // kodmapp gav 481 stycken mot 70 för allt annat material om kunden
+        // tillsammans, och kod är gammal i ett index nästan direkt. Frågor om
+        // den besvaras i stället av en agent som söker i mappen när frågan
+        // ställs — se Kodagent. Dokumenten i mapparna läses däremot in, se
+        // indexeraDokument: de är kundmaterial som allt annat.
 
         // Chattar. Det man frågat om och fått svar på är också något man kan
         // vilja hitta igen — särskilt slutsatser som inte skrivits ned någon
@@ -186,6 +187,84 @@ enum Indexering {
         return r
     }
 
+    /// Dokumenten i kopplade mappar — Word, Excel, PowerPoint, PDF, text och
+    /// bilder — läses in som typen «dokument», med vägen inom mappen som
+    /// titel: «AP2 — Bedömningar/DPIA.docx» säger mer än filnamnet ensamt,
+    /// och det är den hänvisningen man ser under svaret.
+    ///
+    /// Asynkron eftersom bilder läses med Vision. Bara ändrade filer läses
+    /// om, och filer som försvunnit ur mappen glöms.
+    static func indexeraDokument(för kund: Kund, bank: Kunskapsbank) async throws -> Resultat {
+        var r = Resultat()
+        let arkiv = Arkivet.shared
+        var mappar = arkiv.kopplade(för: kund)
+        for p in arkiv.projekt(för: kund) { mappar += arkiv.kopplade(för: p) }
+        for kopplad in mappar where kopplad.finns {
+            let rot = kopplad.url.path
+            var sedda = Set<String>()
+            for url in Kopplademappar.dokument(i: kopplad) {
+                let väg = url.path
+                sedda.insert(väg)
+                guard bank.behöverIndexeras(url) else { r.oförändrade += 1; continue }
+                try bank.glöm(källa: väg)
+                let värden = try? url.resourceValues(
+                    forKeys: [.fileSizeKey, .contentModificationDateKey])
+                let bilaga = Bilagor.Bilaga(ämne: "", namn: url.lastPathComponent,
+                                            fil: väg, storlek: värden?.fileSize ?? 0)
+                let text = await Bilagor.text(ur: bilaga) ?? ""
+                let relativ = väg.hasPrefix(rot + "/")
+                    ? String(väg.dropFirst(rot.count + 1)) : url.lastPathComponent
+                let titel = "\(kopplad.visatNamn)/\(relativ)"
+                for (i, stycke) in dela(text).enumerated() {
+                    try bank.läggTill(titel: i == 0 ? titel : "\(titel) (\(i + 1))",
+                                      text: stycke, typ: "dokument",
+                                      källa: väg, tid: värden?.contentModificationDate)
+                    r.stycken += 1
+                }
+                // Markeras även när texten blev tom — en bild utan text ska
+                // inte läsas med Vision på nytt varje gång.
+                try bank.markeraIndexerad(url)
+                r.indexerade += 1
+            }
+            // Det som tagits bort ur mappen ska inte spöka i svaren.
+            for gammal in bank.källor(under: rot + "/") where !sedda.contains(gammal) {
+                try bank.glöm(källa: gammal)
+            }
+        }
+        return r
+    }
+
+    /// Glömmer allt ur en mapp, när kopplingen tas bort.
+    static func glöm(_ kopplad: Kopplad, hos kund: Kund) {
+        guard let bank = try? Kunskapsbank(kund: kund) else { return }
+        for källa in bank.källor(under: kopplad.url.path + "/") {
+            try? bank.glöm(källa: källa)
+        }
+        NotificationCenter.default.post(name: .dokumentIndexerade, object: nil)
+    }
+
+    /// Kunder vars dokument håller på att läsas in. Två samtidiga
+    /// genomgångar av samma mapp skulle båda se filerna som nya och
+    /// dubblera dem.
+    private static var dokumentPågår: Set<String> = []
+
+    /// Läser in dokumenten utan att hålla någon vy väntande, och säger till
+    /// när det är klart så att räknarna kan uppdateras.
+    static func dokumentIBakgrunden(för kund: Kund) {
+        guard !dokumentPågår.contains(kund.id) else { return }
+        dokumentPågår.insert(kund.id)
+        Task.detached(priority: .utility) {
+            if let bank = try? Kunskapsbank(kund: kund) {
+                _ = try? await indexeraDokument(för: kund, bank: bank)
+                await Inbäddare.kör(bank: bank)
+            }
+            await MainActor.run {
+                dokumentPågår.remove(kund.id)
+                NotificationCenter.default.post(name: .dokumentIndexerade, object: nil)
+            }
+        }
+    }
+
     /// Delar ett transkript i stycken med talare och tid kvar i texten, så att
     /// ett svar kan säga vem som sa vad och när.
     static func stycken(av inspelning: Inspelning) -> [String] {
@@ -221,4 +300,9 @@ enum Indexering {
         if !nuvarande.isEmpty { ut.append(nuvarande) }
         return ut
     }
+}
+
+extension Notification.Name {
+    /// Dokumenten ur en kopplad mapp har lästs in eller glömts.
+    static let dokumentIndexerade = Notification.Name("kundkoll.dokumentIndexerade")
 }

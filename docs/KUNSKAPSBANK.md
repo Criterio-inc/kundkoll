@@ -52,7 +52,20 @@ tabell i en skärmbild står inte i ämnesraden. Uppmätt på riktiga mejlbilago
 en skärmbild 69 rader text på 0,2 sekunder. Kalenderfiler, signaturfiler och
 inbäddade `image001`-bilder sorteras bort — de kommer i mängd utan att tillföra.
 
-## Kopplade mappar indexeras inte — de genomsöks
+## Kopplade dokumentmappar indexeras
+
+Tillägg i forken: en kopplad mapp vars innehåll är dokument — Word, Excel,
+PowerPoint, PDF, text, bilder — läses in i kunskapsbanken som typen
+`dokument`, med samma läsare som mejlbilagorna. Bara ändrade filer läses om,
+borttagna glöms, Office-låsfiler (`~$…`) hoppas över, och gränsen är 40 MB
+per fil. Titeln är vägen inom mappen, så hänvisningen under svaret säger
+«AP2 — Bedömningar/DPIA.docx» och inte bara filnamnet. Bakgrunden: en
+OneDrive-mapp om en kund med 593 filer, varav 279 kontorsfiler som
+agentsökningen nedan aldrig hade kunnat läsa.
+
+Agenten får bara mappar som innehåller kod (`Kopplademappar.harKod`).
+
+## Kopplade kodmappar indexeras inte — de genomsöks
 
 En kopplad kodmapp hör inte hemma i indexet. Uppmätt på det här projektets egen
 mapp: 54 filer blir **481 stycken**, mot 70 för allt material om en riktig kund

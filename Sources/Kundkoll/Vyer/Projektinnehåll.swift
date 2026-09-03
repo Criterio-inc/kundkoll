@@ -217,7 +217,7 @@ struct Projektinnehåll: View {
                 Button("Koppla mapp", action: väljMapp).buttonStyle(.link)
             }
             if kopplade.isEmpty {
-                Text("Peka ut en mapp med källkod, ritningar eller offerter. Chatten söker i den när du frågar något — innehållet indexeras inte, så svaret bygger på hur filerna ser ut just nu.")
+                Text("Peka ut en mapp som hör till projektet. Dokument — Word, Excel, PowerPoint, PDF, text, bilder — läses in i kunskapsbanken. Källkod indexeras inte utan genomsöks av en agent när du frågar, så att svaret bygger på hur filerna ser ut just nu.")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
@@ -244,11 +244,12 @@ struct Projektinnehåll: View {
                             }
                             Button {
                                 kopplade = (try? arkiv.koppla(bort: k, från: projekt)) ?? kopplade
+                                Indexering.glöm(k, hos: kund)
                             } label: {
                                 Image(systemName: "minus.circle")
                             }
                             .buttonStyle(.borderless)
-                            .help("Koppla bort mappen. Innehållet rörs inte.")
+                            .help("Koppla bort mappen. Innehållet rörs inte, men försvinner ur kunskapsbanken.")
                         }
                         .padding(.horizontal, 12).padding(.vertical, 9)
                         if i < kopplade.count - 1 { Divider() }
@@ -296,6 +297,7 @@ struct Projektinnehåll: View {
         for url in panel.urls {
             kopplade = (try? arkiv.koppla(url, till: projekt)) ?? kopplade
         }
+        Indexering.dokumentIBakgrunden(för: kund)
     }
 
     private func läsIn() {

@@ -48,6 +48,7 @@ actor Chatt {
             case "bilaga": "paperclip"
             case "chatt": "bubble.left.and.text.bubble.right"
             case "fil": "folder"
+            case "dokument": "doc.richtext"
             case "sammanfattning": "list.bullet.rectangle"
             case "kontakt": "person"
             default: "doc.text"

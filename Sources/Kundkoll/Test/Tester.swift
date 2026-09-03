@@ -357,6 +357,40 @@ enum Tester {
             Prov.kolla(!namn.contains("index.js"),
                        "node_modules gås inte igenom (\(namn.count) filer totalt)")
             Prov.kolla(!namn.contains("config"), ".git gås inte igenom")
+
+            // Dokumenten i samma mapp — de som går till kunskapsbanken.
+            fm.createFile(atPath: rot.appending(path: "Rapport.docx").path, contents: Data("x".utf8))
+            fm.createFile(atPath: rot.appending(path: "~$Rapport.docx").path, contents: Data("x".utf8))
+            let dok = Set(Kopplademappar.dokument(i: Kopplad(väg: rot.path)).map(\.lastPathComponent))
+            Prov.kolla(dok.contains("Rapport.docx"), "kontorsfiler räknas som dokument")
+            Prov.kolla(dok.contains("README.md"), "markdown också")
+            Prov.kolla(dok.contains("logo.png"), "och bilder — Vision läser texten i dem")
+            Prov.kolla(!dok.contains("main.swift"), "men inte kod")
+            Prov.kolla(!dok.contains("~$Rapport.docx"), "Office låsfiler hoppas över")
+            Prov.kolla(Kopplademappar.harKod(Kopplad(väg: rot.path)),
+                       "mappen har kod, så agenten får den")
+            let bara = rot.appending(path: "dokument")
+            try! fm.createDirectory(at: bara, withIntermediateDirectories: true)
+            fm.createFile(atPath: bara.appending(path: "Offert.pdf").path, contents: Data("x".utf8))
+            Prov.kolla(!Kopplademappar.harKod(Kopplad(väg: bara.path)),
+                       "en mapp med bara dokument får ingen agent")
+        }
+
+        do {   // kunskapsbanken minns var dokument kom ifrån
+            let rot = FileManager.default.temporaryDirectory
+                .appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: rot) }
+            try! FileManager.default.createDirectory(at: rot, withIntermediateDirectories: true)
+            let bank = try! Kunskapsbank(kund: Kund(namn: "Prov", mapp: rot))
+            try! bank.läggTill(titel: "a", text: "alfa", typ: "dokument", källa: "/m/a.docx", tid: nil)
+            try! bank.läggTill(titel: "b", text: "beta", typ: "dokument", källa: "/m/b.pdf", tid: nil)
+            try! bank.markeraIndexerad(URL(fileURLWithPath: "/m/a.docx"))
+            try! bank.markeraIndexerad(URL(fileURLWithPath: "/m/b.pdf"))
+            Prov.lika(bank.antalDokument(under: "/m/"), 2, "två dokument ur mappen")
+            Prov.lika(bank.källor(under: "/m/").count, 2, "och två källor")
+            try! bank.glöm(källa: "/m/a.docx")
+            Prov.lika(bank.antalDokument(under: "/m/"), 1, "att glömma tar bort dokumentet")
+            Prov.lika(bank.källor(under: "/m/").count, 1, "och källan, så att den läses på nytt om filen kommer tillbaka")
         }
 
         do {   // samtal

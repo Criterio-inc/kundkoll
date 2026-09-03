@@ -101,6 +101,7 @@ struct Sökvy: View {
         case "anteckning": "note.text"
         case "mejl": "envelope"
         case "bilaga": "paperclip"
+        case "dokument": "doc.richtext"
         case "chatt": "bubble.left.and.text.bubble.right"
         case "kontakt": "person"
         default: "doc.text"
