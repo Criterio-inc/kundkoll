@@ -14,6 +14,7 @@ struct Modellvy: View {
     @State private var provar = false
     @State private var insiktsmodell = Inställningar.insiktsmodell
     @State private var delaRöster = Inställningar.delaRöstprofiler
+    @State private var användarnamn = UserDefaults.standard.string(forKey: "kundkoll.användarnamn") ?? ""
     @State private var transkribering = Transkriberingsval.läs()
     @State private var elevenNyckel = ""
     @State private var harElevenNyckel = Nyckelring.hämta("kundkoll-elevenlabs") != nil
@@ -190,6 +191,18 @@ struct Modellvy: View {
                     Toggle("Känn igen röster mellan kunder", isOn: $delaRöster)
                         .help("Av som standard: röstprofiler ligger hos kunden, och samma person kan förekomma i flera kundärenden utan att man vill koppla ihop dem.")
 
+                    Divider().padding(.vertical, 4)
+
+                    fält("Ditt namn") {
+                        VStack(alignment: .leading, spacing: 6) {
+                            TextField(NSFullUserName(), text: $användarnamn)
+                                .textFieldStyle(.roundedBorder)
+                            Text("Så tilltalar chatten dig. Tomt betyder namnet på macOS-kontot.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
                     if let meddelande {
                         Text(meddelande)
                             .font(.callout)
@@ -267,6 +280,7 @@ struct Modellvy: View {
         let ren = insiktsmodell.trimmingCharacters(in: .whitespacesAndNewlines)
         Inställningar.insiktsmodell = ren.isEmpty ? Insikter.standardmodell : ren
         Inställningar.delaRöstprofiler = delaRöster
+        Inställningar.användarnamn = användarnamn.trimmingCharacters(in: .whitespacesAndNewlines)
         stäng()
     }
 

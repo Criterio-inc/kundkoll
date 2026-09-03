@@ -2,9 +2,10 @@ import Foundation
 
 /// Frågor och svar om en kund, med kundens eget material som underlag.
 ///
-/// Modellen nås via OpenRouter, som Anders redan har nyckel till. Bara det som
-/// sökningen plockat fram skickas — inte hela kundmappen — och bara när han
-/// själv ställer en fråga. Under pågående samtal används den lokala modellen.
+/// Modellen nås hos den leverantör som valts under ⌘, — moln eller lokal.
+/// Bara det som sökningen plockat fram skickas — inte hela kundmappen — och
+/// bara när användaren själv ställer en fråga. Under pågående samtal används
+/// den lokala modellen.
 actor Chatt {
 
     /// En källa svaret byggde på.
@@ -227,7 +228,7 @@ actor Chatt {
         }.joined(separator: "\n\n")
 
         var ut = """
-        Du hjälper Anders att hålla ordning på sitt arbete med kunden \(kund).
+        Du hjälper \(Inställningar.användarnamn) att hålla ordning på sitt arbete med kunden \(kund).
         \(projekt.map { "Frågan gäller projektet \($0)." } ?? "")
 
         Svara på svenska, kort och konkret. Du får bara bygga svaret på

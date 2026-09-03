@@ -1,9 +1,17 @@
 # Kundkoll
 
-[![Patreon](https://img.shields.io/badge/Patreon-st%C3%B6d%20projektet-f96854?logo=patreon&logoColor=white)](https://www.patreon.com/AndersBjarby)
-
 Nativ macOS-app för att hålla ordning på mötes- och telefontranskriberingar
 per kund och projekt. Allt ljud och all transkribering sker lokalt på datorn.
+
+## Ursprung
+
+Det här är en fork av Kundkoll av Anders Bjarby (FLTman), anpassad för
+Criterio. Grundidén, mätningarna i `docs/` och nästan all kod är hans — se
+`LICENSE` (MIT). Vill du stödja ursprungsprojektet finns
+[![Patreon](https://img.shields.io/badge/Patreon-st%C3%B6d%20ursprunget-f96854?logo=patreon&logoColor=white)](https://www.patreon.com/AndersBjarby).
+
+Kom igång: `docs/INSTALLATION.md` går igenom allt som behövs utanför appen,
+och `scripts/installera.sh` gör det mesta av det åt dig.
 
 ## Läge
 
@@ -253,11 +261,15 @@ för hand i Finder eller Obsidian dyker upp i appen utan vidare.
 
 ## Krav
 
-- macOS 26
-- `~/Projekt/whisper.cpp` byggd, med `kb_whisper_ggml_small.bin` och
-  `kb_whisper_ggml_medium.bin` i `models/`
-- Pythonmiljö med torch och speechbrain för röstanalysen; som standard
-  `~/Projekt/transcriber/venv`
+Steg för steg i `docs/INSTALLATION.md`; `scripts/installera.sh` sätter upp
+punkterna två och tre och `scripts/installera.sh --kontrollera` säger vad
+som saknas.
+
+- macOS 26 på Apple Silicon
+- `~/Projekt/whisper.cpp` byggd, med `kb_whisper_ggml_small.bin`,
+  `kb_whisper_ggml_medium.bin` och `ggml-silero-v5.1.2.bin` i `models/`
+- Pythonmiljö med torch, speechbrain och pyannote för röstanalysen; som
+  standard `~/Projekt/transcriber/venv`
 - Behörighet för **Mikrofon** och **Skärminspelning** (den senare krävs för
   datorljudet — ScreenCaptureKit fångar bara ljud här, ingen bild sparas)
 - Frivilligt: **Kalender**, **Kontakter** och **Automatisering** för Mail.
@@ -292,9 +304,9 @@ fönstret först, gör flera försök, och faller tillbaka på hela skärmen.
 .build/arm64-apple-macosx/debug/Kundkoll --prov-transkribering f.wav [motor] [modell]
 ```
 
-Xcode behövs inte — Command Line Tools räcker. Appen signeras med Developer ID
-om certifikatet finns, vilket gör att macOS kommer ihåg beviljade behörigheter
-mellan ombyggen. Eget certifikat anges med `KUNDKOLL_SIGNERING`; utan
+Xcode behövs inte — Command Line Tools räcker. Har du ett Developer
+ID-certifikat anger du det med `KUNDKOLL_SIGNERING`, så signeras appen med
+det och macOS kommer ihåg beviljade behörigheter mellan ombyggen. Utan
 certifikat signeras appen ad hoc och behörigheterna får ges om vid varje bygge.
 
 ## Licens
