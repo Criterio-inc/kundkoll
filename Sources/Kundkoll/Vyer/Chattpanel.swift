@@ -387,14 +387,20 @@ struct Chattpanel: View {
         // En mötschatt håller sig till mötet. En projektchatt söker i
         // projektets mappar; kundchatten i alla projektens, men bara några,
         // annars blir det för många agenter.
+        // Agenten får bara kodmappar. Dokumentmappar ligger redan i
+        // kunskapsbanken, och en agent som läste om dem vid varje fråga vore
+        // både långsam och överflödig.
         if möte != nil {
             mappar = []
         } else if let projekt {
-            mappar = arkiv.kopplade(för: projekt).filter(\.finns)
-        } else {
-            mappar = Array(arkiv.projekt(för: kund)
-                .flatMap { arkiv.kopplade(för: $0) }
+            mappar = arkiv.kopplade(för: projekt)
                 .filter(\.finns)
+                .filter(Kopplademappar.harKod)
+        } else {
+            mappar = Array((arkiv.kopplade(för: kund)
+                + arkiv.projekt(för: kund).flatMap { arkiv.kopplade(för: $0) })
+                .filter(\.finns)
+                .filter(Kopplademappar.harKod)
                 .prefix(3))
         }
         förbereder = true
@@ -403,9 +409,12 @@ struct Chattpanel: View {
             let b = try Kunskapsbank(kund: kund)
             let r = try Indexering.kör(för: kund, bank: b)
             bank = b
+            // Dokumenten ur kopplade mappar tar längre tid och läses i
+            // bakgrunden; det som redan är inläst är sökbart direkt.
+            Indexering.dokumentIBakgrunden(för: kund)
             var rader = b.antal == 0
                 ? "Inget material att söka i än"
-                : "\(b.antal) stycken ur transkript, anteckningar och mejl"
+                : "\(b.antal) stycken ur transkript, anteckningar, mejl och dokument"
                     + (r.indexerade > 0 ? " · \(r.indexerade) nyindexerade" : "")
             if möte != nil { rader = "Hela mötet, och \(rader.lowercased())" }
             if await Inbäddare.delad.tillgänglig {

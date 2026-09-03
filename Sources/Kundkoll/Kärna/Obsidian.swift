@@ -121,7 +121,7 @@ enum Obsidian {
                 if !kör { break }
                 try? await Task.sleep(for: .milliseconds(250))
             }
-            try? await NSWorkspace.shared.openApplication(
+            _ = try? await NSWorkspace.shared.openApplication(
                 at: URL(fileURLWithPath: "/Applications/Obsidian.app"),
                 configuration: NSWorkspace.OpenConfiguration())
         }

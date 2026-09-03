@@ -154,7 +154,7 @@ struct Huvudvy: View {
             let kontakter = arkiv.kontakter(för: kund)
             let kopplade = arkiv.möteskopplingar(för: kund)
             for m in möten
-            where kopplade[m.id] != nil || Kalendern.hör(m, till: kund, kontakter: kontakter) {
+            where Kalendern.hörTill(m, kund: kund, kontakter: kontakter, kopplingar: kopplade) {
                 par.append((kund.namn, m))
             }
         }

@@ -1,4 +1,5 @@
 import Foundation
+import SQLite3
 import AVFoundation
 import AppKit
 
@@ -357,6 +358,203 @@ enum Tester {
             Prov.kolla(!namn.contains("index.js"),
                        "node_modules gås inte igenom (\(namn.count) filer totalt)")
             Prov.kolla(!namn.contains("config"), ".git gås inte igenom")
+
+            // Dokumenten i samma mapp — de som går till kunskapsbanken.
+            fm.createFile(atPath: rot.appending(path: "Rapport.docx").path, contents: Data("x".utf8))
+            fm.createFile(atPath: rot.appending(path: "~$Rapport.docx").path, contents: Data("x".utf8))
+            let dok = Set(Kopplademappar.dokument(i: Kopplad(väg: rot.path)).map(\.lastPathComponent))
+            Prov.kolla(dok.contains("Rapport.docx"), "kontorsfiler räknas som dokument")
+            Prov.kolla(dok.contains("README.md"), "markdown också")
+            Prov.kolla(dok.contains("logo.png"), "och bilder — Vision läser texten i dem")
+            Prov.kolla(!dok.contains("main.swift"), "men inte kod")
+            Prov.kolla(!dok.contains("~$Rapport.docx"), "Office låsfiler hoppas över")
+            Prov.kolla(Kopplademappar.harKod(Kopplad(väg: rot.path)),
+                       "mappen har kod, så agenten får den")
+            let bara = rot.appending(path: "dokument")
+            try! fm.createDirectory(at: bara, withIntermediateDirectories: true)
+            fm.createFile(atPath: bara.appending(path: "Offert.pdf").path, contents: Data("x".utf8))
+            Prov.kolla(!Kopplademappar.harKod(Kopplad(väg: bara.path)),
+                       "en mapp med bara dokument får ingen agent")
+        }
+
+        do {   // kunskapsbanken minns var dokument kom ifrån
+            let rot = FileManager.default.temporaryDirectory
+                .appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: rot) }
+            try! FileManager.default.createDirectory(at: rot, withIntermediateDirectories: true)
+            let bank = try! Kunskapsbank(kund: Kund(namn: "Prov", mapp: rot))
+            try! bank.läggTill(titel: "a", text: "alfa", typ: "dokument", källa: "/m/a.docx", tid: nil)
+            try! bank.läggTill(titel: "b", text: "beta", typ: "dokument", källa: "/m/b.pdf", tid: nil)
+            try! bank.markeraIndexerad(URL(fileURLWithPath: "/m/a.docx"))
+            try! bank.markeraIndexerad(URL(fileURLWithPath: "/m/b.pdf"))
+            Prov.lika(bank.antalDokument(under: "/m/"), 2, "två dokument ur mappen")
+            Prov.lika(bank.källor(under: "/m/").count, 2, "och två källor")
+            try! bank.glöm(källa: "/m/a.docx")
+            Prov.lika(bank.antalDokument(under: "/m/"), 1, "att glömma tar bort dokumentet")
+            Prov.lika(bank.källor(under: "/m/").count, 1, "och källan, så att den läses på nytt om filen kommer tillbaka")
+
+            // Lägesbilden vill ha de senast ändrade, ett stycke per fil.
+            let gammalt = Date(timeIntervalSince1970: 1_000_000)
+            let nytt = Date(timeIntervalSince1970: 2_000_000)
+            try! bank.läggTill(titel: "gammal", text: "gammal text", typ: "dokument",
+                               källa: "/m/gammal.pdf", tid: gammalt)
+            try! bank.läggTill(titel: "ny (1)", text: "ny text", typ: "dokument",
+                               källa: "/m/ny.pdf", tid: nytt)
+            try! bank.läggTill(titel: "ny (2)", text: "mer ny text", typ: "dokument",
+                               källa: "/m/ny.pdf", tid: nytt)
+            try! bank.läggTill(titel: "inte dokument", text: "ett mejl", typ: "mejl",
+                               källa: "/m/mejl.json", tid: nytt)
+            let senaste = bank.senasteDokument(max: 5)
+            Prov.lika(senaste.first?.källa, "/m/ny.pdf", "nyast ändrad först")
+            Prov.lika(senaste.count, 2,
+                      "ett stycke per fil; mejlet och ett dokument utan datum räknas inte")
+            Prov.kolla(senaste.allSatisfy { $0.typ == "dokument" }, "bara dokument")
+        }
+
+        do {   // adresserna mejlen söks på
+            let kontakter = [
+                Kontakt(namn: "Anna", epost: ["Anna@Boras.se", "anna@boras.se"]),
+                Kontakt(namn: "Bo", epost: ["bo@boras.se"]),
+                Kontakt(namn: "Utan adress", epost: []),
+                Kontakt(namn: "Trasig", epost: ["inte en adress"]),
+                Kontakt(namn: "Cecilia", epost: ["cecilia@boras.se"]),
+            ]
+            let a = Mailen.adresser(ur: kontakter)
+            Prov.lika(a, ["anna@boras.se", "bo@boras.se", "cecilia@boras.se"],
+                      "kontakternas ordning behålls, skiftläge normaliseras, dubbletter bort")
+            Prov.lika(Mailen.adresser(ur: kontakter, max: 2), ["anna@boras.se", "bo@boras.se"],
+                      "gränsen tar de första, inte ett slumpat urval")
+            Prov.lika(Mailen.adresser(ur: []), [], "utan kontakter finns inget att söka på")
+        }
+
+        do {   // en bättre läsare får sina filer lästa om, inte alla andra
+            let rot = FileManager.default.temporaryDirectory
+                .appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: rot) }
+            try! FileManager.default.createDirectory(at: rot, withIntermediateDirectories: true)
+            let kund = Kund(namn: "Prov", mapp: rot)
+            do {
+                let bank = try! Kunskapsbank(kund: kund)
+                try! bank.läggTill(titel: "x", text: "gammal läsning", typ: "dokument",
+                                   källa: "/m/Risker.xlsx", tid: nil)
+                try! bank.markeraIndexerad(URL(fileURLWithPath: "/m/Risker.xlsx"))
+                try! bank.markeraIndexerad(URL(fileURLWithPath: "/m/Tom.docx"))
+                try! bank.läggTill(titel: "y", text: "en pdf", typ: "dokument",
+                                   källa: "/m/Avtal.pdf", tid: nil)
+                try! bank.markeraIndexerad(URL(fileURLWithPath: "/m/Avtal.pdf"))
+                // Låtsas att banken skrevs av en äldre version.
+                let db = rot.appending(path: ".kundkoll/index.db")
+                var h: OpaquePointer?
+                sqlite3_open(db.path, &h)
+                sqlite3_exec(h, "PRAGMA user_version = 1", nil, nil, nil)
+                sqlite3_close(h)
+            }
+            let bank = try! Kunskapsbank(kund: kund)
+            Prov.lika(bank.källor(under: "/m/").sorted(), ["/m/Avtal.pdf"],
+                      "kontorsfilerna glöms så att de läses om, PDF:en står kvar")
+            Prov.lika(bank.antalDokument(under: "/m/"), 1, "och deras gamla text är borta")
+        }
+
+        do {   // kontorsfiler: Excel cell för cell, PowerPoint i ordning, Words kommentarer
+            let rot = FileManager.default.temporaryDirectory
+                .appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: rot) }
+            let fm = FileManager.default
+            func skriv(_ väg: String, _ innehåll: String) {
+                let url = rot.appending(path: väg)
+                try! fm.createDirectory(at: url.deletingLastPathComponent(),
+                                        withIntermediateDirectories: true)
+                try! innehåll.write(to: url, atomically: true, encoding: .utf8)
+            }
+            func packa(_ mapp: String, som namn: String) -> URL {
+                let ut = rot.appending(path: namn)
+                let p = Process()
+                p.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
+                p.currentDirectoryURL = rot.appending(path: mapp)
+                p.arguments = ["-qr", ut.path, "."]
+                p.standardOutput = FileHandle.nullDevice
+                try! p.run()
+                p.waitUntilExit()
+                return ut
+            }
+
+            skriv("x/xl/workbook.xml",
+                  #"<workbook><sheets><sheet name="Risker" sheetId="1" r:id="rId1"/></sheets></workbook>"#)
+            skriv("x/xl/sharedStrings.xml",
+                  "<sst><si><t>Risk</t></si><si><r><t>Åt</t></r><r><t>gärd</t></r></si>"
+                  + "<si><t>Servern faller</t></si></sst>")
+            skriv("x/xl/worksheets/sheet1.xml", """
+                <worksheet><sheetData>
+                <row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c></row>
+                <row r="2"><c r="A2" t="s"><v>2</v></c><c r="B2"><v>42</v></c>\
+                <c r="C2" t="inlineStr"><is><t>inline</t></is></c></row>
+                <row r="3"><c r="A3"/></row>
+                </sheetData></worksheet>
+                """)
+            let xlsx = Kontorsfiler.text(ur: packa("x", som: "risker.xlsx"))
+            Prov.lika(xlsx.text, "Blad: Risker\nRisk\tÅtgärd\nServern faller\t42\tinline",
+                      "bladnamn, rader med tabb mellan cellerna, strängtabellen uppslagen, "
+                      + "delad sträng ihopsatt, inline-sträng och tal med, tom rad borta")
+
+            skriv("p/ppt/slides/slide2.xml", "<p:sld><a:t>Andra bilden</a:t></p:sld>")
+            skriv("p/ppt/slides/slide10.xml", "<p:sld><a:t>Tionde</a:t></p:sld>")
+            skriv("p/ppt/notesSlides/notesSlide2.xml", "<p:notes><a:t>Säg detta</a:t></p:notes>")
+            let pptx = Kontorsfiler.text(ur: packa("p", som: "dragning.pptx")).text
+            Prov.kolla(pptx.contains("Bild 2: Andra bilden\nTalarnotering: Säg detta"),
+                       "bilden följs av sin talarnotering")
+            let bild2 = pptx.range(of: "Bild 2:")?.lowerBound ?? pptx.endIndex
+            let bild10 = pptx.range(of: "Bild 10:")?.lowerBound ?? pptx.startIndex
+            Prov.kolla(bild2 < bild10, "bild 2 kommer före bild 10, inte lexikalt efter")
+
+            skriv("d/word/document.xml", "<w:document><w:t>Brödtext &amp; mer</w:t></w:document>")
+            skriv("d/word/comments.xml", "<w:comments><w:t>Invändning</w:t></w:comments>")
+            skriv("d/word/settings.xml", "<w:settings><w:zoom w:percent=\"100\"/></w:settings>")
+            let docx = Kontorsfiler.text(ur: packa("d", som: "underlag.docx")).text
+            Prov.lika(docx, "Brödtext & mer\n\nKommentarer: Invändning",
+                      "brödtext först, kommentarerna märkta, inställningarna borta, entiteten avkodad")
+
+            Prov.lika(Kontorsfiler.nummer(i: "slide12.xml"), 12, "numret i filnamnet")
+            Prov.lika(Kontorsfiler.avkoda("a &amp;lt; b"), "a &lt; b",
+                      "&amp; avkodas sist, annars blir det två steg")
+            Prov.kolla(Kontorsfiler.text(ur: rot.appending(path: "finns-inte.xlsx")).skäl != nil,
+                       "en fil som inte går att packa upp får ett skäl")
+        }
+
+        do {   // «Hör inte till» måste vinna över domänregeln
+            let kund = Kund(namn: "Borås stad", mapp: URL(fileURLWithPath: "/tmp/x"))
+            let kontakter = [Kontakt(namn: "Philip", epost: ["philip@boras.se"])]
+            let m = Kalendern.Möte(
+                id: "m1", titel: "Curago Puls", start: Date(), slut: Date(),
+                deltagare: [Kalendern.Deltagare(namn: "Helena", epost: "helena@boras.se", ärJag: false)],
+                plats: nil, möteslänk: nil)
+            Prov.kolla(Kalendern.hör(m, till: kund, kontakter: kontakter), "domänregeln tar mötet")
+            Prov.kolla(Kalendern.hörTill(m, kund: kund, kontakter: kontakter, kopplingar: [:]),
+                       "utan beslut gäller regeln")
+            Prov.kolla(!Kalendern.hörTill(m, kund: kund, kontakter: kontakter,
+                                          kopplingar: ["m1": Arkivet.uteslutetMöte]),
+                       "uteslutet vinner över regeln")
+            Prov.kolla(Kalendern.hörTill(m, kund: kund, kontakter: kontakter, kopplingar: ["m1": ""]),
+                       "taget i anspråk vinner också")
+            let annat = Kalendern.Möte(id: "m2", titel: "Lunch", start: Date(), slut: Date(),
+                                       deltagare: [], plats: nil, möteslänk: nil)
+            Prov.kolla(!Kalendern.hörTill(annat, kund: kund, kontakter: kontakter, kopplingar: [:]),
+                       "ett möte utan spår hör inte hit")
+            Prov.kolla(Kalendern.hörTill(annat, kund: kund, kontakter: kontakter,
+                                         kopplingar: ["m2": "Projekt"]),
+                       "om det inte tagits i anspråk")
+        }
+
+        do {   // lägesbilden bygger på dokument när inget annat finns
+            let dok = Kunskapsbank.Träff(id: 1, typ: "dokument", titel: "AP2/DPIA.docx",
+                                         text: "Bedömningen visar att behandlingen kräver DPIA.",
+                                         källa: "/m/DPIA.docx", tid: Date(), poäng: 0)
+            let bara = Läget.underlag(projekt: "M365", inspelningar: [], uppgifter: [],
+                                      mejl: [], anteckningar: [], dokument: [dok])
+            Prov.lika(bara.count, 1, "ett dokument räcker som underlag")
+            Prov.kolla(bara.first?.text.contains("DPIA") == true, "och innehållet följer med")
+            Prov.lika(Läget.underlag(projekt: "Tomt", inspelningar: [], uppgifter: [],
+                                     mejl: [], anteckningar: [], dokument: []).count, 0,
+                      "utan något alls blir det inget underlag")
         }
 
         do {   // samtal

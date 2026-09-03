@@ -164,6 +164,19 @@ final class Kalendern: ObservableObject {
         return titel.contains(namn)
     }
 
+    /// Om mötet ska visas hos kunden, med de handgjorda besluten inräknade.
+    ///
+    /// Reglerna i `hör` är trubbiga åt båda hållen: ett möte utan deltagare
+    /// känner ingen regel igen, och med en kontakt på kundens domän tar
+    /// domänregeln även möten som inte alls hör hit. Därför två handgrepp,
+    /// båda sparade i kopplingarna: att ta ett möte i anspråk, och att
+    /// utesluta det. Beslutet går före regeln.
+    static func hörTill(_ möte: Möte, kund: Kund, kontakter: [Kontakt],
+                        kopplingar: [String: String]) -> Bool {
+        if let beslut = kopplingar[möte.id] { return beslut != Arkivet.uteslutetMöte }
+        return hör(möte, till: kund, kontakter: kontakter)
+    }
+
     /// Domäner som hör till kunden, med de vanliga e-postleverantörerna
     /// bortsorterade — annars skulle varje möte med en gmail-adress matcha.
     static func domäner(hos kontakter: [Kontakt]) -> Set<String> {

@@ -68,11 +68,59 @@ enum Kopplademappar {
         return !url.lastPathComponent.hasPrefix(".")
     }
 
+    /// Kontorsfiler, PDF, text och bilder: det som läses in i kunskapsbanken
+    /// när mappen är dokument snarare än kod. Läsarna är Bilagors — Word,
+    /// Excel och PowerPoint ur deras XML, PDF via PDFKit, bilder via Vision.
+    static let dokumentändelser: Set<String> = [
+        "pdf", "docx", "pptx", "xlsx", "docm", "pptm", "xlsm", "potx", "xltx",
+        "md", "markdown", "txt", "rtf",
+        "csv", "tsv", "html", "htm",
+        "png", "jpg", "jpeg", "heic", "tiff", "tif",
+    ]
+
+    /// Kodfiler, till skillnad från dokument. En mapp med sådana får också
+    /// agentsökningen, som kan följa spår mellan filer.
+    static let kodändelser: Set<String> = standardändelser
+        .subtracting(dokumentändelser)
+        .subtracting(["json", "yaml", "yml", "toml", "xml"])
+
+    /// Dokument får vara större: en PDF med bilder eller en presentation
+    /// passerar lätt två megabyte utan att vara mindre värd att läsa.
+    static let maxDokumentstorlek = 40 * 1024 * 1024
+
     /// Går igenom mappen och ger filerna som är värda att indexera.
     static func filer(i kopplad: Kopplad, max antal: Int = 400) -> [URL] {
         let ändelser = kopplad.ändelser.isEmpty
             ? standardändelser
             : Set(kopplad.ändelser.map { $0.lowercased() })
+        return vandra(kopplad, ändelser: ändelser, maxStorlek: maxStorlek, max: antal)
+    }
+
+    /// Dokumenten i mappen, för kunskapsbanken.
+    static func dokument(i kopplad: Kopplad, max antal: Int = 5000) -> [URL] {
+        vandra(kopplad, ändelser: dokumentändelser, maxStorlek: maxDokumentstorlek, max: antal)
+    }
+
+    /// Om mappen innehåller kod, och därmed är värd en agent per fråga. En
+    /// mapp med bara dokument ligger redan i kunskapsbanken; att låta en
+    /// agent läsa igenom den på nytt vid varje fråga vore både långsamt och
+    /// överflödigt.
+    static func harKod(_ kopplad: Kopplad) -> Bool {
+        !vandra(kopplad, ändelser: kodändelser, maxStorlek: maxStorlek, max: 1).isEmpty
+    }
+
+    /// Om filen bara är en platshållare vars innehåll ligger kvar i molnet.
+    /// OneDrive, iCloud och Dropbox visar sådana som vanliga filer i Finder,
+    /// men läsning ger ingenting eller väntar på nedladdning. Uppmätt på en
+    /// OneDrive-mapp: 361 av 583 filer. Flaggan är SF_DATALESS i stat().
+    static func ärPlatshållare(_ url: URL) -> Bool {
+        var st = stat()
+        guard stat(url.path, &st) == 0 else { return false }
+        return st.st_flags & UInt32(SF_DATALESS) != 0
+    }
+
+    private static func vandra(_ kopplad: Kopplad, ändelser: Set<String>,
+                               maxStorlek: Int, max antal: Int) -> [URL] {
         let fm = FileManager.default
         guard let vandring = fm.enumerator(
             at: kopplad.url,
@@ -88,6 +136,9 @@ enum Kopplademappar {
             }
             let värden = try? url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey])
             if värden?.isDirectory == true { continue }
+            // Office lämnar låsfiler som «~$Rapport.docx» medan ett dokument
+            // är öppet. De är inte dokument.
+            if url.lastPathComponent.hasPrefix("~$") { continue }
             guard ärIntressant(url, ändelser: ändelser),
                   (värden?.fileSize ?? 0) <= maxStorlek else { continue }
             ut.append(url)

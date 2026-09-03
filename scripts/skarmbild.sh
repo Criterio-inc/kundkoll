@@ -1,5 +1,5 @@
 #!/bin/bash
-# Tar en skärmbild av Kundkoll och skriver ut sökvägen.
+# Tar en skärmbild av Critero-kundkoll och skriver ut sökvägen.
 #
 #   scripts/skarmbild.sh            # appfönstret
 #   scripts/skarmbild.sh --starta   # startar om appen först
@@ -16,25 +16,34 @@ UT="${TMPDIR:-/tmp}/kundkoll-skarmbild.png"
 FORSOK="${FORSOK:-12}"
 
 if [ "${1:-}" = "--starta" ]; then
-    pkill -f "dist/Kundkoll" 2>/dev/null
+    pkill -f "dist/Critero-kundkoll" 2>/dev/null
     sleep 1
-    open dist/Kundkoll.app
+    open dist/Critero-kundkoll.app
     sleep 3
 fi
 
 # Lyft fram fönstret. Absolut sökväg, annars kan open hitta en annan kopia.
-open -a "$(pwd)/dist/Kundkoll.app" 2>/dev/null
+open -a "$(pwd)/dist/Critero-kundkoll.app" 2>/dev/null
 sleep 1.5
 
+# Fönster-ID via CoreGraphics. Ett litet Swift-skript, så att inget utanför
+# repot behövs — Command Line Tools räcker, precis som för bygget.
+FONSTERSKRIPT="${TMPDIR:-/tmp}/kundkoll-fonster-id.swift"
+cat > "$FONSTERSKRIPT" <<'SWIFT'
+import CoreGraphics
+let alla = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
+                                      kCGNullWindowID) as? [[String: Any]] ?? []
+for f in alla where (f[kCGWindowOwnerName as String] as? String) == "Critero-kundkoll" {
+    // Lager 0 är vanliga fönster; menyer och paletter ligger högre.
+    guard (f[kCGWindowLayer as String] as? Int) == 0,
+          let id = f[kCGWindowNumber as String] as? Int else { continue }
+    print(id)
+    break
+}
+SWIFT
+
 hitta_id() {
-    osascript -l JavaScript -e '
-        const app = Application("System Events");
-        const p = app.processes.whose({name: "Kundkoll"});
-        p.length ? "finns" : "";
-    ' >/dev/null 2>&1
-    # Fönster-ID via CoreGraphics-listan, samma väg som skärmbildsskillen
-    /Users/andersbj/.claude/skills/screenshot/scripts/list_windows.sh 2>/dev/null \
-        | awk -F'\t' '$2 == "Kundkoll" {print $1; exit}'
+    swift "$FONSTERSKRIPT" 2>/dev/null | head -1
 }
 
 for ((i = 1; i <= FORSOK; i++)); do

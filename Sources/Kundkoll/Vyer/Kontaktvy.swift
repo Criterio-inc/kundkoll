@@ -117,7 +117,7 @@ struct Kontaktvy: View {
 
             if !adressbok.harTillgång {
                 VStack(spacing: 12) {
-                    Text("Kundkoll har inte tillgång till dina kontakter.")
+                    Text("Critero-kundkoll har inte tillgång till dina kontakter.")
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                     Button("Ge tillgång") {

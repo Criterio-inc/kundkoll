@@ -14,6 +14,9 @@ struct Modellvy: View {
     @State private var provar = false
     @State private var insiktsmodell = Inställningar.insiktsmodell
     @State private var delaRöster = Inställningar.delaRöstprofiler
+    @State private var användarnamn = UserDefaults.standard.string(forKey: "kundkoll.användarnamn") ?? ""
+    /// Modellerna Ollama faktiskt har, så att ingen behöver gissa ett namn.
+    @State private var ollamaModeller: [String] = []
     @State private var transkribering = Transkriberingsval.läs()
     @State private var elevenNyckel = ""
     @State private var harElevenNyckel = Nyckelring.hämta("kundkoll-elevenlabs") != nil
@@ -68,9 +71,14 @@ struct Modellvy: View {
                         fält("Vanliga servrar") {
                             VStack(alignment: .leading, spacing: 6) {
                                 HStack(spacing: 8) {
-                                    förval("Ollama", port: 11434, modell: "llama3.1:8b")
+                                    förval("Ollama", port: 11434, modell: nil)
                                     förval("LM Studio", port: 1234, modell: nil)
                                     förval("MLX", port: 8080, modell: nil)
+                                }
+                                if !ollamaModeller.isEmpty {
+                                    Picker("Modell i Ollama", selection: $val.modell) {
+                                        ForEach(ollamaModeller, id: \.self) { Text($0).tag($0) }
+                                    }
                                 }
                                 if val.adress.contains(":8080") {
                                     Text("MLX startas med `mlx_lm.server --model "
@@ -81,6 +89,7 @@ struct Modellvy: View {
                                         .fixedSize(horizontal: false, vertical: true)
                                 }
                             }
+                            .task(id: val.adress) { await hämtaOllamaModeller() }
                         }
                     }
 
@@ -190,6 +199,18 @@ struct Modellvy: View {
                     Toggle("Känn igen röster mellan kunder", isOn: $delaRöster)
                         .help("Av som standard: röstprofiler ligger hos kunden, och samma person kan förekomma i flera kundärenden utan att man vill koppla ihop dem.")
 
+                    Divider().padding(.vertical, 4)
+
+                    fält("Ditt namn") {
+                        VStack(alignment: .leading, spacing: 6) {
+                            TextField(NSFullUserName(), text: $användarnamn)
+                                .textFieldStyle(.roundedBorder)
+                            Text("Så tilltalar chatten dig. Tomt betyder namnet på macOS-kontot.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
                     if let meddelande {
                         Text(meddelande)
                             .font(.callout)
@@ -226,6 +247,31 @@ struct Modellvy: View {
         .buttonStyle(.bordered)
         .controlSize(.small)
         .tint(val.adress == adress ? Color.accentColor : Color.secondary)
+    }
+
+    /// Frågar Ollama vilka modeller som finns i stället för att gissa på en
+    /// som kanske inte är hämtad — uppmätt: «model 'llama3.1:8b' not found»
+    /// på en dator som hade qwen3. Inbäddningsmodeller (bge-m3,
+    /// nomic-embed-text) sållas bort; de kan inte föra samtal.
+    private func hämtaOllamaModeller() async {
+        guard val.leverantör == .lokal, val.adress.contains(":11434"),
+              let url = URL(string: val.adress
+                .replacingOccurrences(of: "/v1/chat/completions", with: "/api/tags"))
+        else { ollamaModeller = []; return }
+        var r = URLRequest(url: url)
+        r.timeoutInterval = 2
+        guard let (data, _) = try? await URLSession.shared.data(for: r),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let rader = json["models"] as? [[String: Any]]
+        else { ollamaModeller = []; return }
+        let namn: [String] = rader.compactMap { m in
+            guard let n = m["name"] as? String else { return nil }
+            let familj = ((m["details"] as? [String: Any])?["family"] as? String) ?? ""
+            if familj.contains("bert") || n.contains("embed") || n.hasPrefix("bge") { return nil }
+            return n
+        }.sorted()
+        ollamaModeller = namn
+        if !namn.isEmpty, !namn.contains(val.modell) { val.modell = namn[0] }
     }
 
     /// whisper.cpp-väljaren skriver tomt när standarden valts, så att en
@@ -267,6 +313,7 @@ struct Modellvy: View {
         let ren = insiktsmodell.trimmingCharacters(in: .whitespacesAndNewlines)
         Inställningar.insiktsmodell = ren.isEmpty ? Insikter.standardmodell : ren
         Inställningar.delaRöstprofiler = delaRöster
+        Inställningar.användarnamn = användarnamn.trimmingCharacters(in: .whitespacesAndNewlines)
         stäng()
     }
 

@@ -40,6 +40,8 @@ enum Notiser {
         guard kanNotisa else { return }
         let central = UNUserNotificationCenter.current()
         central.getPendingNotificationRequests { väntande in
+            // Hämtas på nytt här hellre än fångas: klassen är inte Sendable.
+            let central = UNUserNotificationCenter.current()
             central.removePendingNotificationRequests(
                 withIdentifiers: väntande.map(\.identifier).filter { $0.hasPrefix("brief-") })
             for (kund, m) in möten {
@@ -93,7 +95,7 @@ enum Notiser {
                                     didReceive svar: UNNotificationResponse) async {
             switch svar.actionIdentifier {
             case "tidur-logga":
-                await MainActor.run { Tidur.delad.stoppa() }
+                _ = await MainActor.run { Tidur.delad.stoppa() }
                 return
             case "tidur-fortsätt":
                 await MainActor.run { Tidur.delad.fortsätt() }

@@ -153,7 +153,7 @@ struct Kanbanvy: View {
     private func läggTill() {
         let text = ny.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return }
-        try? arkiv.läggTill([Uppgift(vad: text, projekt: projekt?.namn)], för: kund)
+        _ = try? arkiv.läggTill([Uppgift(vad: text, projekt: projekt?.namn)], för: kund)
         ny = ""
         läsOm()
     }

@@ -60,13 +60,13 @@ enum Bilageprov {
             let storlek = (try? FileManager.default
                 .attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
             let bilaga = Bilagor.Bilaga(ämne: "prov", namn: url.lastPathComponent,
-                                        fil: url.path, storlek: storlek ?? 0)
+                                        fil: url.path, storlek: storlek)
 
             let t0 = Date()
             let text = await Bilagor.text(ur: bilaga)
             let tid = Date().timeIntervalSince(t0)
 
-            print("\n\(url.lastPathComponent) (\(bilaga.ändelse), \((storlek ?? 0) / 1024) kB) "
+            print("\n\(url.lastPathComponent) (\(bilaga.ändelse), \(storlek / 1024) kB) "
                   + "— \(String(format: "%.1f", tid)) s")
             if let text {
                 let rader = text.split(separator: "\n")

@@ -38,8 +38,11 @@ enum Läget {
 
     /// När det senaste underlaget kom — har något hänt efter att lägesbilden
     /// skrevs är den gammal.
+    // `arkiv` är valfritt i stället för `= .shared`: ett standardvärde
+    // räknas ut hos anroparen, som inte är på huvudaktören.
     static func senasteUnderlag(kund: Kund, projekt: Projekt,
-                                arkiv: Arkivet = .shared) -> Date? {
+                                arkiv: Arkivet? = nil) -> Date? {
+        let arkiv = arkiv ?? .shared
         var tider: [Date] = []
         tider += arkiv.inspelningar(för: kund)
             .filter { $0.0.projekt == projekt.namn }
@@ -53,7 +56,7 @@ enum Läget {
     }
 
     static func gammal(_ bild: Lägesbild, kund: Kund, projekt: Projekt,
-                       arkiv: Arkivet = .shared) -> Bool {
+                       arkiv: Arkivet? = nil) -> Bool {
         guard let senaste = senasteUnderlag(kund: kund, projekt: projekt, arkiv: arkiv)
         else { return false }
         return bild.skriven < senaste
@@ -61,13 +64,19 @@ enum Läget {
 
     /// Skriver en ny lägesbild och sparar den.
     static func skriv(kund: Kund, projekt: Projekt,
-                      arkiv: Arkivet = .shared) async throws -> Lägesbild {
+                      arkiv: Arkivet? = nil) async throws -> Lägesbild {
+        let arkiv = arkiv ?? .shared
+        // Dokumenten ur kopplade mappar räknas som underlag. Ett projekt som
+        // bara har ett dokumentarkiv och inga möten fick annars «inget
+        // underlag att bygga en lägesbild på» trots hundratals filer.
+        let dokument = (try? Kunskapsbank(kund: kund))?.senasteDokument(max: 8) ?? []
         let träffar = underlag(
             projekt: projekt.namn,
             inspelningar: arkiv.inspelningar(för: kund).map(\.0),
             uppgifter: arkiv.uppgifter(för: kund),
             mejl: arkiv.mailcache(för: kund)?.mejl ?? [],
-            anteckningar: arkiv.anteckningar(i: projekt.anteckningsmapp))
+            anteckningar: arkiv.anteckningar(i: projekt.anteckningsmapp),
+            dokument: dokument)
         guard !träffar.isEmpty else {
             throw Enkeltfel("Det finns inget underlag att bygga en lägesbild på än.")
         }
@@ -103,7 +112,7 @@ enum Läget {
         \(bild.text)
 
         ---
-        Skriven av Kundkoll ur uppgifter, möten och mejl. Skrivs om när \
+        Skriven av Kundkoll ur uppgifter, möten, mejl och dokument. Skrivs om när \
         underlaget ändras — redigera inte här.
         """
         try? md.write(to: projekt.mapp.appending(path: "Läget.md"),
@@ -116,7 +125,8 @@ enum Läget {
                          inspelningar: [Inspelning],
                          uppgifter: [Uppgift],
                          mejl: [Mailen.Mejl],
-                         anteckningar: [Anteckning]) -> [Kunskapsbank.Träff] {
+                         anteckningar: [Anteckning],
+                         dokument: [Kunskapsbank.Träff] = []) -> [Kunskapsbank.Träff] {
         var ut: [Kunskapsbank.Träff] = []
         var id: Int64 = 0
         func lägg(_ typ: String, _ titel: String, _ text: String, _ tid: Date?) {
@@ -155,6 +165,12 @@ enum Läget {
                 return rad
             }
             lägg("anteckning", "Uppgifterna på tavlan", rader.joined(separator: "\n"), nil)
+        }
+
+        // De senast ändrade dokumenten. Bara början av varje: lägesbilden
+        // ska säga var arbetet står, inte återge innehållet.
+        for d in dokument.prefix(8) {
+            lägg("dokument", d.titel, String(d.text.prefix(600)), d.tid)
         }
 
         // Mejlen är kundens, inte projektets. De som nämner projektet vid

@@ -21,7 +21,7 @@ enum Uppgiftssamling {
                     projekt: inspelning.projekt,
                     skapad: inspelning.inledd)
         }
-        try? Arkivet.shared.läggTill(nya, för: kund)
+        _ = try? Arkivet.shared.läggTill(nya, för: kund)
     }
 
     /// Om en uppgift kom ur ett visst möte. Mappen är det säkra kännetecknet;
@@ -58,7 +58,7 @@ enum Uppgiftssamling {
                         ursprung: .mejl, källtitel: m.ämne, skapad: m.datum ?? Date())
             }
         }
-        try? Arkivet.shared.läggTill(funna, för: kund)
+        _ = try? Arkivet.shared.läggTill(funna, för: kund)
         märkGenomgången(kund, till: nya.compactMap(\.datum).max() ?? Date())
     }
 

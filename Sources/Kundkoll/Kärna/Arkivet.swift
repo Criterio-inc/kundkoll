@@ -259,6 +259,19 @@ final class Arkivet: ObservableObject {
         try skrivMöteskopplingar(alla, för: kund)
     }
 
+    /// Värdet i kopplingarna som betyder «hör inte hit». Ett projekt kan
+    /// inte heta så, och tom sträng är upptagen av «kunden utan projekt».
+    nonisolated static let uteslutetMöte = "!"
+
+    /// Utesluter ett möte som reglerna annars skulle ta med. Att bara ta
+    /// bort kopplingen räckte inte: domänregeln tog mötet tillbaka på nästa
+    /// hämtning, så «Hör inte till» såg ut att inte göra något.
+    func uteslutMöte(_ mötesID: String, för kund: Kund) throws {
+        var alla = möteskopplingar(för: kund)
+        alla[mötesID] = Self.uteslutetMöte
+        try skrivMöteskopplingar(alla, för: kund)
+    }
+
     func taBortMöteskoppling(_ mötesID: String, för kund: Kund) throws {
         var alla = möteskopplingar(för: kund)
         alla.removeValue(forKey: mötesID)
@@ -384,6 +397,42 @@ final class Arkivet: ObservableObject {
         return kvar
     }
 
+    // Samma sak på kunden. En mapp som är hela kundrelationen — OneDrive,
+    // en delad mapp, ett arkiv — hör inte hemma under ett enskilt projekt.
+
+    private func kopplingsfil(_ kund: Kund) -> URL {
+        kund.mapp.appending(path: "kopplade-mappar.json")
+    }
+
+    func kopplade(för kund: Kund) -> [Kopplad] {
+        guard let data = try? Data(contentsOf: kopplingsfil(kund)),
+              let k = try? JSONDecoder.kundkoll.decode([Kopplad].self, from: data)
+        else { return [] }
+        return k
+    }
+
+    func sparaKopplade(_ mappar: [Kopplad], för kund: Kund) throws {
+        let data = try JSONEncoder.kundkoll.encode(mappar)
+        try data.write(to: kopplingsfil(kund), options: .atomic)
+    }
+
+    @discardableResult
+    func koppla(_ mapp: URL, till kund: Kund) throws -> [Kopplad] {
+        var alla = kopplade(för: kund)
+        let väg = mapp.standardizedFileURL.path
+        guard !alla.contains(where: { $0.väg == väg }) else { return alla }
+        alla.append(Kopplad(väg: väg))
+        try sparaKopplade(alla, för: kund)
+        return alla
+    }
+
+    @discardableResult
+    func koppla(bort mapp: Kopplad, från kund: Kund) throws -> [Kopplad] {
+        let kvar = kopplade(för: kund).filter { $0.väg != mapp.väg }
+        try sparaKopplade(kvar, för: kund)
+        return kvar
+    }
+
     // MARK: - Anteckningar
 
     /// Anteckningar i en mapp, nyast ändrad först.
@@ -398,7 +447,7 @@ final class Arkivet: ObservableObject {
                 let ändrad = (try? url.resourceValues(forKeys: [.contentModificationDateKey])
                     .contentModificationDate) ?? .distantPast
                 return Anteckning(titel: url.deletingPathExtension().lastPathComponent,
-                                  text: text, ändrad: ändrad ?? .distantPast, fil: url)
+                                  text: text, ändrad: ändrad, fil: url)
             }
             .sorted { $0.ändrad > $1.ändrad }
     }

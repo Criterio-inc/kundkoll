@@ -52,7 +52,49 @@ tabell i en skärmbild står inte i ämnesraden. Uppmätt på riktiga mejlbilago
 en skärmbild 69 rader text på 0,2 sekunder. Kalenderfiler, signaturfiler och
 inbäddade `image001`-bilder sorteras bort — de kommer i mängd utan att tillföra.
 
-## Kopplade mappar indexeras inte — de genomsöks
+## Kopplade dokumentmappar indexeras
+
+Tillägg i forken: en kopplad mapp vars innehåll är dokument — Word, Excel,
+PowerPoint, PDF, text, bilder — läses in i kunskapsbanken som typen
+`dokument`, med samma läsare som mejlbilagorna. Bara ändrade filer läses om,
+borttagna glöms, Office-låsfiler (`~$…`) hoppas över, och gränsen är 40 MB
+per fil. Titeln är vägen inom mappen, så hänvisningen under svaret säger
+«AP2 — Bedömningar/DPIA.docx» och inte bara filnamnet. Bakgrunden: en
+OneDrive-mapp om en kund med 593 filer, varav 279 kontorsfiler som
+agentsökningen nedan aldrig hade kunnat läsa.
+
+Agenten får bara mappar som innehåller kod (`Kopplademappar.harKod`).
+
+⚠️ **En fil som faller får inte fälla genomgången.** Första versionen låg i
+ett enda `try` och avbröt tyst vid första felet: uppmätt stannade en
+OneDrive-mapp på 219 av 593 filer, utan ett ord om varför. Orsaken var
+skrivlås — inbäddningen skrev vektorer på en egen anslutning samtidigt.
+Tre ändringar: varje fil läses i sitt eget `do/catch` och räknas som fälld
+i stället för att avbryta, databasen körs i WAL-läge med 30 sekunders
+väntan i stället för rollback-journal med 2, och kundvyns bakgrundsarbete
+går i ett spår där inbäddningen kommer sist. Det första felet visas vid
+mappen i kundvyn.
+
+**Kontorsfilerna läses av `Kontorsfiler`.** Den gamla vägen strippade
+taggarna i några utvalda XML-delar, och för Excel var det bara
+strängtabellen: en osorterad hög med ord utan rader, kolumner eller
+bladnamn, och för många filer ingenting alls. Uppmätt på samma 593 filer:
+219 gav text. Nu läses Excel cell för cell med XMLParser och strängtabellen
+slås upp, så en riskmatris blir rader med tabb mellan cellerna och bladets
+namn överst. PowerPoint får bilderna i nummerordning med talarnoteringen
+efter varje bild, Word får kommentarer, noter och sidhuvuden. Datum i
+Excel blir tal — vilka celler som är datum står i `styles.xml`, och att
+gissa på talets storlek skulle göra «45 000 kr» till ett datum.
+`--prov-dokument <mapp>` säger per filtyp hur många som ger text.
+
+Räknaren vid mappen säger både filer och filer med text, så att skillnaden
+syns.
+
+Lägesbilden räknar också dokumenten som underlag (de åtta senast ändrade,
+600 tecken var). Ett projekt med ett dokumentarkiv men inga möten fick
+annars «inget underlag att bygga en lägesbild på».
+
+## Kopplade kodmappar indexeras inte — de genomsöks
 
 En kopplad kodmapp hör inte hemma i indexet. Uppmätt på det här projektets egen
 mapp: 54 filer blir **481 stycken**, mot 70 för allt material om en riktig kund

@@ -1,9 +1,17 @@
 # Kundkoll
 
-[![Patreon](https://img.shields.io/badge/Patreon-st%C3%B6d%20projektet-f96854?logo=patreon&logoColor=white)](https://www.patreon.com/AndersBjarby)
-
 Nativ macOS-app för att hålla ordning på mötes- och telefontranskriberingar
 per kund och projekt. Allt ljud och all transkribering sker lokalt på datorn.
+
+## Ursprung
+
+Det här är en fork av Kundkoll av Anders Bjarby (FLTman), anpassad för
+Criterio. Grundidén, mätningarna i `docs/` och nästan all kod är hans — se
+`LICENSE` (MIT). Vill du stödja ursprungsprojektet finns
+[![Patreon](https://img.shields.io/badge/Patreon-st%C3%B6d%20ursprunget-f96854?logo=patreon&logoColor=white)](https://www.patreon.com/AndersBjarby).
+
+Kom igång: `docs/INSTALLATION.md` går igenom allt som behövs utanför appen,
+och `scripts/installera.sh` gör det mesta av det åt dig.
 
 ## Läge
 
@@ -78,7 +86,9 @@ Kundvyn visar kommande möten, kontakter och mejl som hör till kunden.
 **Kalender** (EventKit): ett möte räknas som kundens om någon deltagare finns
 bland kundens kontakter, har kundens e-postdomän, eller om kundnamnet står i
 titeln. Startas inspelningen från ett möte följer titeln med — och de kallade
-blir förslagen när rösterna ska märkas.
+blir förslagen när rösterna ska märkas. Reglerna är trubbiga: ett möte de
+missar tas i anspråk med «Lägg till möte», och ett de tar fel på skickas bort
+med «Hör inte till». Beslutet går före regeln, åt båda hållen.
 
 **Kontakter** (Contacts): personer hämtas ur adressboken eller skrivs upp för
 hand, och redigeras i appen — namn, roll, flera adresser och telefonnummer. En
@@ -88,6 +98,8 @@ delas med telefonen, så appen ändrar inget där i bakgrunden. En person du sat
 namn på i ett transkript läggs upp som kontakt automatiskt.
 
 **Mail** (AppleScript): söker mejl på kundens adresser, öppnar dem i Mail.
+Adresserna är kontakternas, i den ordning de står och högst tolv — utan
+kontakter med adress är fliken tom, och de du lägger upp först är de som söks.
 Vägen är vald efter mätning — mejlen ligger också som filer under
 `~/Library/Mail`, vilket är snabbare vid breda sökningar men kräver Full Disk
 Access. Eftersom vi alltid söker på bestämda kundadresser räcker AppleScript,
@@ -193,9 +205,13 @@ kontakter och tidigare samtal. Tidigare samtal viktas ner: de säger vad modelle
 svarade, inte vad som faktiskt hände. Ett svar kan sparas som anteckning direkt ur
 chatten.
 
-**Kopplade mappar** — källkod, ritningar, offerter — indexeras däremot inte.
-De genomsöks i stället av en agent när du ställer frågan, så att svaret bygger
-på hur filerna ser ut just nu. Det tar en halv minut, så det svaret dyker upp
+**Kopplade mappar** finns i två slag, och appen ser själv vilket. En mapp
+med dokument — OneDrive-mappen om kunden, ett projektarkiv — läses in i
+kunskapsbanken: Word, Excel, PowerPoint, PDF, text och bilder, bara det som
+ändrats sedan sist, och det som tagits bort glöms. Mappen kopplas på kunden
+eller på ett projekt och rörs aldrig. En mapp med källkod indexeras däremot
+inte; den genomsöks av en agent när du ställer frågan, så att svaret bygger på
+hur filerna ser ut just nu. Det tar en halv minut, så det svaret dyker upp
 asynkront efter det snabba ur kunskapsbanken.
 
 Sökningen är SQLite FTS5 med trunkerade sökord; svenskans böjningar gör att rak
@@ -253,11 +269,15 @@ för hand i Finder eller Obsidian dyker upp i appen utan vidare.
 
 ## Krav
 
-- macOS 26
-- `~/Projekt/whisper.cpp` byggd, med `kb_whisper_ggml_small.bin` och
-  `kb_whisper_ggml_medium.bin` i `models/`
-- Pythonmiljö med torch och speechbrain för röstanalysen; som standard
-  `~/Projekt/transcriber/venv`
+Steg för steg i `docs/INSTALLATION.md`; `scripts/installera.sh` sätter upp
+punkterna två och tre och `scripts/installera.sh --kontrollera` säger vad
+som saknas.
+
+- macOS 26 på Apple Silicon
+- `~/Projekt/whisper.cpp` byggd, med `kb_whisper_ggml_small.bin`,
+  `kb_whisper_ggml_medium.bin` och `ggml-silero-v5.1.2.bin` i `models/`
+- Pythonmiljö med torch, speechbrain och pyannote för röstanalysen; som
+  standard `~/Projekt/transcriber/venv`
 - Behörighet för **Mikrofon** och **Skärminspelning** (den senare krävs för
   datorljudet — ScreenCaptureKit fångar bara ljud här, ingen bild sparas)
 - Frivilligt: **Kalender**, **Kontakter** och **Automatisering** för Mail.
@@ -278,13 +298,14 @@ fönstret först, gör flera försök, och faller tillbaka på hela skärmen.
 ## Bygga
 
 ```bash
-./scripts/bygg-app.sh                                        # dist/Kundkoll.app
-.build/arm64-apple-macosx/debug/Kundkoll --test              # 552 enhetstester
+./scripts/bygg-app.sh                                        # dist/Critero-kundkoll.app
+.build/arm64-apple-macosx/debug/Kundkoll --test              # 562 enhetstester
 .build/arm64-apple-macosx/debug/Kundkoll --prov-ljud f.wav   # hela kedjan skarpt
 .build/arm64-apple-macosx/debug/Kundkoll --prov-röst ljud.wav w.json facit.json
 .build/arm64-apple-macosx/debug/Kundkoll --prov-import fil.mp4 fil.m4a
 .build/arm64-apple-macosx/debug/Kundkoll --prov-chatt [leverantör] [modell]
 .build/arm64-apple-macosx/debug/Kundkoll --prov-bilaga fil.pdf bild.png
+.build/arm64-apple-macosx/debug/Kundkoll --prov-dokument <mapp>   # hur många filer som ger text, per typ
 .build/arm64-apple-macosx/debug/Kundkoll --prov-omröst <inspelningsmapp> [antal]
 .build/arm64-apple-macosx/debug/Kundkoll --prov-kodagent <mapp> "<fråga>"
 .build/arm64-apple-macosx/debug/Kundkoll --prov-insikter [modell …]
@@ -292,9 +313,9 @@ fönstret först, gör flera försök, och faller tillbaka på hela skärmen.
 .build/arm64-apple-macosx/debug/Kundkoll --prov-transkribering f.wav [motor] [modell]
 ```
 
-Xcode behövs inte — Command Line Tools räcker. Appen signeras med Developer ID
-om certifikatet finns, vilket gör att macOS kommer ihåg beviljade behörigheter
-mellan ombyggen. Eget certifikat anges med `KUNDKOLL_SIGNERING`; utan
+Xcode behövs inte — Command Line Tools räcker. Har du ett Developer
+ID-certifikat anger du det med `KUNDKOLL_SIGNERING`, så signeras appen med
+det och macOS kommer ihåg beviljade behörigheter mellan ombyggen. Utan
 certifikat signeras appen ad hoc och behörigheterna får ges om vid varje bygge.
 
 ## Licens

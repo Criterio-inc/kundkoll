@@ -35,10 +35,48 @@ final class Kunskapsbank {
         try FileManager.default.createDirectory(at: mapp, withIntermediateDirectories: true)
         fil = mapp.appending(path: "index.db")
         guard sqlite3_open(fil.path, &db) == SQLITE_OK else { throw Fel.kanInteÖppna }
-        // Inbäddningen skriver från en egen anslutning i bakgrunden; en kort
-        // väntan i stället för «database is locked».
-        sqlite3_busy_timeout(db, 2000)
+        // Flera anslutningar skriver: dokumentgenomgången, inbäddningen och
+        // chattens egen indexering. Med rollback-journal låser en skrivning
+        // ut de andra helt, och 2 s räckte inte — uppmätt stannade en
+        // dokumentgenomgång på 219 av 593 filer när inbäddningen skrev
+        // vektorer samtidigt. WAL låter en läsare och en skrivare arbeta
+        // parallellt, och en halv minut är gott och väl längre än något
+        // enskilt parti tar.
+        sqlite3_exec(db, "PRAGMA journal_mode=WAL", nil, nil, nil)
+        sqlite3_busy_timeout(db, 30_000)
         try skapaTabeller()
+        läsOmEfterBättreLäsare()
+    }
+
+    /// Läsarversionen, i SQLites `user_version`. När en läsare blir bättre
+    /// måste dess filer läsas om — annars står de kvar som «indexerade» med
+    /// den gamla läsningens resultat, och för 366 kontorsfiler var det
+    /// ingenting alls.
+    ///
+    /// Version 2: kontorsfilsläsaren skrevs om (Excel cell för cell,
+    /// talarnoteringar, kommentarer). Version 3: platshållare i molnet
+    /// hade markerats som lästa utan text; källor utan dokument glöms så
+    /// att de läses när innehållet hämtats hem.
+    static let läsarversion: Int32 = 3
+
+    private func läsOmEfterBättreLäsare() {
+        var s: OpaquePointer?
+        sqlite3_prepare_v2(db, "PRAGMA user_version", -1, &s, nil)
+        let nuvarande = sqlite3_step(s) == SQLITE_ROW ? sqlite3_column_int(s, 0) : 0
+        sqlite3_finalize(s)
+        guard nuvarande < Self.läsarversion else { return }
+        if nuvarande < 2 {
+            let kontor: Set<String> = ["docx", "pptx", "xlsx", "docm", "pptm", "xlsm", "potx", "xltx"]
+            for källa in källor(under: "/")
+            where kontor.contains((källa as NSString).pathExtension.lowercased()) {
+                try? glöm(källa: källa)
+            }
+        }
+        if nuvarande < 3 {
+            sqlite3_exec(db, "DELETE FROM källor WHERE källa NOT IN (SELECT DISTINCT källa FROM dokument)",
+                         nil, nil, nil)
+        }
+        sqlite3_exec(db, "PRAGMA user_version = \(Self.läsarversion)", nil, nil, nil)
     }
 
     deinit { sqlite3_close(db) }
@@ -101,6 +139,71 @@ final class Kunskapsbank {
         sqlite3_prepare_v2(db, "DELETE FROM dokument WHERE källa = ?", -1, &s, nil)
         bind(s, 1, källa)
         sqlite3_step(s)
+
+        // Källan glöms också, så att en fil som tagits bort inte ligger kvar
+        // som «indexerad» och en som kommer tillbaka läses på nytt.
+        var k: OpaquePointer?
+        defer { sqlite3_finalize(k) }
+        sqlite3_prepare_v2(db, "DELETE FROM källor WHERE källa = ?", -1, &k, nil)
+        bind(k, 1, källa)
+        sqlite3_step(k)
+    }
+
+    /// Källorna under en mapp — för att glömma filer som försvunnit ur den.
+    func källor(under prefix: String) -> [String] {
+        var s: OpaquePointer?
+        defer { sqlite3_finalize(s) }
+        guard sqlite3_prepare_v2(db, "SELECT källa FROM källor WHERE källa LIKE ?",
+                                 -1, &s, nil) == SQLITE_OK else { return [] }
+        bind(s, 1, prefix + "%")
+        var ut: [String] = []
+        while sqlite3_step(s) == SQLITE_ROW { ut.append(text(s, 0)) }
+        return ut
+    }
+
+    /// De senast ändrade dokumenten ur kopplade mappar, ett stycke per fil.
+    /// Underlag åt lägesbilden: det som ändrats sist säger var arbetet står.
+    func senasteDokument(max antal: Int = 8) -> [Träff] {
+        var s: OpaquePointer?
+        defer { sqlite3_finalize(s) }
+        guard sqlite3_prepare_v2(db, """
+            SELECT rowid, typ, titel, text, källa, tid FROM dokument
+            WHERE typ = 'dokument' AND tid != ''
+            GROUP BY källa
+            ORDER BY CAST(tid AS REAL) DESC LIMIT ?
+            """, -1, &s, nil) == SQLITE_OK else { return [] }
+        sqlite3_bind_int(s, 1, Int32(antal))
+        var ut: [Träff] = []
+        while sqlite3_step(s) == SQLITE_ROW {
+            let tid = Double(text(s, 5)).map { Date(timeIntervalSince1970: $0) }
+            ut.append(Träff(id: sqlite3_column_int64(s, 0), typ: text(s, 1),
+                            titel: text(s, 2), text: text(s, 3),
+                            källa: text(s, 4), tid: tid, poäng: 0))
+        }
+        return ut
+    }
+
+    /// Antal filer ur en mapp som gåtts igenom, med eller utan text. Skiljer
+    /// sig från `antalDokument` när filer inte gav någon text — och den
+    /// skillnaden är det man vill se, inte dölja.
+    func antalKällor(under prefix: String) -> Int {
+        var s: OpaquePointer?
+        defer { sqlite3_finalize(s) }
+        guard sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM källor WHERE källa LIKE ?",
+                                 -1, &s, nil) == SQLITE_OK else { return 0 }
+        bind(s, 1, prefix + "%")
+        return sqlite3_step(s) == SQLITE_ROW ? Int(sqlite3_column_int64(s, 0)) : 0
+    }
+
+    /// Antal dokument som kommer ur en mapp, för räknaren i kundvyn.
+    func antalDokument(under prefix: String) -> Int {
+        var s: OpaquePointer?
+        defer { sqlite3_finalize(s) }
+        guard sqlite3_prepare_v2(db,
+            "SELECT COUNT(DISTINCT källa) FROM dokument WHERE källa LIKE ?",
+            -1, &s, nil) == SQLITE_OK else { return 0 }
+        bind(s, 1, prefix + "%")
+        return sqlite3_step(s) == SQLITE_ROW ? Int(sqlite3_column_int64(s, 0)) : 0
     }
 
     func läggTill(titel: String, text: String, typ: String, källa: String, tid: Date?) throws {

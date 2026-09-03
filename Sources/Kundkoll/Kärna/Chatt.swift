@@ -2,9 +2,10 @@ import Foundation
 
 /// Frågor och svar om en kund, med kundens eget material som underlag.
 ///
-/// Modellen nås via OpenRouter, som Anders redan har nyckel till. Bara det som
-/// sökningen plockat fram skickas — inte hela kundmappen — och bara när han
-/// själv ställer en fråga. Under pågående samtal används den lokala modellen.
+/// Modellen nås hos den leverantör som valts under ⌘, — moln eller lokal.
+/// Bara det som sökningen plockat fram skickas — inte hela kundmappen — och
+/// bara när användaren själv ställer en fråga. Under pågående samtal används
+/// den lokala modellen.
 actor Chatt {
 
     /// En källa svaret byggde på.
@@ -47,6 +48,7 @@ actor Chatt {
             case "bilaga": "paperclip"
             case "chatt": "bubble.left.and.text.bubble.right"
             case "fil": "folder"
+            case "dokument": "doc.richtext"
             case "sammanfattning": "list.bullet.rectangle"
             case "kontakt": "person"
             default: "doc.text"
@@ -151,7 +153,7 @@ actor Chatt {
             r.setValue(nyckel, forHTTPHeaderField: "api-key")
         case .openrouter:
             r.setValue("Bearer \(nyckel ?? "")", forHTTPHeaderField: "Authorization")
-            r.setValue("Kundkoll", forHTTPHeaderField: "X-Title")
+            r.setValue("Critero-kundkoll", forHTTPHeaderField: "X-Title")
         case .openai:
             r.setValue("Bearer \(nyckel ?? "")", forHTTPHeaderField: "Authorization")
         case .lokal:
@@ -227,7 +229,7 @@ actor Chatt {
         }.joined(separator: "\n\n")
 
         var ut = """
-        Du hjälper Anders att hålla ordning på sitt arbete med kunden \(kund).
+        Du hjälper \(Inställningar.användarnamn) att hålla ordning på sitt arbete med kunden \(kund).
         \(projekt.map { "Frågan gäller projektet \($0)." } ?? "")
 
         Svara på svenska, kort och konkret. Du får bara bygga svaret på
@@ -351,7 +353,7 @@ actor Chatt {
         var errorDescription: String? {
             switch self {
             case .ingenNyckel(let l):
-                "Ingen API-nyckel för \(l.namn). Lägg in den under Kundkoll → API-nyckel."
+                "Ingen API-nyckel för \(l.namn). Lägg in den under Critero-kundkoll → API-nyckel."
             case .ingetSvar: "Fick inget svar från modellen."
             case .tomtSvar: "Modellen svarade utan innehåll."
             case .trasigAdress: "Adressen till modellen går inte att tolka."

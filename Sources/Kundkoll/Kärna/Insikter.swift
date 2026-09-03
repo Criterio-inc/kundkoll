@@ -131,6 +131,17 @@ actor Insikter {
 
 /// Inställningar som gäller hela appen.
 enum Inställningar {
+    /// Namnet modellen tilltalar dig med i chatten. Tomt betyder kontots
+    /// namn i macOS, så en färsk installation fungerar utan att något ställs in.
+    static var användarnamn: String {
+        get {
+            let sparat = UserDefaults.standard.string(forKey: "kundkoll.användarnamn")?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return sparat.isEmpty ? NSFullUserName() : sparat
+        }
+        set { UserDefaults.standard.set(newValue, forKey: "kundkoll.användarnamn") }
+    }
+
     /// Modellen som lyssnar efter frågeställningar under samtal.
     static var insiktsmodell: String {
         get { UserDefaults.standard.string(forKey: "kundkoll.insiktsmodell") ?? Insikter.standardmodell }

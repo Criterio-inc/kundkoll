@@ -39,6 +39,13 @@ struct Kundinnehåll: View {
     @State private var möteskopplingar: [String: String] = [:]
     @State private var slutför: URL?
     @State private var slutförsteg = ""
+    /// Mappar utanför kundmappen, och hur många dokument ur var och en som
+    /// ligger i kunskapsbanken.
+    @State private var kopplade: [Kopplad] = []
+    @State private var dokumentantal: [String: (filer: Int, medText: Int)] = [:]
+    @State private var läserIn = false
+    @State private var dokumentfel: String?
+    @State private var iMolnet = 0
 
     enum Flik: String, CaseIterable, Identifiable {
         case översikt, attGöra, inspelningar, anteckningar, mail
@@ -153,6 +160,9 @@ struct Kundinnehåll: View {
         // Ett avslutat möte — och senare arkivtranskriptet, rösterna och
         // sammanfattningen — ska dyka upp utan att appen startas om.
         .onChange(of: arkiv.sparningar) { läsOm() }
+        .onReceive(NotificationCenter.default.publisher(for: .dokumentIndexerade)) { _ in
+            räknaDokument()
+        }
         .task(id: kund.id) { await hämtaMöten() }
         .task(id: kund.id) { await visaMejl() }
         // Ett nyinbokat eller flyttat möte ska synas direkt.
@@ -179,6 +189,7 @@ struct Kundinnehåll: View {
     private var översikt: some View {
         mötesavsnitt
         projektavsnitt
+        mappavsnitt
         kontaktavsnitt
         if !inspelningar.isEmpty {
             avsnitt("Senaste inspelningarna") {
@@ -249,7 +260,7 @@ struct Kundinnehåll: View {
                                 }
                                 Divider()
                                 Button("Hör inte till \(kund.namn)", role: .destructive) {
-                                    try? arkiv.taBortMöteskoppling(m.id, för: kund)
+                                    try? arkiv.uteslutMöte(m.id, för: kund)
                                     läsOm()
                                     Task { await hämtaMöten() }
                                 }
@@ -613,6 +624,119 @@ struct Kundinnehåll: View {
         kontakter = arkiv.kontakter(för: kund)
         inspelningar = arkiv.inspelningar(för: kund)
         ofullständiga = arkiv.ofullständiga(för: kund)
+        kopplade = arkiv.kopplade(för: kund)
+        räknaDokument()
+    }
+
+    // MARK: - Kopplade mappar
+
+    /// Mappar utanför kundmappen — OneDrive, en delad mapp, ett arkiv. De
+    /// rörs inte; dokumenten i dem läses in i kunskapsbanken.
+    private var mappavsnitt: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Avsnittsrubrik("Kopplade mappar")
+                Spacer()
+                Button("Koppla mapp", action: väljMapp).buttonStyle(.link)
+            }
+            if kopplade.isEmpty {
+                Text("Peka ut en mapp med kundens material — OneDrive, en delad mapp, ett arkiv. Word, Excel, PowerPoint, PDF, text och bilder läses in i kunskapsbanken så att chatten kan svara ur dem. Mappen rörs inte.")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                if iMolnet > 0 {
+                    Label("\(iMolnet) filer ligger kvar i molnet och kan inte läsas. Högerklicka mappen i Finder och välj «Behåll alltid på den här enheten».",
+                          systemImage: "icloud.and.arrow.down")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if let dokumentfel {
+                    Label("Någon fil gick inte att läsa: \(dokumentfel)",
+                          systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                mapplista
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var mapplista: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(kopplade.enumerated()), id: \.element.id) { i, k in
+                HStack(spacing: 10) {
+                    Image(systemName: k.finns ? "folder" : "questionmark.folder")
+                        .foregroundStyle(k.finns ? Color.secondary : Color.orange)
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(k.visatNamn)
+                            if let n = dokumentantal[k.väg] {
+                                Märke(text: Indexering.dokumentetikett(filer: n.filer, medText: n.medText, pågår: läserIn),
+                                      ikon: "doc.richtext")
+                            }
+                        }
+                        Text(k.finns ? k.väg : "Mappen finns inte längre")
+                            .font(.caption)
+                            .foregroundStyle(k.finns ? Color.secondary : Color.orange)
+                            .lineLimit(1)
+                            .truncationMode(.head)
+                    }
+                    Spacer()
+                    if k.finns {
+                        Button { NSWorkspace.shared.open(k.url) } label: {
+                            Image(systemName: "arrow.up.forward.square")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Visa i Finder")
+                    }
+                    Button {
+                        kopplade = (try? arkiv.koppla(bort: k, från: kund)) ?? kopplade
+                        Indexering.glöm(k, hos: kund)
+                    } label: {
+                        Image(systemName: "minus.circle")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Koppla bort mappen. Innehållet rörs inte, men försvinner ur kunskapsbanken.")
+                }
+                .padding(.horizontal, 12).padding(.vertical, 9)
+                if i < kopplade.count - 1 { Divider() }
+            }
+        }
+        .kort(hörn: Stil.radhörn)
+    }
+
+    private func väljMapp() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = true
+        panel.message = "Välj en mapp med material om \(kund.namn)"
+        guard panel.runModal() == .OK else { return }
+        for url in panel.urls {
+            kopplade = (try? arkiv.koppla(url, till: kund)) ?? kopplade
+        }
+        räknaDokument()
+        Indexering.dokumentIBakgrunden(för: kund)
+    }
+
+    /// Hur många dokument ur varje mapp som ligger i kunskapsbanken.
+    private func räknaDokument() {
+        läserIn = Indexering.pågår(kund)
+        dokumentfel = Indexering.senasteUtfall[kund.id]?.fel
+        iMolnet = Indexering.senasteUtfall[kund.id]?.platshållare ?? 0
+        guard !kopplade.isEmpty, let bank = try? Kunskapsbank(kund: kund) else {
+            dokumentantal = [:]
+            return
+        }
+        var ut: [String: (filer: Int, medText: Int)] = [:]
+        for k in kopplade {
+            ut[k.väg] = (bank.antalKällor(under: k.väg + "/"),
+                         bank.antalDokument(under: k.väg + "/"))
+        }
+        dokumentantal = ut
     }
 
     /// Kopplade kontakter utan bild får sin profilbild ur macOS Kontakter,
@@ -624,7 +748,7 @@ struct Kundinnehåll: View {
             for var k in arkiv.kontakter(för: kund)
             where k.systemID != nil && k.bild == nil {
                 guard let data = adressbok.bilddata(för: k) else { continue }
-                try? arkiv.sparaKontaktbild(data, för: &k, hos: kund)
+                _ = try? arkiv.sparaKontaktbild(data, för: &k, hos: kund)
                 ändrade = true
             }
             if ändrade { kontakter = arkiv.kontakter(för: kund) }
@@ -639,7 +763,7 @@ struct Kundinnehåll: View {
         // kundnamn i titeln kan ingen regel känna igen — de tas i anspråk
         // för hand och känns igen på att nyckeln finns.
         möten = kalender.möten().filter {
-            kopplade[$0.id] != nil || Kalendern.hör($0, till: kund, kontakter: mina)
+            Kalendern.hörTill($0, kund: kund, kontakter: mina, kopplingar: kopplade)
         }
     }
 
@@ -650,7 +774,7 @@ struct Kundinnehåll: View {
     private func visaMejl(äldreÄn: TimeInterval = 15 * 60) async {
         // Kontakterna läses här och inte ur vyns tillstånd: den fylls av
         // onAppear, som kan hinna köra efter den här uppgiften.
-        let adresser = Array(Set(arkiv.kontakter(för: kund).flatMap(\.epost))).prefix(5)
+        let adresser = Mailen.adresser(ur: arkiv.kontakter(för: kund))
         guard !adresser.isEmpty else { return }
 
         guard let cache = arkiv.mailcache(för: kund) else {
@@ -669,19 +793,22 @@ struct Kundinnehåll: View {
             // Mejlen kan vara färska men hämtade innan bilagorna fanns med.
             // Då ska bilagorna hämtas för sig, inte vänta på att cachen
             // åldras ut.
-            await hämtaBilagor(Array(adresser))
+            await hämtaBilagor(adresser)
             mejlLäge = .klar
         }
     }
 
     private func hämtaMejl() async {
-        let adresser = Array(Set(arkiv.kontakter(för: kund).flatMap(\.epost))).prefix(5)
+        let adresser = Mailen.adresser(ur: arkiv.kontakter(för: kund))
         guard !adresser.isEmpty else { return }
         mejlLäge = .hämtar("Söker i Mail …")
         let mailen = Mailen()
         var samlat: [Mailen.Mejl] = []
         do {
-            for a in adresser { samlat += try await mailen.sök(adress: a, max: 20) }
+            for (i, a) in adresser.enumerated() {
+                mejlLäge = .hämtar("Söker i Mail: \(a) (\(i + 1) av \(adresser.count))")
+                samlat += try await mailen.sök(adress: a, max: 20)
+            }
         } catch {
             mejlLäge = .fel(error.localizedDescription)
             return
@@ -691,7 +818,7 @@ struct Kundinnehåll: View {
             .sorted { ($0.datum ?? .distantPast) > ($1.datum ?? .distantPast) }
         try? arkiv.sparaMail(mejl, bilagor: bilagor, för: kund)
 
-        await hämtaBilagor(Array(adresser))
+        await hämtaBilagor(adresser)
         mejlLäge = .klar
     }
 
@@ -738,12 +865,10 @@ struct Kundinnehåll: View {
     /// Sökningen bygger inga index — den läser dem som finns. Utan det här
     /// blev nyhämtade mejl och bilagor osökbara tills chatten öppnats.
     private func indexeraIBakgrunden() {
-        let kund = kund
-        Task.detached(priority: .utility) {
-            guard let bank = try? await Kunskapsbank(kund: kund) else { return }
-            try? await Indexering.kör(för: kund, bank: bank)
-            await Inbäddare.kör(bank: bank)
-        }
+        // Ett spår: dokumentgenomgången tar transkript, anteckningar och mejl
+        // med sig. Två parallella genomgångar på egna anslutningar skrev om
+        // varandra och fällde den ena.
+        Indexering.dokumentIBakgrunden(för: kund)
     }
 }
 

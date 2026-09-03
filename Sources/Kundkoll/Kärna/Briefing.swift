@@ -59,8 +59,9 @@ struct Briefing {
 
     @MainActor
     static func bygg(för kund: Kund, möte: Kalendern.Möte?,
-                     arkiv: Arkivet = .shared) -> Briefing {
-        bygg(kund: kund.namn,
+                     arkiv: Arkivet? = nil) -> Briefing {
+        let arkiv = arkiv ?? .shared
+        return bygg(kund: kund.namn,
              möte: möte,
              inspelningar: arkiv.inspelningar(för: kund),
              uppgifter: arkiv.uppgifter(för: kund),

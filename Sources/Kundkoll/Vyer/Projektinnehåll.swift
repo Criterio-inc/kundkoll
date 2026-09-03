@@ -11,6 +11,9 @@ struct Projektinnehåll: View {
 
     @State private var flik: Flik = .översikt
     @State private var kopplade: [Kopplad] = []
+    /// Dokument ur varje kopplad mapp i kunskapsbanken, och om inläsningen pågår.
+    @State private var dokumentantal: [String: (filer: Int, medText: Int)] = [:]
+    @State private var läserIn = false
     @State private var inspelningar: [(Inspelning, URL)] = []
     @State private var öppnad: Kundinnehåll.Öppnad?
     @State private var attKasta: Kundinnehåll.Öppnad?
@@ -122,6 +125,9 @@ struct Projektinnehåll: View {
             }
         }
         .onChange(of: arkiv.sparningar) { läsIn() }
+        .onReceive(NotificationCenter.default.publisher(for: .dokumentIndexerade)) { _ in
+            räknaDokument()
+        }
     }
 
     /// Var projektet står just nu, skrivet av modellen ur uppgifter, möten,
@@ -217,7 +223,7 @@ struct Projektinnehåll: View {
                 Button("Koppla mapp", action: väljMapp).buttonStyle(.link)
             }
             if kopplade.isEmpty {
-                Text("Peka ut en mapp med källkod, ritningar eller offerter. Chatten söker i den när du frågar något — innehållet indexeras inte, så svaret bygger på hur filerna ser ut just nu.")
+                Text("Peka ut en mapp som hör till projektet. Dokument — Word, Excel, PowerPoint, PDF, text, bilder — läses in i kunskapsbanken. Källkod indexeras inte utan genomsöks av en agent när du frågar, så att svaret bygger på hur filerna ser ut just nu.")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
@@ -227,7 +233,13 @@ struct Projektinnehåll: View {
                             Image(systemName: k.finns ? "folder" : "questionmark.folder")
                                 .foregroundStyle(k.finns ? Color.secondary : Color.orange)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(k.visatNamn)
+                                HStack(spacing: 6) {
+                                    Text(k.visatNamn)
+                                    if let n = dokumentantal[k.väg] {
+                                        Märke(text: Indexering.dokumentetikett(filer: n.filer, medText: n.medText, pågår: läserIn),
+                                              ikon: "doc.richtext")
+                                    }
+                                }
                                 Text(k.finns ? k.väg : "Mappen finns inte längre")
                                     .font(.caption)
                                     .foregroundStyle(k.finns ? Color.secondary : Color.orange)
@@ -244,11 +256,12 @@ struct Projektinnehåll: View {
                             }
                             Button {
                                 kopplade = (try? arkiv.koppla(bort: k, från: projekt)) ?? kopplade
+                                Indexering.glöm(k, hos: kund)
                             } label: {
                                 Image(systemName: "minus.circle")
                             }
                             .buttonStyle(.borderless)
-                            .help("Koppla bort mappen. Innehållet rörs inte.")
+                            .help("Koppla bort mappen. Innehållet rörs inte, men försvinner ur kunskapsbanken.")
                         }
                         .padding(.horizontal, 12).padding(.vertical, 9)
                         if i < kopplade.count - 1 { Divider() }
@@ -296,10 +309,28 @@ struct Projektinnehåll: View {
         for url in panel.urls {
             kopplade = (try? arkiv.koppla(url, till: projekt)) ?? kopplade
         }
+        Indexering.dokumentIBakgrunden(för: kund)
+        räknaDokument()
+    }
+
+    /// Hur många dokument ur varje mapp som ligger i kunskapsbanken.
+    private func räknaDokument() {
+        läserIn = Indexering.pågår(kund)
+        guard !kopplade.isEmpty, let bank = try? Kunskapsbank(kund: kund) else {
+            dokumentantal = [:]
+            return
+        }
+        var ut: [String: (filer: Int, medText: Int)] = [:]
+        for k in kopplade {
+            ut[k.väg] = (bank.antalKällor(under: k.väg + "/"),
+                         bank.antalDokument(under: k.väg + "/"))
+        }
+        dokumentantal = ut
     }
 
     private func läsIn() {
         kopplade = arkiv.kopplade(för: projekt)
+        räknaDokument()
         inspelningar = arkiv.inspelningar(för: kund).filter { $0.0.projekt == projekt.namn }
     }
 }

@@ -9,12 +9,18 @@ enum Indexering {
 
     /// Ungefär så här långa stycken blir transkriptet. Kort nog att en träff
     /// pekar på rätt ställe i samtalet, långt nog att svaret får sammanhang.
-    static let styckestorlek = 900
+    nonisolated static let styckestorlek = 900
 
     struct Resultat {
         var indexerade = 0
         var stycken = 0
         var oförändrade = 0
+        /// Filer som inte gick att läsa in. Se `fel` för den första.
+        var fällda = 0
+        var fel: String?
+        /// Filer vars innehåll ligger kvar i molnet. De hoppas över utan att
+        /// markeras, så att de läses när de hämtats hem.
+        var platshållare = 0
     }
 
     @discardableResult
@@ -128,11 +134,12 @@ enum Indexering {
             r.indexerade += 1
         }
 
-        // Kopplade mappar indexeras med flit inte. En enda liten kodmapp gav
-        // 481 stycken mot 70 för allt annat material om kunden tillsammans, och
-        // kod är gammal i ett index nästan direkt. Frågor om dem besvaras i
-        // stället av en agent som söker i mappen när frågan ställs — se
-        // Kodagent.
+        // Kod i kopplade mappar indexeras med flit inte. En enda liten
+        // kodmapp gav 481 stycken mot 70 för allt annat material om kunden
+        // tillsammans, och kod är gammal i ett index nästan direkt. Frågor om
+        // den besvaras i stället av en agent som söker i mappen när frågan
+        // ställs — se Kodagent. Dokumenten i mapparna läses däremot in, se
+        // indexeraDokument: de är kundmaterial som allt annat.
 
         // Chattar. Det man frågat om och fått svar på är också något man kan
         // vilja hitta igen — särskilt slutsatser som inte skrivits ned någon
@@ -186,6 +193,130 @@ enum Indexering {
         return r
     }
 
+    /// Dokumenten i kopplade mappar — Word, Excel, PowerPoint, PDF, text och
+    /// bilder — läses in som typen «dokument», med vägen inom mappen som
+    /// titel: «AP2 — Bedömningar/DPIA.docx» säger mer än filnamnet ensamt,
+    /// och det är den hänvisningen man ser under svaret.
+    ///
+    /// Asynkron eftersom bilder läses med Vision. Bara ändrade filer läses
+    /// om, och filer som försvunnit ur mappen glöms.
+    static func indexeraDokument(för kund: Kund, bank: Kunskapsbank) async throws -> Resultat {
+        var r = Resultat()
+        let arkiv = Arkivet.shared
+        var mappar = arkiv.kopplade(för: kund)
+        for p in arkiv.projekt(för: kund) { mappar += arkiv.kopplade(för: p) }
+        for kopplad in mappar where kopplad.finns {
+            let rot = kopplad.url.path
+            var sedda = Set<String>()
+            for url in Kopplademappar.dokument(i: kopplad) {
+                let väg = url.path
+                sedda.insert(väg)
+                // En platshållare markeras inte: ändringsdatumet står kvar när
+                // OneDrive hämtar hem innehållet, och en markerad fil hade
+                // därför aldrig lästs om.
+                if Kopplademappar.ärPlatshållare(url) { r.platshållare += 1; continue }
+                guard bank.behöverIndexeras(url) else { r.oförändrade += 1; continue }
+                // En fil som faller får inte fälla resten. Tidigare låg hela
+                // genomgången i ett enda try, och det första felet — en låst
+                // databas, ett trasigt dokument — avbröt tyst mitt i: 219 av
+                // 593 filer inlästa och inget som sa varför.
+                do {
+                    try bank.glöm(källa: väg)
+                    let värden = try? url.resourceValues(
+                        forKeys: [.fileSizeKey, .contentModificationDateKey])
+                    let bilaga = Bilagor.Bilaga(ämne: "", namn: url.lastPathComponent,
+                                                fil: väg, storlek: värden?.fileSize ?? 0)
+                    let text = await Bilagor.text(ur: bilaga) ?? ""
+                    let relativ = väg.hasPrefix(rot + "/")
+                        ? String(väg.dropFirst(rot.count + 1)) : url.lastPathComponent
+                    let titel = "\(kopplad.visatNamn)/\(relativ)"
+                    for (i, stycke) in dela(text).enumerated() {
+                        try bank.läggTill(titel: i == 0 ? titel : "\(titel) (\(i + 1))",
+                                          text: stycke, typ: "dokument",
+                                          källa: väg, tid: värden?.contentModificationDate)
+                        r.stycken += 1
+                    }
+                    // Markeras även när texten blev tom — en bild utan text ska
+                    // inte läsas med Vision på nytt varje gång.
+                    try bank.markeraIndexerad(url)
+                    r.indexerade += 1
+                } catch {
+                    r.fällda += 1
+                    if r.fel == nil {
+                        r.fel = "\(url.lastPathComponent): \(error.localizedDescription)"
+                    }
+                    FileHandle.standardError.write(Data(
+                        "dokument \(väg): \(error)\n".utf8))
+                }
+                // Räknarna i vyerna får ticka medan det pågår — 593 filer
+                // tar minuter, och en stilla siffra ser ut som ett stopp.
+                if (r.indexerade + r.fällda) % 20 == 0 {
+                    NotificationCenter.default.post(name: .dokumentIndexerade, object: nil)
+                }
+            }
+            // Det som tagits bort ur mappen ska inte spöka i svaren.
+            for gammal in bank.källor(under: rot + "/") where !sedda.contains(gammal) {
+                try? bank.glöm(källa: gammal)
+            }
+        }
+        return r
+    }
+
+    /// Glömmer allt ur en mapp, när kopplingen tas bort.
+    static func glöm(_ kopplad: Kopplad, hos kund: Kund) {
+        guard let bank = try? Kunskapsbank(kund: kund) else { return }
+        for källa in bank.källor(under: kopplad.url.path + "/") {
+            try? bank.glöm(källa: källa)
+        }
+        NotificationCenter.default.post(name: .dokumentIndexerade, object: nil)
+    }
+
+    /// Kunder vars dokument håller på att läsas in. Två samtidiga
+    /// genomgångar av samma mapp skulle båda se filerna som nya och
+    /// dubblera dem.
+    private static var dokumentPågår: Set<String> = []
+
+    /// Om kundens dokument håller på att läsas in just nu.
+    static func pågår(_ kund: Kund) -> Bool { dokumentPågår.contains(kund.id) }
+
+    /// Texten i räknaren vid en kopplad mapp. Säger både hur många filer som
+    /// gåtts igenom och hur många som gav text — uppmätt visade räknaren
+    /// «219 dokument» och lät som klar, när 366 filer till lästs utan att ge
+    /// något, och ingen kunde se det.
+    nonisolated static func dokumentetikett(filer: Int, medText: Int, pågår: Bool) -> String {
+        let del = medText == filer ? "\(filer) dokument" : "\(filer) filer · \(medText) med text"
+        if pågår { return "läser in · \(del)" }
+        return filer == 0 ? "inga dokument" : del
+    }
+
+    /// Senaste utfallet per kund, så att vyn kan säga vad som gick fel.
+    private(set) static var senasteUtfall: [String: Resultat] = [:]
+
+    /// Läser in allt som hör till kunden i bakgrunden, i ett enda spår.
+    ///
+    /// Ett spår med flit: kundvyn och chatten startade tidigare var sin
+    /// genomgång på egna anslutningar, och de skrev om varandra.
+    static func dokumentIBakgrunden(för kund: Kund) {
+        guard !dokumentPågår.contains(kund.id) else { return }
+        dokumentPågår.insert(kund.id)
+        // Task, inte Task.detached: allt här är huvudaktörsbundet ändå, och
+        // varje await släpper aktören så att gränssnittet svarar under tiden.
+        Task {
+            defer {
+                dokumentPågår.remove(kund.id)
+                NotificationCenter.default.post(name: .dokumentIndexerade, object: nil)
+            }
+            guard let bank = try? Kunskapsbank(kund: kund) else { return }
+            _ = try? kör(för: kund, bank: bank)
+            if let r = try? await indexeraDokument(för: kund, bank: bank) {
+                senasteUtfall[kund.id] = r
+            }
+            // Inbäddningen sist: den skriver till samma databas, och att köra
+            // den samtidigt var det som knäckte genomgången.
+            await Inbäddare.kör(bank: bank)
+        }
+    }
+
     /// Delar ett transkript i stycken med talare och tid kvar i texten, så att
     /// ett svar kan säga vem som sa vad och när.
     static func stycken(av inspelning: Inspelning) -> [String] {
@@ -221,4 +352,9 @@ enum Indexering {
         if !nuvarande.isEmpty { ut.append(nuvarande) }
         return ut
     }
+}
+
+extension Notification.Name {
+    /// Dokumenten ur en kopplad mapp har lästs in eller glömts.
+    static let dokumentIndexerade = Notification.Name("kundkoll.dokumentIndexerade")
 }

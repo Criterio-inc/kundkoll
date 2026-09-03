@@ -135,6 +135,15 @@ struct Ingång {
             sem.wait()
             exit(kod)
         }
+        if let i = CommandLine.arguments.firstIndex(of: "--prov-dokument"),
+           i + 1 < CommandLine.arguments.count {
+            let mapp = CommandLine.arguments[i + 1]
+            let sem = DispatchSemaphore(value: 0)
+            nonisolated(unsafe) var kod: Int32 = 1
+            Task.detached { kod = await Dokumentprov.kör(mapp: mapp); sem.signal() }
+            sem.wait()
+            exit(kod)
+        }
         if let i = CommandLine.arguments.firstIndex(of: "--prov-bilaga") {
             let filer = Array(CommandLine.arguments.dropFirst(i + 1))
             let sem = DispatchSemaphore(value: 0)

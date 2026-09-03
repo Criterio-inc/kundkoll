@@ -31,14 +31,19 @@ struct Röstvy: View {
     }
 
     private var grupper: [(grupp: Int, turer: Int, sekunder: Double, exempel: String)] {
+        // Skrivet i steg med utsatta typer: som ett enda kedjeuttryck gav
+        // Swift 6.3 upp med «unable to type-check this expression in
+        // reasonable time».
         let motpart = inspelning.yttranden.filter { $0.röst == .motpart && $0.röstgrupp != nil }
-        return Dictionary(grouping: motpart, by: { $0.röstgrupp! })
-            .map { g, rader in
-                (g, rader.count,
-                 rader.reduce(0.0) { $0 + ($1.slut - $1.start) },
-                 rader.max { $0.text.count < $1.text.count }?.text ?? "")
-            }
-            .sorted { $0.2 > $1.2 }
+        let perGrupp: [Int: [Yttrande]] = Dictionary(grouping: motpart, by: { $0.röstgrupp ?? -1 })
+        var ut: [(grupp: Int, turer: Int, sekunder: Double, exempel: String)] = []
+        for (g, rader) in perGrupp {
+            var sekunder: Double = 0
+            for r in rader { sekunder += r.slut - r.start }
+            let längsta: String = rader.max { $0.text.count < $1.text.count }?.text ?? ""
+            ut.append((grupp: g, turer: rader.count, sekunder: sekunder, exempel: längsta))
+        }
+        return ut.sorted { $0.sekunder > $1.sekunder }
     }
 
     var body: some View {
@@ -185,7 +190,7 @@ struct Röstvy: View {
         // hen en gång till som kontakt vore onödigt dubbelarbete.
         for personnamn in Set(inspelning.röstnamn.values)
         where !kontakter.contains(where: { $0.namn == personnamn }) {
-            try? arkiv.läggTill(Kontakt(namn: personnamn), hos: kund)
+            _ = try? arkiv.läggTill(Kontakt(namn: personnamn), hos: kund)
         }
 
         vidSparat(inspelning)

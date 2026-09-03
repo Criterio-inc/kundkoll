@@ -124,7 +124,7 @@ final class Liveinsikter: ObservableObject {
 
             guard let fråga = try? await insiktsmodell.granska(stycke), !fråga.isEmpty else { return }
             // Samma sak frågas ofta två gånger i ett samtal.
-            guard !insikter.contains(where: { likartade($0.fråga, fråga) }) else { return }
+            guard !insikter.contains(where: { self.likartade($0.fråga, fråga) }) else { return }
 
             let insikt = Insikt(fråga: fråga, utdrag: String(stycke.suffix(200)))
             insikter.append(insikt)
