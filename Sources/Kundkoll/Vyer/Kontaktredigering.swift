@@ -55,6 +55,8 @@ struct Kontaktredigering: View {
                             .textFieldStyle(.roundedBorder)
                     }
                     lista("E-post", rader: $epost, exempel: "namn@företaget.se")
+                    Toggle("Sök personens mejl i Mail", isOn: $kontakt.sökMejl)
+                        .help("Appen söker högst \(Mailen.maxAdresser) adresser hos en kund. Hos en kund med fler väljer du här vilka som ska med.")
                     lista("Telefon", rader: $telefon, exempel: "070-123 45 67")
                 }
                 .padding(16)

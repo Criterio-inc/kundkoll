@@ -7,15 +7,24 @@ import Foundation
 /// sekund och fungera utan nyckel. Det man vill ändra ändrar man i Mail.
 enum Uppföljning {
 
-    /// Brödtexten, punkt för punkt ur det mötet landade i.
-    static func brödtext(för inspelning: Inspelning) -> String {
+    /// Brödtexten, punkt för punkt ur det mötet landade i. Åtagandena tas
+    /// ur tavlans kort för mötet, inte ur sammanfattningens ögonblicksbild:
+    /// det Pär strukit eller skrivit om ska inte gå ut till kunden.
+    static func brödtext(för inspelning: Inspelning, kort: [Uppgift]? = nil) -> String {
         guard let s = inspelning.sammanfattning else { return "" }
         var delar: [String] = ["Hej!", "Tack för mötet. Så här uppfattade jag att vi landade:"]
 
         if !s.beslut.isEmpty {
             delar.append("Beslut:\n" + s.beslut.map { "• \($0)" }.joined(separator: "\n"))
         }
-        if !s.åtaganden.isEmpty {
+        if let kort {
+            let rader = kort.map { u in
+                let vem = [u.vem, u.senast.map(DateFormatter.kortdag.string) ?? u.när]
+                    .compactMap { $0 }.joined(separator: ", ")
+                return "• \(u.vad)" + (vem.isEmpty ? "" : " (\(vem))") + (u.läge == .klart ? " — klart" : "")
+            }
+            if !rader.isEmpty { delar.append("Att göra:\n" + rader.joined(separator: "\n")) }
+        } else if !s.åtaganden.isEmpty {
             let rader = s.åtaganden.map { å in
                 let vem = [å.vem, å.när].compactMap { $0 }.joined(separator: ", ")
                 return "• \(å.vad)" + (vem.isEmpty ? "" : " (\(vem))")

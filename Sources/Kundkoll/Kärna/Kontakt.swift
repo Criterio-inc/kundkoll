@@ -15,6 +15,9 @@ struct Kontakt: Codable, Hashable, Identifiable {
     var systemID: String?
     /// Filnamnet på profilbilden i kundens Kontakter/bilder, när en finns.
     var bild: String?
+    /// Om personens adresser söks i Mail. Appen söker högst tolv adresser,
+    /// så hos en kund med fler väljer man här vilka som ska med.
+    var sökMejl = true
 
     init(id: UUID = UUID(), namn: String, roll: String? = nil,
          epost: [String] = [], telefon: [String] = [], systemID: String? = nil,
@@ -39,6 +42,7 @@ struct Kontakt: Codable, Hashable, Identifiable {
         telefon = try c.decodeIfPresent([String].self, forKey: .telefon) ?? []
         systemID = try c.decodeIfPresent(String.self, forKey: .systemID)
         bild = try c.decodeIfPresent(String.self, forKey: .bild)
+        sökMejl = try c.decodeIfPresent(Bool.self, forKey: .sökMejl) ?? true
     }
 
     var förstaEpost: String? { epost.first }

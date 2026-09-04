@@ -130,7 +130,8 @@ actor Sammanfattare {
         """
 
         let svar = try await chatt.fråga(uppdrag, om: kund, projekt: inspelning.projekt,
-                                         träffar: [], historik: [], automatiskt: automatiskt)
+                                         träffar: [], historik: [], automatiskt: automatiskt,
+                                         uppdrag: .utdrag)
         guard var tolkad = Self.tolka(svar.text) else { throw Fel.otolkbart }
         tolkad.modell = chatt.etikett
         return tolkad
@@ -138,16 +139,7 @@ actor Sammanfattare {
 
     /// Modeller lägger gärna JSON i en kodruta, eller skriver en rad före.
     static func tolka(_ text: String) -> Mötessammanfattning? {
-        var rent = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let start = rent.range(of: "```") {
-            rent = String(rent[start.upperBound...])
-            if rent.hasPrefix("json") { rent = String(rent.dropFirst(4)) }
-            if let slut = rent.range(of: "```") { rent = String(rent[..<slut.lowerBound]) }
-        }
-        guard let första = rent.firstIndex(of: "{"), let sista = rent.lastIndex(of: "}") else {
-            return nil
-        }
-        rent = String(rent[första...sista])
+        guard let data = Modellsvar.json(ur: text) else { return nil }
 
         struct Rå: Decodable {
             struct Å: Decodable {
@@ -158,7 +150,7 @@ actor Sammanfattare {
             let åtaganden: [Å]?
             let öppet: [String]?
         }
-        guard let rå = try? JSONDecoder().decode(Rå.self, from: Data(rent.utf8)) else { return nil }
+        guard let rå = try? JSONDecoder().decode(Rå.self, from: data) else { return nil }
         return Mötessammanfattning(
             kärna: rå.kärna ?? "",
             beslut: rå.beslut ?? [],
@@ -169,10 +161,7 @@ actor Sammanfattare {
             öppet: rå.öppet ?? [])
     }
 
-    private static func tomSomNil(_ s: String?) -> String? {
-        guard let s, !s.isEmpty, s.lowercased() != "null" else { return nil }
-        return s
-    }
+    private static func tomSomNil(_ s: String?) -> String? { Modellsvar.tomSomNil(s) }
 
     enum Fel: LocalizedError {
         case otolkbart

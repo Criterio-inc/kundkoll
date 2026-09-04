@@ -22,7 +22,13 @@ enum Uppgiftssamling {
                     projekt: inspelning.projekt,
                     skapad: inspelning.inledd)
         }
-        _ = try? Arkivet.shared.läggTill(nya, för: kund)
+        // Skrivs sammanfattningen om byts mötets orörda kort ut, annars
+        // låg gamla och nya formuleringar av samma löfte bredvid varandra.
+        if let källa = mapp?.path {
+            _ = try? Arkivet.shared.ersätt(kort: nya, ur: källa, för: kund)
+        } else {
+            _ = try? Arkivet.shared.läggTill(nya, för: kund)
+        }
     }
 
     /// Om en uppgift kom ur ett visst möte. Mappen är det säkra kännetecknet;
@@ -96,7 +102,16 @@ enum Uppgiftssamling {
         var fel: String?
         /// Modellen som gjorde jobbet, för beskedet och kvittot.
         var modell = ""
+        /// Åtaganden ur gamla mejl vars datum passerat med marginal. De
+        /// läggs i Klart direkt: de är historia, inte försenade.
+        var historiska = 0
+        /// Mejl där modellen svarade med text i stället för lista. De
+        /// bokförs inte och provas igen nästa gång.
+        var hoppade = 0
     }
+
+    /// Äldre än så här är ett passerat datum historia, inte en försening.
+    static let historiskGräns: TimeInterval = 14 * 86400
 
     /// `val` styr vilken modell som används. Utan val tas appens: automatiken
     /// (inte `alla`) tvingas då till datorn av `Chatt`, och en retroaktiv
@@ -125,14 +140,25 @@ enum Uppgiftssamling {
                     kund: kund.namn,
                     datum: m.datum ?? Date(),
                     automatiskt: !alla)
+            } catch Uppgiftsletare.Fel.otolkbart {
+                // Ett enstaka svar utan JSON är inte skäl att stanna hela
+                // rundan; når vi ingen modell alls är det däremot det.
+                utfall.hoppade += 1
+                continue
             } catch {
                 utfall.fel = error.localizedDescription
                 return utfall
             }
             utfall.genomgångna += 1
-            let uppgifter = u.map {
+            var uppgifter = u.map {
                 Uppgift(vad: $0.vad, vem: $0.vem, när: $0.när, senast: $0.senast,
                         ursprung: .mejl, källtitel: m.ämne, skapad: m.datum ?? Date())
+            }
+            if alla {
+                let gamla = uppgifter.filter { ($0.senast ?? .distantFuture) < Date().addingTimeInterval(-Self.historiskGräns) }
+                uppgifter.removeAll { gamla.map(\.id).contains($0.id) }
+                try? Arkivet.shared.läggTillKlara(gamla, för: kund)
+                utfall.historiska += gamla.count
             }
             let före = Arkivet.shared.uppgifter(för: kund).count
             let efter = (try? Arkivet.shared.läggTill(uppgifter, för: kund))?.count ?? före
@@ -146,6 +172,13 @@ enum Uppgiftssamling {
     }
 
     // MARK: - Anteckningar
+
+    /// «…/Projekt/<namn>/Anteckningar/x.md» → «<namn>»; annars nil.
+    static func projektnamn(ur fil: URL) -> String? {
+        let delar = fil.pathComponents
+        guard let i = delar.lastIndex(of: "Projekt"), i + 1 < delar.count else { return nil }
+        return delar[i + 1]
+    }
 
     /// Ett avtryck av texten, så att samma anteckning inte går genom
     /// modellen två gånger utan att ha ändrats. Stabilt mellan körningar,
@@ -182,10 +215,13 @@ enum Uppgiftssamling {
             return utfall
         }
         utfall.genomgångna = 1
+        // En anteckning i ett projekts mapp hör till projektet, och då ska
+        // kortet också göra det.
+        let projekt = Self.projektnamn(ur: anteckning.fil)
         let uppgifter = u.map {
             Uppgift(vad: $0.vad, vem: $0.vem, när: $0.när, senast: $0.senast,
                     ursprung: .anteckning, källa: anteckning.fil.path,
-                    källtitel: anteckning.titel, skapad: anteckning.ändrad)
+                    källtitel: anteckning.titel, projekt: projekt, skapad: anteckning.ändrad)
         }
         let före = Arkivet.shared.uppgifter(för: kund).count
         let efter = (try? Arkivet.shared.läggTill(uppgifter, för: kund))?.count ?? före

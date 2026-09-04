@@ -75,9 +75,27 @@ struct Kanbanvy: View {
         }
     }
 
+    /// Det som brådskar överst: närmast datum först, sedan nyast skapat.
+    /// Klart-spalten sorteras på när kortet rördes senast.
+    static func ordning(_ a: Uppgift, _ b: Uppgift) -> Bool {
+        switch (a.senast, b.senast) {
+        case let (x?, y?) where x != y: return x < y
+        case (_?, nil): return true
+        case (nil, _?): return false
+        default: return a.skapad > b.skapad
+        }
+    }
+
+    /// Så många färdiga kort visas innan resten fälls ihop.
+    static let synligaKlara = 10
+    @State private var visaAllaKlara = false
+
     private func spalt(_ läge: Uppgift.Läge) -> some View {
-        let ivarje = synliga.filter { $0.läge == läge }
-            .sorted { $0.skapad > $1.skapad }
+        let alla = synliga.filter { $0.läge == läge }
+        let ivarje = läge == .klart
+            ? alla.sorted { $0.ändrad > $1.ändrad }
+            : alla.sorted(by: Self.ordning)
+        let visade = läge == .klart && !visaAllaKlara ? Array(ivarje.prefix(Self.synligaKlara)) : ivarje
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Text(läge.namn).font(.subheadline.weight(.semibold))
@@ -86,7 +104,13 @@ struct Kanbanvy: View {
                     .foregroundStyle(.secondary)
                 Spacer()
             }
-            ForEach(ivarje) { u in kort(u) }
+            ForEach(visade) { u in kort(u) }
+            if läge == .klart, ivarje.count > Self.synligaKlara {
+                Button(visaAllaKlara ? "Visa bara de senaste" : "… och \(ivarje.count - Self.synligaKlara) till") {
+                    visaAllaKlara.toggle()
+                }
+                .buttonStyle(.link).font(.caption)
+            }
             Spacer(minLength: 0)
         }
         // Spalterna är lika höga. En tom spalt som bara var så hög som sin

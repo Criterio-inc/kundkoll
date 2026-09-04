@@ -109,16 +109,34 @@ struct Uppgift: Codable, Hashable, Identifiable {
     /// Orden jämförs på sina första bokstäver, inte hela. Svenskan böjer, och
     /// "skicka offert på pallställ" och "skicka offerten på pallställen" är
     /// samma sak — utan kapningen delar de bara två ord av fem.
+    /// Samma åtagande i annan formulering. Orden i «vad» jämförs kapade;
+    /// ett kort namn räknas (Bo, Eva), småord räknas inte. Olika «vem» eller
+    /// datum mer än en vecka isär är olika åtaganden: «boka möte med Anna»
+    /// hindrade förut «boka möte med Bo».
     func liknar(_ annan: Uppgift) -> Bool {
         let a = Self.stammar(vad), b = Self.stammar(annan.vad)
         guard !a.isEmpty, !b.isEmpty else { return false }
-        return Double(a.intersection(b).count) / Double(min(a.count, b.count)) > 0.65
+        if let x = vem, let y = annan.vem,
+           Self.förnamn(x) != Self.förnamn(y) { return false }
+        if let d1 = senast, let d2 = annan.senast, abs(d1.timeIntervalSince(d2)) > 7 * 86400 {
+            return false
+        }
+        return Double(a.intersection(b).count) / Double(min(a.count, b.count)) >= 0.75
     }
+
+    private static func förnamn(_ s: String) -> String {
+        s.lowercased().split(separator: " ").first.map(String.init) ?? s.lowercased()
+    }
+
+    static let småord: Set<String> = [
+        "och", "att", "med", "till", "för", "den", "det", "som", "ett", "en", "på", "av",
+        "om", "vi", "ni", "de", "är", "ska", "kan", "the", "and", "to", "for", "of", "in",
+    ]
 
     static func stammar(_ text: String) -> Set<String> {
         Set(text.lowercased()
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { $0.count > 3 }
+            .filter { $0.count >= 2 && !småord.contains($0) }
             .map { String($0.prefix(5)) })
     }
 }
@@ -163,9 +181,22 @@ actor Uppgiftsletare {
         """
 
         let svar = try await chatt.fråga(uppdrag, om: kund, projekt: nil,
-                                         träffar: [], historik: [], automatiskt: automatiskt)
+                                         träffar: [], historik: [], automatiskt: automatiskt,
+                                         uppdrag: .utdrag)
         senasteSvar = svar.text
-        return Self.tolka(svar.text)
+        // Ett svar utan JSON är ett fel, inte «inga uppgifter»: bokfördes
+        // det som genomgånget var mejlets åtaganden borta för gott.
+        guard let tolkade = Self.tolka(svar.text) else { throw Fel.otolkbart }
+        return tolkade
+    }
+
+    enum Fel: LocalizedError {
+        case otolkbart
+        var errorDescription: String? {
+            switch self {
+            case .otolkbart: "Modellen svarade med text i stället för den lista appen bad om."
+            }
+        }
     }
 
     /// Vilken modell letaren använder, för kvitton och besked.
@@ -175,17 +206,10 @@ actor Uppgiftsletare {
     /// tolkningen ger noll uppgifter vill man se vad som faktiskt kom.
     private(set) var senasteSvar = ""
 
-    static func tolka(_ text: String) -> [Uppgift] {
-        var rent = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let start = rent.range(of: "```") {
-            rent = String(rent[start.upperBound...])
-            if rent.hasPrefix("json") { rent = String(rent.dropFirst(4)) }
-            if let slut = rent.range(of: "```") { rent = String(rent[..<slut.lowerBound]) }
-        }
-        guard let första = rent.firstIndex(of: "{"), let sista = rent.lastIndex(of: "}") else {
-            return []
-        }
-        rent = String(rent[första...sista])
+    /// nil när svaret inte gick att tolka; en tom lista när modellen
+    /// svarade rätt och inte hittade något.
+    static func tolka(_ text: String) -> [Uppgift]? {
+        guard let data = Modellsvar.json(ur: text) else { return nil }
 
         struct Rå: Decodable {
             struct U: Decodable {
@@ -193,15 +217,12 @@ actor Uppgiftsletare {
             }
             let uppgifter: [U]?
         }
-        guard let rå = try? JSONDecoder().decode(Rå.self, from: Data(rent.utf8)) else { return [] }
+        guard let rå = try? JSONDecoder().decode(Rå.self, from: data) else { return nil }
         return (rå.uppgifter ?? [])
             .filter { $0.vad.count > 5 }
             .map { Uppgift(vad: $0.vad, vem: tomSomNil($0.vem), när: tomSomNil($0.när),
                            senast: Uppgift.dag(tomSomNil($0.senast))) }
     }
 
-    private static func tomSomNil(_ s: String?) -> String? {
-        guard let s, !s.isEmpty, s.lowercased() != "null" else { return nil }
-        return s
-    }
+    private static func tomSomNil(_ s: String?) -> String? { Modellsvar.tomSomNil(s) }
 }

@@ -648,9 +648,13 @@ struct Kundinnehåll: View {
     /// «Söker på 12 av 22 adresser · senast hämtat 10:37 · söker nu: 4 av 12»
     private var mejlstatus: some View {
         let alla = kontakter.flatMap(\.epost).filter { $0.contains("@") }.count
-        let sökta = min(alla, Mailen.maxAdresser)
+        let sökta = Mailen.adresser(ur: kontakter).count
         var delar: [String] = []
-        if alla > 0 { delar.append(sökta < alla ? "Söker på \(sökta) av \(alla) adresser" : "Söker på \(alla) adresser") }
+        if alla > 0 {
+            delar.append(sökta < alla
+                         ? "Söker på \(sökta) av \(alla) adresser, välj under Hantera"
+                         : "Söker på \(alla) adresser")
+        }
         if let h = arkiv.mailcache(för: kund)?.hämtad {
             delar.append("senast hämtat \(DateFormatter.klocka.string(from: h))")
         }
@@ -952,13 +956,17 @@ struct Kundinnehåll: View {
         if let fel = u.fel {
             jobb.föll("stannade efter \(u.genomgångna) mejl: \(fel)")
         } else if u.genomgångna == 0 {
-            jobb.klart(alla ? "Alla mejl med text är redan genomgångna" : "Inga nya mejl att gå igenom",
+            jobb.klart(u.hoppade > 0
+                       ? "\(u.hoppade) mejl gav inget läsbart svar och provas igen"
+                       : (alla ? "Alla mejl med text är redan genomgångna" : "Inga nya mejl att gå igenom"),
                        modell: u.modell.isEmpty ? nil : u.modell)
         } else {
-            jobb.klart(u.nya == 0
-                       ? "Inga nya åtaganden i \(u.genomgångna) mejl"
-                       : "\(u.nya) nya på tavlan ur \(u.genomgångna) mejl",
-                       modell: u.modell)
+            var text = u.nya == 0
+                ? "Inga nya åtaganden i \(u.genomgångna) mejl"
+                : "\(u.nya) nya på tavlan ur \(u.genomgångna) mejl"
+            if u.historiska > 0 { text += ", \(u.historiska) gamla lades i Klart" }
+            if u.hoppade > 0 { text += ", \(u.hoppade) mejl gav inget läsbart svar och provas igen" }
+            jobb.klart(text, modell: u.modell)
         }
     }
 

@@ -86,14 +86,16 @@ actor Import {
                    profiler: [Röstprofil],
                    väntadeRöster: Int? = nil,
                    språk: String? = "sv",
+                   inledd angivet: Date? = nil,
                    vidLäge: @Sendable @escaping (Läge) -> Void) async throws -> (Inspelning, URL) {
 
         await MainActor.run { vidLäge(Läge(steg: "Läser \(källa.lastPathComponent) …", andel: nil)) }
 
-        // Filens egen tid är närmare sanningen än "nu" för ett möte som spelats
-        // in tidigare.
-        let inledd = (try? källa.resourceValues(forKeys: [.contentModificationDateKey])
-            .contentModificationDate) ?? Date()
+        // Mötesdagen anges i importbladet; annars filens egen tid, som är
+        // närmare sanningen än «nu» för ett möte som spelats in tidigare.
+        let inledd = angivet
+            ?? (try? källa.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate)
+            ?? Date()
 
         let mapp = try await MainActor.run {
             try Arkivet.shared.nyInspelningsmapp(placering: placering, titel: titel, datum: inledd)
@@ -171,8 +173,12 @@ actor Import {
 
         let ljud = try AVAudioFile(forReading: wav)
         let längd = Double(ljud.length) / ljud.processingFormat.sampleRate
-        let inledd = (try? wav.resourceValues(forKeys: [.contentModificationDateKey])
-            .contentModificationDate) ?? Date()
+        // «Transkribera om» bytte förut mötets datum till ljudfilens: ett
+        // vårmöte blev ett septembermöte. Finns en möte.json gäller dess datum.
+        let tidigare = await MainActor.run { Arkivet.shared.inspelning(i: mapp) }
+        let inledd = tidigare?.inledd
+            ?? (try? wav.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate)
+            ?? Date()
 
         await MainActor.run {
             vidLäge(Läge(steg: "Transkriberar \(formateraLängd(längd))", andel: 0))
@@ -200,13 +206,13 @@ actor Import {
             inledd: inledd, längd: längd,
             kund: placering.kundnamn,
             projekt: { if case .projekt(let p) = placering { p.namn } else { nil } }(),
-            mikrofon: nil,
-            liveYttranden: [],
+            mikrofon: tidigare?.mikrofon,
+            liveYttranden: tidigare?.liveYttranden ?? [],
             arkivYttranden: uppdelning.yttranden,
             röstnamn: uppdelning.namn,
-            kallade: [],
-            enspårig: true,
-            källfil: nil,
+            kallade: tidigare?.kallade ?? [],
+            enspårig: tidigare?.enspårig ?? true,
+            källfil: tidigare?.källfil,
             språk: språk)
 
         inspelning.sammanfattning = try? await Sammanfattare()

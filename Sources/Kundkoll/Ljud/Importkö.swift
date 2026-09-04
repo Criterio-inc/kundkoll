@@ -18,6 +18,7 @@ final class Importkö: ObservableObject {
         let titel: String
         let kund: Kund
         let språk: String?
+        let inledd: Date?
     }
 
     @Published private(set) var aktuell: Jobb?
@@ -31,9 +32,9 @@ final class Importkö: ObservableObject {
     var pågår: Bool { aktuell != nil }
 
     func köa(källa: URL, placering: Placering, titel: String,
-             kund: Kund, språk: String?) {
+             kund: Kund, språk: String?, inledd: Date? = nil) {
         väntande.append(Jobb(källa: källa, placering: placering,
-                             titel: titel, kund: kund, språk: språk))
+                             titel: titel, kund: kund, språk: språk, inledd: inledd))
         kör()
     }
 
@@ -54,6 +55,7 @@ final class Importkö: ObservableObject {
                 _ = try await Import().importera(
                     jobb.källa, placering: jobb.placering, titel: jobb.titel,
                     kund: jobb.kund, profiler: profiler, språk: jobb.språk,
+                    inledd: jobb.inledd,
                     vidLäge: { l in
                         Task { @MainActor in
                             self.steg = l.steg

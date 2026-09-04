@@ -104,6 +104,27 @@ actor Chatt {
         var hänvisningar: [Hänvisning]
     }
 
+    /// Vad anropet är till för. Chatten svarar ur sökträffar; ett utdrag
+    /// (sammanfattning, åtaganden) följer en instruktion i meddelandet och
+    /// svarar med JSON, och får en större budget: tjugo åtaganden med fält
+    /// ryms inte i chattens två tusen tokens.
+    enum Uppdrag {
+        case chatt, utdrag
+        var maxTokens: Int { self == .chatt ? 2000 : 6000 }
+        /// Ett utdrag ska svara likadant varje gång; uppmätt 2026-09-04
+        /// svarade qwen3:8b med prosa i stället för JSON på ett mejl som
+        /// gav en lista vid nästa försök.
+        var temperatur: Double? { self == .chatt ? nil : 0 }
+    }
+
+    static func utdragstext(kund: String) -> String {
+        """
+        Du hjälper \(Inställningar.användarnamn) att hålla ordning på sitt arbete med kunden \(kund).
+        Underlaget står i meddelandet. Följ instruktionen där exakt och svara med enbart JSON, \
+        utan inledning och utan kodstaket. Hitta inte på: hellre en tom lista än ett påhitt.
+        """
+    }
+
     private let val: Modellval
     private let session: URLSession
 
@@ -132,6 +153,7 @@ actor Chatt {
                träffar: [Kunskapsbank.Träff],
                historik: [Meddelande],
                automatiskt: Bool = false,
+               uppdrag: Uppdrag = .chatt,
                vidDelta: (@Sendable (String) -> Void)? = nil) async throws -> Svar {
         // Det som sker av sig självt (letaren på nya mejl och anteckningar,
         // sammanfattningen efter ett möte, lägesbilden, insikternas svar)
@@ -143,7 +165,12 @@ actor Chatt {
         let nyckel = Nyckelring.förLeverantör(val.leverantör)
         if val.leverantör.behöverNyckel && nyckel == nil { throw Fel.ingenNyckel(val.leverantör) }
 
-        let system = Self.systemtext(kund: kund, projekt: projekt, träffar: träffar)
+        // Sammanfattningen och letaren skickar sitt underlag i själva
+        // frågan. Chattens systemtext sa då samtidigt «det finns inget
+        // underlag, säg det», och en lydig modell lydde. De får sin egen.
+        let system = uppdrag == .chatt
+            ? Self.systemtext(kund: kund, projekt: projekt, träffar: träffar)
+            : Self.utdragstext(kund: kund)
         // Bara de senaste turerna: äldre frågor har sitt eget underlag som
         // inte längre finns med, och drar svaret fel.
         let tidigare = historik.suffix(8)
@@ -152,7 +179,8 @@ actor Chatt {
         r.httpMethod = "POST"
         r.setValue("application/json", forHTTPHeaderField: "Content-Type")
         r.httpBody = try kropp(system: system, tidigare: Array(tidigare), fråga: text,
-                               ström: vidDelta != nil)
+                               ström: vidDelta != nil, maxTokens: uppdrag.maxTokens,
+                               temperatur: uppdrag.temperatur)
 
         switch val.leverantör {
         case .anthropic:
@@ -258,7 +286,8 @@ actor Chatt {
     }
 
     private func kropp(system: String, tidigare: [Meddelande], fråga: String,
-                       ström: Bool = false) throws -> Data {
+                       ström: Bool = false, maxTokens: Int = 2000,
+                       temperatur: Double? = nil) throws -> Data {
         var turer: [[String: String]] = []
         for m in tidigare {
             turer.append(["role": m.roll == .människa ? "user" : "assistant", "content": m.text])
@@ -269,19 +298,21 @@ actor Chatt {
             // Anthropic har systemtexten som eget fält, inte som ett meddelande.
             var kropp: [String: Any] = [
                 "model": val.modell,
-                "max_tokens": 2000,
+                "max_tokens": maxTokens,
                 "system": system,
                 "messages": turer,
             ]
             if ström { kropp["stream"] = true }
+            if let temperatur { kropp["temperature"] = temperatur }
             return try JSONSerialization.data(withJSONObject: kropp)
         }
 
         var kropp: [String: Any] = [
             "messages": [["role": "system", "content": system]] + turer,
-            "max_tokens": 2000,
+            "max_tokens": maxTokens,
         ]
         if ström { kropp["stream"] = true }
+        if let temperatur { kropp["temperature"] = temperatur }
         // Azure får modellen ur adressen, inte ur kroppen.
         if val.leverantör != .azure { kropp["model"] = val.modell }
         if val.leverantör == .openrouter {

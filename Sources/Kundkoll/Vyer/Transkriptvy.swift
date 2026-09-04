@@ -451,7 +451,7 @@ struct Transkriptvy: View {
 
     /// Ett utkast i Mail ur det mötet landade i. Skickas aldrig härifrån.
     private func uppföljningsmejl() {
-        let text = Uppföljning.brödtext(för: inspelning)
+        let text = Uppföljning.brödtext(för: inspelning, kort: uppgifter)
         guard !text.isEmpty else { return }
         let till = Uppföljning.mottagare(för: inspelning,
                                          kontakter: arkiv.kontakter(för: kund))

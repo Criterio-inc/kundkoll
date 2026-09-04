@@ -27,6 +27,9 @@ struct Importvy: View {
 
     @State private var fil: URL?
     @State private var titel = ""
+    /// När mötet hölls. Filens ändringsdatum som förslag; en nedladdad
+    /// Teamsinspelning är annars daterad till nedladdningen.
+    @State private var inledd = Date()
     @State private var valtProjekt: Projekt?
     /// "sv", "en" eller nil — motorn avgör själv.
     @State private var språk: String? = "sv"
@@ -80,6 +83,8 @@ struct Importvy: View {
                     Text(kund.namn).tag(Projekt?.none)
                     ForEach(projekt) { p in Text(p.namn).tag(Projekt?.some(p)) }
                 }
+                DatePicker("Mötet hölls", selection: $inledd, displayedComponents: [.date, .hourAndMinute])
+                    .help("Datumet styr var mötet hamnar i listan och vilken dag åtagandenas «före fredag» räknas från.")
                 Picker("Språk", selection: $språk) {
                     Text("Svenska").tag(String?.some("sv"))
                     Text("Engelska").tag(String?.some("en"))
@@ -123,6 +128,9 @@ struct Importvy: View {
     private func välj(_ url: URL) {
         fil = url
         if titel.isEmpty { titel = url.deletingPathExtension().lastPathComponent }
+        if let d = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate {
+            inledd = d
+        }
     }
 
     /// Lägger jobbet i kön och stänger bladet. Arbetet syns i raden längst
@@ -134,7 +142,7 @@ struct Importvy: View {
         Importkö.delad.köa(
             källa: fil, placering: placering,
             titel: namn.isEmpty ? fil.deletingPathExtension().lastPathComponent : namn,
-            kund: kund, språk: språk)
+            kund: kund, språk: språk, inledd: inledd)
         vidKlar()
         stäng()
     }

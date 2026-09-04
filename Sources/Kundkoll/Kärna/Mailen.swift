@@ -49,8 +49,10 @@ actor Mailen {
 
         init(from avkodare: Decoder) throws {
             let c = try avkodare.container(keyedBy: CodingKeys.self)
-            datum = try c.decodeIfPresent(Date.self, forKey: .datum)
             datumText = try c.decodeIfPresent(String.self, forKey: .datumText) ?? ""
+            // En cache skriven innan tolkningen förstod svenska saknar datum;
+            // texten finns kvar och räcker.
+            datum = try c.decodeIfPresent(Date.self, forKey: .datum) ?? Mailen.datum(ur: datumText)
             avsändare = try c.decodeIfPresent(String.self, forKey: .avsändare) ?? ""
             ämne = try c.decodeIfPresent(String.self, forKey: .ämne) ?? ""
             meddelandeID = try c.decodeIfPresent(String.self, forKey: .meddelandeID) ?? ""
@@ -127,7 +129,9 @@ actor Mailen {
         text.split(separator: "\n").compactMap { rad -> Mejl? in
             let f = rad.split(separator: "\u{1F}", omittingEmptySubsequences: false).map(String.init)
             guard f.count >= 6 else { return nil }
-            return Mejl(datum: datum(ur: f[0]), datumText: f[0], avsändare: f[1],
+            // Fält 8 är datumet som tal, fält 0 som text. Talet först.
+            let iso = f.count > 8 ? f[8].trimmingCharacters(in: .whitespacesAndNewlines) : ""
+            return Mejl(datum: datum(iso: iso) ?? datum(ur: f[0]), datumText: f[0], avsändare: f[1],
                         ämne: f[2], meddelandeID: f[3], konto: f[4], låda: f[5],
                         riktning: f.count > 6 ? f[6].trimmingCharacters(in: .whitespacesAndNewlines) : "fran",
                         text: f.count > 7 ? Self.städaBrödtext(f[7]) : "")
@@ -159,9 +163,30 @@ actor Mailen {
         f.dateFormat = "EEEE, d MMMM yyyy 'at' HH:mm:ss"
         return f
     }()
+    /// Svensk region ger «onsdag 2 september 2026 13:42:54». Uppmätt
+    /// 2026-09-04: så såg alla mejl i cachen ut, och inget fick datum.
+    private static let svensktFormat: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "sv_SE")
+        f.dateFormat = "EEEE d MMMM yyyy HH:mm:ss"
+        return f
+    }()
+    /// Det skriptet lämnar som tal: lokal tid, oberoende av språk.
+    private static let isoformat: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return f
+    }()
+
+    static func datum(iso: String) -> Date? {
+        guard !iso.isEmpty else { return nil }
+        return isoformat.date(from: iso)
+    }
 
     static func datum(ur text: String) -> Date? {
-        datumformat.date(from: text.trimmingCharacters(in: .whitespaces))
+        let t = text.trimmingCharacters(in: .whitespaces)
+        return datumformat.date(from: t) ?? svensktFormat.date(from: t)
     }
 
     enum Fel: LocalizedError {
@@ -193,7 +218,7 @@ extension Mailen {
     static func adresser(ur kontakter: [Kontakt], max antal: Int = maxAdresser) -> [String] {
         var sedda = Set<String>()
         var ut: [String] = []
-        for e in kontakter.flatMap(\.epost) {
+        for e in kontakter.filter(\.sökMejl).flatMap(\.epost) {
             let ren = e.trimmingCharacters(in: .whitespaces).lowercased()
             guard !ren.isEmpty, ren.contains("@"), sedda.insert(ren).inserted else { continue }
             ut.append(ren)

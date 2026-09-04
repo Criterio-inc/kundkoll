@@ -57,15 +57,24 @@ end run
 
 on rad(m, kontonamn, ladnamn, riktning, faltdelare)
 	tell application "Mail"
+		-- Datumet lämnas två gånger: som text för visning, och som
+		-- "ÅÅÅÅ-MM-DD HH:MM:SS" i lokal tid för appen. Textformen följer
+		-- datorns språk, och appen förstod bara den engelska: på en svensk
+		-- dator fick inget mejl något datum alls.
+		set dd to missing value
 		try
-			set d to (date received of m) as string
+			set dd to date received of m
 		on error
 			try
-				set d to (date sent of m) as string
-			on error
-				set d to ""
+				set dd to date sent of m
 			end try
 		end try
+		set d to ""
+		set iso to ""
+		if dd is not missing value then
+			set d to dd as string
+			set iso to my isodatum(dd)
+		end if
 		try
 			set a to sender of m
 		on error
@@ -96,6 +105,22 @@ on rad(m, kontonamn, ladnamn, riktning, faltdelare)
 		on error
 			set mid to ""
 		end try
-		return d & faltdelare & a & faltdelare & s & faltdelare & mid & faltdelare & kontonamn & faltdelare & ladnamn & faltdelare & riktning & faltdelare & b & linefeed
+		return d & faltdelare & a & faltdelare & s & faltdelare & mid & faltdelare & kontonamn & faltdelare & ladnamn & faltdelare & riktning & faltdelare & b & faltdelare & iso & linefeed
 	end tell
 end rad
+
+on tvasiffror(n)
+	if n < 10 then return "0" & n
+	return "" & n
+end tvasiffror
+
+on isodatum(dd)
+	set y to year of dd
+	set mo to (month of dd) as integer
+	set da to day of dd
+	set t to time of dd
+	set h to t div 3600
+	set mi to (t mod 3600) div 60
+	set se to t mod 60
+	return (y as string) & "-" & my tvasiffror(mo) & "-" & my tvasiffror(da) & " " & my tvasiffror(h) & ":" & my tvasiffror(mi) & ":" & my tvasiffror(se)
+end isodatum

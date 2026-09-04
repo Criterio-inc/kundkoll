@@ -317,17 +317,40 @@ final class Arkivet: ObservableObject {
 
     /// Lägger till nya uppgifter utan att skapa dubbletter av sådant som redan
     /// står där. Samma åtagande nämns ofta i både ett möte och ett mejl.
+    /// Bara öppna kort räknas: ett löfte som gjordes i augusti ska inte
+    /// hindra samma löfte i september.
     @discardableResult
     func läggTill(_ nya: [Uppgift], för kund: Kund) throws -> [Uppgift] {
         var alla = uppgifter(för: kund)
         var tillagda = 0
-        for ny in nya where !alla.contains(where: { $0.liknar(ny) }) {
+        for ny in nya where !alla.contains(where: { $0.läge != .klart && $0.liknar(ny) }) {
             alla.append(ny)
             tillagda += 1
         }
         guard tillagda > 0 else { return alla }
         try sparaUppgifter(alla, för: kund)
         return alla
+    }
+
+    /// Byter ut ett mötes kort när sammanfattningen skrivs om: de kort ur
+    /// samma möte som fortfarande står orörda under Att göra tas bort, och
+    /// de nya läggs till. Kort som flyttats eller bockats av lämnas kvar.
+    @discardableResult
+    func ersätt(kort nya: [Uppgift], ur källa: String, för kund: Kund) throws -> [Uppgift] {
+        let kvar = uppgifter(för: kund).filter {
+            !($0.ursprung == .möte && $0.källa == källa && $0.läge == .attGöra)
+        }
+        try sparaUppgifter(kvar, för: kund)
+        return try läggTill(nya, för: kund)
+    }
+
+    /// Flera i Klart utan att gå via dubblettspärren: den retroaktiva
+    /// rundans historiska åtaganden.
+    func läggTillKlara(_ klara: [Uppgift], för kund: Kund) throws {
+        guard !klara.isEmpty else { return }
+        var alla = uppgifter(för: kund)
+        alla += klara.map { var k = $0; k.läge = .klart; return k }
+        try sparaUppgifter(alla, för: kund)
     }
 
     func uppdatera(_ uppgift: Uppgift, för kund: Kund) throws {
