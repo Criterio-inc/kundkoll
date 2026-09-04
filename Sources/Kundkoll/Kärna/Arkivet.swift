@@ -337,6 +337,25 @@ final class Arkivet: ObservableObject {
         try sparaUppgifter(uppgifter(för: kund).filter { $0.id != uppgift.id }, för: kund)
     }
 
+    /// Lägger flera i Klart på en gång, med en enda skrivning. Till för
+    /// städningen efter en retroaktiv mejlrunda: gamla mejl ger kort med
+    /// passerade datum som ingen tänker göra något åt.
+    /// Returnerar hur många som faktiskt flyttades.
+    @discardableResult
+    func läggKlart(_ ids: Set<UUID>, för kund: Kund) throws -> Int {
+        var alla = uppgifter(för: kund)
+        var flyttade: [Uppgift] = []
+        for i in alla.indices where ids.contains(alla[i].id) && alla[i].läge != .klart {
+            alla[i].läge = .klart
+            alla[i].ändrad = Date()
+            flyttade.append(alla[i])
+        }
+        guard !flyttade.isEmpty else { return 0 }
+        try sparaUppgifter(alla, för: kund)
+        for u in flyttade { Påminnelser.delad.spegla(u) }
+        return flyttade.count
+    }
+
     /// Tavlan som markdown, så att den syns i Obsidian.
     private func skrivUppgiftsnot(_ uppgifter: [Uppgift], hos kund: Kund) throws {
         var text = """

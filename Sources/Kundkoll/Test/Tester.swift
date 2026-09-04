@@ -1323,6 +1323,30 @@ enum Tester {
                        "en punkt räcker för ett annat avtryck")
         }
 
+        do {   // försenade i Klart på en gång
+            let rot = FileManager.default.temporaryDirectory
+                .appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: rot) }
+            let arkiv = Arkivet(rot: rot)
+            let kund = try! arkiv.skapaKund(namn: "Acme")
+            let igår = Date().addingTimeInterval(-86400), imorgon = Date().addingTimeInterval(86400)
+            let alla = try! arkiv.läggTill([
+                Uppgift(vad: "Skicka offerten till Anna", senast: igår),
+                Uppgift(vad: "Boka uppföljningsmöte", senast: igår, läge: .pågår),
+                Uppgift(vad: "Läs igenom avtalet", senast: imorgon),
+                Uppgift(vad: "Ring Bo om leveransen"),
+                Uppgift(vad: "Redan klart sedan länge", senast: igår, läge: .klart),
+            ], för: kund)
+            let försenade = alla.filter { $0.försenad && $0.läge != .klart }
+            Prov.lika(försenade.count, 2, "två är försenade och öppna")
+            let n = try! arkiv.läggKlart(Set(försenade.map(\.id)), för: kund)
+            Prov.lika(n, 2, "båda flyttades")
+            let efter = arkiv.uppgifter(för: kund)
+            Prov.lika(efter.filter { $0.läge == .klart }.count, 3, "tre i Klart: de två plus den som redan var det")
+            Prov.lika(efter.filter { $0.läge == .attGöra }.count, 2, "morgondagens och den utan datum rörs inte")
+            Prov.lika(try! arkiv.läggKlart(Set(försenade.map(\.id)), för: kund), 0, "andra gången finns inget att flytta")
+        }
+
         do {   // tavlan får veta när uppgifter sparas
             let rot = FileManager.default.temporaryDirectory
                 .appending(path: "kundkoll-test-\(UUID().uuidString)")

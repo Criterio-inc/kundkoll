@@ -23,11 +23,26 @@ struct Kanbanvy: View {
         return uppgifter.filter { $0.projekt == projekt.namn }
     }
 
+    /// Öppna kort vars datum har passerat — de röda.
+    private var försenade: [Uppgift] {
+        synliga.filter { $0.försenad && $0.läge != .klart }
+    }
+
+    private func läggFörsenadeKlart() {
+        _ = try? arkiv.läggKlart(Set(försenade.map(\.id)), för: kund)
+        läsOm()
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Avsnittsrubrik("Att göra")
                 Spacer()
+                if !försenade.isEmpty {
+                    Button("Lägg \(försenade.count) försenade i Klart", action: läggFörsenadeKlart)
+                        .buttonStyle(.link)
+                        .help("Flyttar allt med passerat datum som fortfarande står under Att göra eller Pågår. Går att dra tillbaka.")
+                }
                 if Obsidian.finns {
                     Button("Öppna i Obsidian") {
                         Obsidian.öppna(kund.mapp.appending(path: "Att göra.md"),
