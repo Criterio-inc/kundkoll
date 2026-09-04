@@ -22,12 +22,13 @@ enum Notiser {
     }
 
     /// En notis nu. `kund` följer med så att ett klick kan öppna rätt ställe.
-    static func skicka(titel: String, text: String, kund: String? = nil) {
+    static func skicka(titel: String, text: String, kund: String? = nil, mapp: URL? = nil) {
         guard kanNotisa else { return }
         let innehåll = UNMutableNotificationContent()
         innehåll.title = titel
         innehåll.body = text
         if let kund { innehåll.userInfo = ["kund": kund] }
+        if let mapp { innehåll.userInfo["mapp"] = mapp.path }
         UNUserNotificationCenter.current().add(
             UNNotificationRequest(identifier: UUID().uuidString,
                                   content: innehåll, trigger: nil))
@@ -54,8 +55,10 @@ enum Notiser {
                 innehåll.userInfo = ["kund": kund, "möte": m.id]
                 let delar = Calendar.current.dateComponents(
                     [.year, .month, .day, .hour, .minute], from: när)
+                // Återkommande möten delar id; starttiden skiljer tillfällena
+                // åt, annars ersätter veckans andra tillfälle det första.
                 central.add(UNNotificationRequest(
-                    identifier: "brief-\(m.id)",
+                    identifier: "brief-\(m.id)-\(Int(m.start.timeIntervalSince1970))",
                     content: innehåll,
                     trigger: UNCalendarNotificationTrigger(dateMatching: delar, repeats: false)))
             }
@@ -106,16 +109,18 @@ enum Notiser {
             let info = svar.notification.request.content.userInfo
             guard let kund = info["kund"] as? String else { return }
             let möte = info["möte"] as? String
+            let mapp = info["mapp"] as? String
             await MainActor.run {
-                NotificationCenter.default.post(
-                    name: .öppnaKund, object: kund,
-                    userInfo: möte.map { ["möte": $0] } ?? [:])
+                var extra: [String: Any] = [:]
+                if let möte { extra["möte"] = möte }
+                if let mapp { extra["mapp"] = mapp }
+                NotificationCenter.default.post(name: .öppnaKund, object: kund, userInfo: extra)
             }
         }
     }
 
     /// Vad ett färdigbearbetat möte är värt att säga.
-    static func mötetKlart(_ inspelning: Inspelning) {
+    static func mötetKlart(_ inspelning: Inspelning, mapp: URL? = nil) {
         let antal = inspelning.sammanfattning?.åtaganden.count ?? 0
         let text: String
         switch antal {
@@ -128,6 +133,6 @@ enum Notiser {
         default:
             text = "Sammanfattat — \(antal) åtaganden på tavlan."
         }
-        skicka(titel: inspelning.titel, text: text, kund: inspelning.kund)
+        skicka(titel: inspelning.titel, text: text, kund: inspelning.kund, mapp: mapp)
     }
 }

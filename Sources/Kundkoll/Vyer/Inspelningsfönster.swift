@@ -12,13 +12,26 @@ import AppKit
 /// utifrån och bära ett pågående tillstånd, så fönstret byggs med AppKit.
 @MainActor
 enum Inspelningsfönster {
-    private static var fönster: NSWindow?
+    fileprivate static var fönster: NSWindow?
+    private static let vakt = Fönstervakt()
 
     static func öppna(kund: Kund, projekt: Projekt?, möte: Kalendern.Möte?) {
         if let f = fönster {
-            f.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
+            // Pågår något visas fönstret som det är. Annars byggs det om för
+            // den kund som bads om: ett fönster stängt med röda knappen kom
+            // förut tillbaka med förra kundens namn och sida.
+            let s = Inspelningssession.delad
+            switch s.läge {
+            case .förbereder, .spelarIn, .avslutar:
+                f.makeKeyAndOrderFront(nil)
+                NSApp.activate(ignoringOtherApps: true)
+                return
+            case .vilande, .fel, .klar:
+                f.delegate = nil
+                f.close()
+                fönster = nil
+                s.återställ()
+            }
         }
         let vy = Inspelningsvy(kund: kund, projekt: projekt, möte: möte)
             .environmentObject(Arkivet.shared)
@@ -35,6 +48,7 @@ enum Inspelningsfönster {
         f.center()
         // Fönstret ska kunna ligga kvar synligt bredvid mötesverktyget.
         f.level = .normal
+        f.delegate = vakt
         f.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         fönster = f
@@ -51,4 +65,15 @@ enum Inspelningsfönster {
     }
 
     static var öppet: Bool { fönster?.isVisible == true }
+}
+
+/// Röda knappen ska betyda samma sak som «Klar»: fönstret glöms och
+/// sessionen nollställs om den inte spelar in.
+private final class Fönstervakt: NSObject, NSWindowDelegate {
+    func windowWillClose(_ notification: Notification) {
+        MainActor.assumeIsolated {
+            Inspelningsfönster.fönster = nil
+            Inspelningssession.delad.återställ()
+        }
+    }
 }

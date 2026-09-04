@@ -39,6 +39,12 @@ final class Inspelningssession: ObservableObject {
     /// kan visa var arbetet står.
     @Published private(set) var bearbetadMapp: URL?
     @Published private(set) var röstnamn: [Int: String] = [:]
+    /// Något gick fel under inspelningen utan att den gick förlorad, till
+    /// exempel att ljudinfångningen bröts. Visas på sidan «sparad».
+    @Published private(set) var varning: String?
+    /// Återinträdesspärr: två klick på stopp ska ge en avslutning, inte två
+    /// efterbearbetningar i samma mapp.
+    private var stoppar = false
 
     /// Lyssnar efter frågeställningar medan samtalet pågår.
     let liveinsikter = Liveinsikter()
@@ -63,13 +69,21 @@ final class Inspelningssession: ObservableObject {
     private var köer: [Röst: Task<Void, Never>] = [:]
 
     var pågår: Bool { if case .spelarIn = läge { true } else { false } }
+    /// Sant medan något skulle gå förlorat om appen avslutades.
+    var arbetar: Bool { pågår || läge == .avslutar || efterbearbetar }
 
     // MARK: - Start
 
     func starta(placering: Placering, titel: String,
                 mikrofon: Ljudinfångning.Mikrofon?, kallade: [String] = [],
                 språk: String = "sv") async {
-        guard case .vilande = läge else { return }
+        // Från .fel går det att försöka igen: ett nekat tillstånd ska inte
+        // kräva omstart av appen.
+        switch läge {
+        case .vilande, .fel: break
+        default: return
+        }
+        varning = nil
         self.placering = placering
         self.titel = titel.isEmpty ? "Samtal" : titel
         self.mikrofonNamn = mikrofon?.namn
@@ -81,13 +95,13 @@ final class Inspelningssession: ObservableObject {
         do {
             läge = .förbereder("Kontrollerar behörigheter …")
             guard await Ljudinfångning.begärMikrofon() else {
-                throw Enkeltfel("Critero-kundkoll behöver tillgång till mikrofonen. Ge den i Systeminställningar → Integritet och säkerhet → Mikrofon.")
+                throw Enkeltfel("Mikrofonen är inte tillåten. Slå på Critero-kundkoll under Systeminställningar → Mikrofon och försök igen.")
             }
             if !Ljudinfångning.harSkärmbehörighet() {
                 // Dialogen skriver in appen i listan; själva godkännandet
                 // sker i Systeminställningar och gäller efter omstart.
                 Ljudinfångning.begärSkärmbehörighet()
-                throw Enkeltfel("Datorljudet kräver behörigheten Skärminspelning. Slå på Critero-kundkoll i Systeminställningar → Integritet och säkerhet → Skärm- och systemljudsinspelning och starta om appen. Står den redan på: slå av och på reglaget, så knyts den till det här bygget.")
+                throw Enkeltfel("Datorljudet kräver Skärminspelning. Slå på Critero-kundkoll under Systeminställningar → Skärminspelning, starta om appen och försök igen.")
             }
 
             Notiser.begär()
@@ -159,14 +173,25 @@ final class Inspelningssession: ObservableObject {
     }
 
     private func avbröt(_ fel: Error) {
-        Task { await stoppa(); läge = .fel(fel.localizedDescription) }
+        Task {
+            // Det som hann spelas in är sparat och bearbetas; felet är en
+            // varning på sidan «sparad», inte ett tomt formulär.
+            if await stoppa() != nil {
+                varning = "Ljudet bröts: \(fel.localizedDescription) Det som hann spelas in är sparat och bearbetas."
+            } else if case .klar = läge {
+            } else if läge != .avslutar {
+                läge = .fel(fel.localizedDescription)
+            }
+        }
     }
 
     // MARK: - Stopp
 
     @discardableResult
     func stoppa() async -> URL? {
-        guard pågår || läge == .avslutar else { return nil }
+        guard pågår, !stoppar else { return nil }
+        stoppar = true
+        defer { stoppar = false }
         läge = .avslutar
         liveinsikter.sluta()
         klocka?.invalidate(); klocka = nil
@@ -280,7 +305,7 @@ final class Inspelningssession: ObservableObject {
                 self.sammanfattar = false
                 self.efterbearbetar = false
                 self.bearbetadMapp = nil
-                Notiser.mötetKlart(uppdaterad)
+                Notiser.mötetKlart(uppdaterad, mapp: mapp)
             }
         }
     }
@@ -308,6 +333,21 @@ final class Inspelningssession: ObservableObject {
         for (_, s) in skrivare { s.stäng() }
         skrivare.removeAll()
         await whisper.stoppaServer()
+        // En mapp utan ljud efter ett misslyckat startförsök ska inte ligga
+        // kvar som «påbörjad inspelning, 0 MB» med en knapp som inte kan lyckas.
+        if let m = mapp, Self.saknarLjud(m) {
+            try? FileManager.default.removeItem(at: m)
+        }
+        mapp = nil
+    }
+
+    /// Sant när ingen av spårfilerna innehåller mer än WAV-huvudet.
+    static func saknarLjud(_ mapp: URL) -> Bool {
+        for namn in ["jag.wav", "motpart.wav"] {
+            let f = mapp.appending(path: namn)
+            if let n = try? f.resourceValues(forKeys: [.fileSizeKey]).fileSize, n > 44 { return false }
+        }
+        return true
     }
 }
 
@@ -317,6 +357,11 @@ final class Spårskrivare {
     private let handtag: FileHandle
     private let url: URL
     private var antalProv = 0
+    /// Prov sedan huvudet senast skrevs om.
+    private var sedanHuvud = 0
+    /// Huvudet skrivs om var tionde sekund ljud. Kraschar appen mitt i
+    /// mötet påstår filen då högst tio sekunder för lite, i stället för noll.
+    static let huvudintervall = 16_000 * 10
 
     init(fil: URL) throws {
         FileManager.default.createFile(atPath: fil.path, contents: Wav.data(av: []))
@@ -333,14 +378,23 @@ final class Spårskrivare {
         }
         handtag.write(d)
         antalProv += prov.count
+        sedanHuvud += prov.count
+        if sedanHuvud >= Self.huvudintervall {
+            uppdateraHuvud()
+            sedanHuvud = 0
+        }
     }
 
-    /// WAV-huvudet innehåller längder som inte är kända förrän i slutet.
+    /// WAV-huvudet innehåller längder; de skrivs om löpande och slutgiltigt här.
     func stäng() {
+        uppdateraHuvud()
+        try? handtag.close()
+    }
+
+    private func uppdateraHuvud() {
         let dataBytes = UInt32(antalProv * 2)
         skrivUInt32(dataBytes + 36, vid: 4)      // RIFF-chunkens längd
         skrivUInt32(dataBytes, vid: 40)          // data-chunkens längd
-        try? handtag.close()
     }
 
     private func skrivUInt32(_ v: UInt32, vid offset: UInt64) {

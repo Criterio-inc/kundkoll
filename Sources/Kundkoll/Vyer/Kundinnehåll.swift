@@ -42,6 +42,10 @@ struct Kundinnehåll: View {
     @State private var möteskopplingar: [String: String] = [:]
     @State private var slutför: URL?
     @State private var slutförsteg = ""
+    /// Varför «Gör klart» inte gick, per mapp. Förut försvann raden bara.
+    @State private var slutförfel: [URL: String] = [:]
+    /// En påbörjad inspelning som ska kastas, efter bekräftelse.
+    @State private var attKastaPåbörjad: URL?
     /// Mappar utanför kundmappen, och hur många dokument ur var och en som
     /// ligger i kunskapsbanken.
     @State private var kopplade: [Kopplad] = []
@@ -429,11 +433,14 @@ struct Kundinnehåll: View {
                             ProgressView().controlSize(.small)
                             Text(slutförsteg).font(.caption).foregroundStyle(.secondary)
                         } else {
+                            if let fel = slutförfel[rad.mapp] {
+                                Text(fel).font(.caption).foregroundStyle(.orange)
+                                    .lineLimit(2).frame(maxWidth: 260)
+                            }
                             Button("Gör klart") { görKlart(rad.mapp) }
                                 .disabled(slutför != nil)
                             Button {
-                                try? arkiv.kastaInspelning(i: rad.mapp)
-                                läsOm()
+                                attKastaPåbörjad = rad.mapp
                             } label: {
                                 Image(systemName: "trash")
                             }
@@ -447,17 +454,38 @@ struct Kundinnehåll: View {
             }
             .background(.orange.opacity(0.08), in: .rect(cornerRadius: 8))
         }
+        .confirmationDialog(
+            "Flytta den påbörjade inspelningen till papperskorgen?",
+            isPresented: Binding(get: { attKastaPåbörjad != nil },
+                                 set: { if !$0 { attKastaPåbörjad = nil } }),
+            presenting: attKastaPåbörjad
+        ) { mapp in
+            Button("Flytta till papperskorgen", role: .destructive) {
+                try? arkiv.kastaInspelning(i: mapp)
+                attKastaPåbörjad = nil
+                läsOm()
+            }
+            Button("Avbryt", role: .cancel) { attKastaPåbörjad = nil }
+        } message: { mapp in
+            Text("\(mapp.lastPathComponent) med sitt ljud flyttas till papperskorgen. Du kan ta tillbaka den därifrån.")
+        }
     }
 
     private func görKlart(_ mapp: URL) {
         slutför = mapp
         slutförsteg = "Förbereder"
+        slutförfel[mapp] = nil
         let profiler = arkiv.röstprofiler(för: kund)
         Task {
             let importör = Import()
-            _ = try? await importör.slutför(
-                mapp: mapp, placering: .kund(kund), profiler: profiler,
-                vidLäge: { l in Task { @MainActor in slutförsteg = l.steg } })
+            do {
+                _ = try await importör.slutför(
+                    mapp: mapp, placering: .kund(kund), profiler: profiler,
+                    vidLäge: { l in Task { @MainActor in slutförsteg = l.steg } })
+            } catch {
+                // Förut försvann raden bara; nu står det varför.
+                slutförfel[mapp] = error.localizedDescription
+            }
             slutför = nil
             läsOm()
         }

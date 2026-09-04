@@ -121,11 +121,19 @@ struct Huvudvy: View {
                 let möte = kalender.möten(tillDagar: 7).first { $0.id == mid }
                 briefing = Briefingval(kund: kund, möte: möte)
             }
+            // Notisen «Sammanfattat — 3 åtaganden» ska öppna mötet den talar om.
+            if let väg = n.userInfo?["mapp"] as? String,
+               let rad = arkiv.inspelningar(för: kund).first(where: { $0.1.path == väg }) {
+                palettMöte = Palettmöte(kund: kund, inspelning: rad.0, mapp: rad.1)
+            }
         }
         // Påminnelserna en kvart före kundmöten bokas om varje gång kalendern
         // ändras, så att flyttade möten följer med och avbokade tystnar.
         .task { planeraBriefingar() }
         .onChange(of: kalender.ändringar) { planeraBriefingar() }
+        // Första starten: kalenderfrågan besvaras efter att bokningen gav
+        // upp. När svaret kommer bokas notiserna.
+        .onChange(of: kalender.behörighet) { planeraBriefingar() }
         .sheet(isPresented: $visaNyKund) { nyKundBlad }
         .sheet(isPresented: $visaNyckel) { Modellvy() }
         .onReceive(NotificationCenter.default.publisher(for: .nyKund)) { _ in visaNyKund = true }

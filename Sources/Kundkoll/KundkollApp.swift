@@ -215,7 +215,33 @@ struct Ingång {
     }
 }
 
+/// Frågar innan appen avslutas mitt i ett arbete som skulle gå förlorat.
+final class Appdelegat: NSObject, NSApplicationDelegate {
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        let s = Inspelningssession.delad
+        let kö = Importkö.delad
+        let vad: String?
+        if s.pågår {
+            vad = "Inspelningen «\(s.titel)» pågår."
+        } else if s.arbetar {
+            vad = "Renskrivningen av «\(s.titel)» pågår, \(Int(s.efterbearbetningsandel * 100)) %. Avslutas appen står mötet kvar utan sammanfattning och utan åtaganden på tavlan."
+        } else if kö.pågår {
+            vad = "En import pågår: \(kö.steg)."
+        } else {
+            vad = nil
+        }
+        guard let vad else { return .terminateNow }
+        let ruta = NSAlert()
+        ruta.messageText = "Avsluta ändå?"
+        ruta.informativeText = vad
+        ruta.addButton(withTitle: "Avbryt")
+        ruta.addButton(withTitle: "Avsluta ändå")
+        return ruta.runModal() == .alertFirstButtonReturn ? .terminateCancel : .terminateNow
+    }
+}
+
 struct Kundkoll: App {
+    @NSApplicationDelegateAdaptor(Appdelegat.self) private var delegat
     @StateObject private var arkiv = Arkivet.shared
     @StateObject private var session = Inspelningssession.delad
     @StateObject private var adressbok = Adressboken.shared

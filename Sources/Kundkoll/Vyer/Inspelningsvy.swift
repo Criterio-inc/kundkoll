@@ -77,6 +77,10 @@ struct Inspelningsvy: View {
                 Picker("Mikrofon", selection: $valdMikrofon) {
                     ForEach(mikrofoner) { m in Text(m.namn).tag(Ljudinfångning.Mikrofon?.some(m)) }
                 }
+                if mikrofoner.isEmpty {
+                    Text("Ingen mikrofon hittades. Anslut en, eller tillåt appen under Systeminställningar → Mikrofon.")
+                        .font(.caption).foregroundStyle(.orange)
+                }
             }
             .formStyle(.grouped)
 
@@ -87,10 +91,16 @@ struct Inspelningsvy: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             if case .fel(let text) = session.läge {
-                Label(text, systemImage: "exclamationmark.triangle")
-                    .font(.callout)
-                    .foregroundStyle(.orange)
-                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 8) {
+                    Label(text, systemImage: "exclamationmark.triangle")
+                        .font(.callout)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let länk = Self.inställningslänk(för: text) {
+                        Button("Öppna Systeminställningar") { NSWorkspace.shared.open(länk) }
+                            .buttonStyle(.link)
+                    }
+                }
             }
 
             Spacer()
@@ -98,7 +108,13 @@ struct Inspelningsvy: View {
                 Button("Avbryt") { Inspelningsfönster.stäng() }
                 Spacer()
                 Button(action: starta) {
-                    Label("Spela in", systemImage: "record.circle")
+                    // Ett fel ska se ut som ett fel: knappen säger att det
+                    // är ett nytt försök, inte att allt är som vanligt.
+                    if case .fel = session.läge {
+                        Label("Försök igen", systemImage: "arrow.clockwise")
+                    } else {
+                        Label("Spela in", systemImage: "record.circle")
+                    }
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(valdMikrofon == nil)
@@ -208,6 +224,12 @@ struct Inspelningsvy: View {
             Image(systemName: "checkmark.circle").font(.system(size: 44)).foregroundStyle(.green)
             Text("Inspelningen är sparad").font(.title3.weight(.semibold))
             Text(mapp.lastPathComponent).font(.callout).foregroundStyle(.secondary)
+            if let varning = session.varning {
+                Label(varning, systemImage: "exclamationmark.triangle")
+                    .font(.callout).foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 420)
+            }
 
             if session.efterbearbetar {
                 VStack(spacing: 8) {
@@ -225,7 +247,7 @@ struct Inspelningsvy: View {
                             .font(.caption).foregroundStyle(.tertiary)
                             .lineLimit(2).multilineTextAlignment(.center)
                     }
-                    Text("Du kan stänga fönstret — arbetet fortsätter.")
+                    Text("Du kan stänga fönstret. Arbetet fortsätter så länge appen är igång.")
                         .font(.caption).foregroundStyle(.tertiary)
                 }
                 .frame(maxWidth: 340)
@@ -243,6 +265,18 @@ struct Inspelningsvy: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(20)
+    }
+
+    /// Rutan i Systeminställningar som felet handlar om, när det finns en.
+    static func inställningslänk(för fel: String) -> URL? {
+        let t = fel.lowercased()
+        if t.contains("skärminspelning") {
+            return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
+        }
+        if t.contains("mikrofon") {
+            return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
+        }
+        return nil
     }
 
     private func starta() {
