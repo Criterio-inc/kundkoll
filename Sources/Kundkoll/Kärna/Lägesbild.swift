@@ -74,7 +74,7 @@ enum Läget {
         // Dokumenten ur kopplade mappar räknas som underlag. Ett projekt som
         // bara har ett dokumentarkiv och inga möten fick annars «inget
         // underlag att bygga en lägesbild på» trots hundratals filer.
-        let dokument = (try? Kunskapsbank(kund: kund))?.senasteDokument(max: 8) ?? []
+        let dokument = arkiv.kunskapsbank(för: kund)?.senasteDokument(max: 8) ?? []
         let träffar = underlag(
             projekt: projekt.namn,
             inspelningar: arkiv.inspelningar(för: kund).map(\.inspelning),

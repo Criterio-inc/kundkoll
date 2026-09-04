@@ -15,7 +15,8 @@ enum Globalsökning {
     }
 
     /// Söker och ger träffarna grupperade per kund, bästa kunden först.
-    static func sök(_ fråga: String, i kunder: [Kund], perKund: Int = 5) -> [(Kund, [Träff])] {
+    static func sök(_ fråga: String, i kunder: [Kund], perKund: Int = 5,
+                    arkiv: Arkivet = .shared) -> [(Kund, [Träff])] {
         guard !Kunskapsbank.sökuttryck(fråga).isEmpty else { return [] }
 
         var ut: [(Kund, [Träff])] = []
@@ -24,7 +25,7 @@ enum Globalsökning {
             // sökningen ska vara snabb, och indexet byggs när chatten öppnas.
             let indexfil = kund.mapp.appending(path: ".kundkoll/index.db")
             guard FileManager.default.fileExists(atPath: indexfil.path),
-                  let bank = try? Kunskapsbank(kund: kund) else { continue }
+                  let bank = arkiv.kunskapsbank(för: kund) else { continue }
             let träffar = bank.sök(fråga, max: perKund)
                 .map { Träff(kund: kund, inre: $0) }
             if !träffar.isEmpty { ut.append((kund, träffar)) }

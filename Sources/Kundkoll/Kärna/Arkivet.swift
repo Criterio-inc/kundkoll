@@ -415,6 +415,23 @@ final class Arkivet: ObservableObject {
                        atomically: true, encoding: .utf8)
     }
 
+    // MARK: - Kunskapsbanken
+
+    /// En anslutning per kund för det som frågar ofta från huvudtråden:
+    /// räknarna i mappavsnittet, sökningen i paletten, lägesbilden,
+    /// bortkopplingen. Förut öppnades indexet från grunden vid varje fråga,
+    /// var tjugonde fil under en inläsning. Indexeringen och inbäddningen
+    /// skriver på egna anslutningar i bakgrunden; WAL låter dem arbeta
+    /// samtidigt och varje fråga här ser det senast skrivna.
+    private var banker: [String: Kunskapsbank] = [:]
+
+    func kunskapsbank(för kund: Kund) -> Kunskapsbank? {
+        if let b = banker[kund.id] { return b }
+        guard let b = try? Kunskapsbank(kund: kund) else { return nil }
+        banker[kund.id] = b
+        return b
+    }
+
     // MARK: - Kopplade mappar
 
     // Mappar utanför kundmappen som hör till kunden eller till ett projekt.

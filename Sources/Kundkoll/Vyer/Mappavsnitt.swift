@@ -132,7 +132,7 @@ struct Mappavsnitt: View {
         läserIn = Indexering.pågår(kund)
         dokumentfel = Indexering.senasteUtfall[kund.id]?.fel
         iMolnet = Indexering.senasteUtfall[kund.id]?.platshållare ?? 0
-        guard !kopplade.isEmpty, let bank = try? Kunskapsbank(kund: kund) else {
+        guard !kopplade.isEmpty, let bank = arkiv.kunskapsbank(för: kund) else {
             dokumentantal = [:]
             return
         }

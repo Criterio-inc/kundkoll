@@ -317,7 +317,7 @@ enum Indexering {
 
     /// Glömmer allt ur en mapp, när kopplingen tas bort.
     static func glöm(_ kopplad: Kopplad, hos kund: Kund) {
-        guard let bank = try? Kunskapsbank(kund: kund) else { return }
+        guard let bank = Arkivet.shared.kunskapsbank(för: kund) else { return }
         for källa in bank.källor(under: kopplad.url.path + "/") {
             try? bank.glöm(källa: källa)
         }

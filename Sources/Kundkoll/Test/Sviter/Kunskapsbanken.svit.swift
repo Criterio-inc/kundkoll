@@ -299,6 +299,13 @@ extension Tester {
             Prov.kolla(FileManager.default.fileExists(atPath: mapp.path),
                        "och mappen ligger kvar på disk — bara kopplingen försvann")
 
+            // Huvudtrådens frågor delar en anslutning per kund.
+            let b1 = arkiv.kunskapsbank(för: kund)
+            Prov.kolla(b1 != nil && b1 === arkiv.kunskapsbank(för: kund),
+                       "kunskapsbanken öppnas en gång per kund, inte per fråga")
+            let annan = try! arkiv.skapaKund(namn: "Beta")
+            Prov.kolla(arkiv.kunskapsbank(för: annan) !== b1, "men varje kund har sin egen")
+
             // Kunden har samma uppsättning genom Placering; filen bor hos kunden.
             try! arkiv.koppla(mapp, till: .kund(kund))
             Prov.lika(arkiv.kopplade(för: kund).count, 1, "mappen kopplas till kunden")
