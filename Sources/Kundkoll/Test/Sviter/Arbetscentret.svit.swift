@@ -54,3 +54,20 @@ extension Tester {
         }
     }
 }
+
+extension Tester {
+    static func diagnos() {
+        Prov.svit("Diagnos")
+        let lokala = Diagnos.lokala()
+        Prov.lika(lokala.map(\.id), ["whisper", "python", "pyannote", "mlx", "claude"],
+                  "de fem sakerna på disk kontrolleras i fast ordning")
+        Prov.kolla(lokala.allSatisfy { !$0.besked.isEmpty }, "varje rad har ett besked")
+        Prov.kolla(lokala.filter { $0.läge != .ok }.allSatisfy { $0.åtgärd != nil },
+                   "det som saknas säger hur det ordnas")
+        let b = Diagnos.behörigheter()
+        Prov.lika(b.count, 6, "sex behörigheter: mikrofon, skärm, kalender, kontakter, påminnelser, Mail")
+        Prov.kolla(b.filter { $0.läge != .ok }.allSatisfy { $0.länk != nil },
+                   "en behörighet som saknas länkar till Systeminställningar")
+        Prov.kolla(Set(lokala.map(\.id)).isDisjoint(with: b.map(\.id)), "raderna har unika id")
+    }
+}

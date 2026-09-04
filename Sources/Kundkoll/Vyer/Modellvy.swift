@@ -7,6 +7,15 @@ import SwiftUI
 /// på insikter. Det som sker av sig självt körs bara lokalt (Chatt.fråga).
 /// Livetranskriberingen och röstanalysen körs alltid på datorn.
 struct Modellvy: View {
+    enum Flik: String, CaseIterable, Identifiable {
+        case modell = "Modell"
+        case transkribering = "Transkribering"
+        case röster = "Röster och insikter"
+        case diagnos = "Diagnos"
+        var id: String { rawValue }
+    }
+    @State private var flik: Flik = .modell
+
     @Environment(\.dismiss) private var stäng
 
     @State private var val = Modellval.läs()
@@ -30,10 +39,17 @@ struct Modellvy: View {
                 Spacer()
             }
             .padding(16)
+            Picker("", selection: $flik) {
+                ForEach(Flik.allCases) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 16).padding(.bottom, 12)
             Divider()
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
+                  if flik == .modell {
                     Picker("Kör hos", selection: $val.leverantör) {
                         ForEach(Leverantör.allCases) { l in Text(l.namn).tag(l) }
                     }
@@ -127,9 +143,9 @@ struct Modellvy: View {
                             .font(.callout)
                             .foregroundStyle(.orange)
                     }
+                  }
 
-                    Divider().padding(.vertical, 4)
-
+                  if flik == .transkribering {
                     fält("Transkribering av färdiga möten") {
                         VStack(alignment: .leading, spacing: 8) {
                             Picker("", selection: $transkribering.motor) {
@@ -199,8 +215,9 @@ struct Modellvy: View {
                         }
                     }
 
-                    Divider().padding(.vertical, 4)
+                  }
 
+                  if flik == .röster {
                     fält("Modell för insikter under samtal") {
                         VStack(alignment: .leading, spacing: 6) {
                             TextField(Insikter.standardmodell, text: $insiktsmodell)
@@ -215,8 +232,6 @@ struct Modellvy: View {
                     Toggle("Känn igen röster mellan kunder", isOn: $delaRöster)
                         .help("Av som standard: röstprofiler ligger hos kunden, och samma person kan förekomma i flera kundärenden utan att man vill koppla ihop dem.")
 
-                    Divider().padding(.vertical, 4)
-
                     fält("Ditt namn") {
                         VStack(alignment: .leading, spacing: 6) {
                             TextField(NSFullUserName(), text: $användarnamn)
@@ -226,6 +241,11 @@ struct Modellvy: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                  }
+
+                  if flik == .diagnos {
+                    Diagnosvy()
+                  }
 
                     if let meddelande {
                         Text(meddelande)
@@ -239,16 +259,18 @@ struct Modellvy: View {
 
             Divider()
             HStack {
-                Button("Prova", action: prova)
-                    .disabled(provar)
-                if provar { ProgressView().controlSize(.small) }
+                if flik == .modell {
+                    Button("Prova", action: prova)
+                        .disabled(provar)
+                    if provar { ProgressView().controlSize(.small) }
+                }
                 Spacer()
                 Button("Avbryt") { stäng() }
                 Button("Spara", action: spara).keyboardShortcut(.defaultAction)
             }
             .padding(16)
         }
-        .frame(width: 520, height: 560)
+        .frame(width: 600, height: 600)
         .onAppear(perform: läsNyckel)
     }
 

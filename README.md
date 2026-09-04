@@ -237,6 +237,14 @@ Sökningen är SQLite FTS5 med trunkerade sökord; svenskans böjningar gör att
 sökning bara träffar i ett fall av fyra. Mätningen står i
 `docs/KUNSKAPSBANK.md`.
 
+Inställningar (⌘,) har fyra flikar: *Modell* väljer leverantör och nyckel
+för chatten, *Transkribering* pekar ut whisper.cpp och Pythonmiljön och väljer
+arkivmotor, *Röster och insikter* har insiktsmodellen, röstdelningen och ditt
+namn, och *Diagnos* provar allt: whisper, Python, pyannote, mlx_whisper,
+Claude Code, Ollama och modellerna, och behörigheterna, och säger vad som
+saknas och hur det ordnas. Samma kontroller som `scripts/installera.sh
+--kontrollera`, utan terminal.
+
 Modellen väljs under Inställningar (⌘,) och kan köras hos OpenRouter,
 Anthropic, OpenAI, Azure eller lokalt (Ollama, LM Studio, MLX). Valet gäller
 allt som går till en modell: chatten, sammanfattningen efter möten, åtaganden

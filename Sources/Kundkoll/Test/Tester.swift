@@ -14,6 +14,7 @@ enum Tester {
         arkivet()
         betydelse()
         briefing()
+        diagnos()
         förslag()
         indexetFöljerFilerna()
         inspelningensFelvägar()
