@@ -36,6 +36,9 @@ struct Kundinnehåll: View {
     @State private var öppnad: Öppnad?
     @State private var attKasta: Öppnad?
     @State private var ofullständiga: [(mapp: URL, storlek: Int)] = []
+    /// Det som hänt hos kunden sedan sist: samma underlag som briefen, utan
+    /// möte. Byggs ur filerna, ingen modell.
+    @State private var sedanSist: Briefing?
     @State private var briefing: Kalendern.Möte?
     @State private var visaMötesplockare = false
     /// Mötes-id → projektnamn, valt för hand.
@@ -167,6 +170,7 @@ struct Kundinnehåll: View {
         // Ett avslutat möte — och senare arkivtranskriptet, rösterna och
         // sammanfattningen — ska dyka upp utan att appen startas om.
         .onChange(of: arkiv.sparningar) { läsOm() }
+        .onChange(of: arbeten.senaste) { sedanSist = Briefing.bygg(för: kund, möte: nil, arkiv: arkiv) }
         .onReceive(NotificationCenter.default.publisher(for: .dokumentIndexerade)) { _ in
             räknaDokument()
         }
@@ -197,6 +201,7 @@ struct Kundinnehåll: View {
 
     @ViewBuilder
     private var översikt: some View {
+        sedanSistAvsnitt
         mötesavsnitt
         projektavsnitt
         mappavsnitt
@@ -204,6 +209,82 @@ struct Kundinnehåll: View {
         if !inspelningar.isEmpty {
             avsnitt("Senaste inspelningarna") {
                 inspelningslista(Array(inspelningar.prefix(3)))
+            }
+        }
+    }
+
+    /// Kundens dagbok, överst: senaste mötet, tavlan, mejlen sedan sist och
+    /// vad appen gjort. Svaret på «vad har hänt hos Borås», utan att öppna
+    /// en brief bakom en knapp på en mötesrad.
+    @ViewBuilder
+    private var sedanSistAvsnitt: some View {
+        if let b = sedanSist, !b.tom || !Arbeten.logg(i: kund.mapp).isEmpty {
+            avsnitt("Sedan sist") {
+                VStack(alignment: .leading, spacing: 8) {
+                    if let (i, mapp) = b.senaste {
+                        Button {
+                            öppnad = Öppnad(inspelning: i, mapp: mapp)
+                        } label: {
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "waveform").foregroundStyle(.secondary).frame(width: 14)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("\(i.titel) · \(DateFormatter.kortdag.string(from: i.inledd))")
+                                    if let kärna = i.sammanfattning?.kärna, !kärna.isEmpty {
+                                        Text(kärna).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                                    }
+                                }
+                                Spacer()
+                            }
+                            .contentShape(.rect)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    let öppna = b.öppnaUppgifter
+                    if !öppna.isEmpty {
+                        let sena = öppna.filter(\.försenad).count
+                        Button {
+                            flik = .attGöra
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "checklist").foregroundStyle(.secondary).frame(width: 14)
+                                Text("\(öppna.count) öppna på tavlan" + (sena > 0 ? ", \(sena) försenade" : ""))
+                                    .foregroundStyle(sena > 0 ? Color.orange : Color.primary)
+                                Spacer()
+                            }
+                            .contentShape(.rect)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    if !b.mejlSedanSist.isEmpty {
+                        Button {
+                            flik = .mail
+                        } label: {
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "envelope").foregroundStyle(.secondary).frame(width: 14)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("\(b.mejlSedanSist.count) mejl sedan sist")
+                                    Text(b.mejlSedanSist.prefix(3).map(\.ämne).joined(separator: " · "))
+                                        .font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                                }
+                                Spacer()
+                            }
+                            .contentShape(.rect)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    let kvitton = Arbeten.logg(i: kund.mapp).suffix(2).reversed()
+                    ForEach(Array(kvitton)) { k in
+                        HStack(spacing: 8) {
+                            Image(systemName: k.föll ? "exclamationmark.triangle" : "gearshape.2")
+                                .foregroundStyle(k.föll ? Color.orange : Color.secondary).frame(width: 14)
+                            Text("\(k.titel) · \(k.rad)")
+                                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            Spacer()
+                        }
+                    }
+                }
+                .padding(12)
+                .kort(hörn: Stil.radhörn)
             }
         }
     }
@@ -729,6 +810,7 @@ struct Kundinnehåll: View {
         ofullständiga = arkiv.ofullständiga(för: kund)
         kopplade = arkiv.kopplade(för: kund)
         räknaDokument()
+        sedanSist = Briefing.bygg(för: kund, möte: nil, arkiv: arkiv)
     }
 
     // MARK: - Kopplade mappar
@@ -939,6 +1021,7 @@ struct Kundinnehåll: View {
         await hämtaBilagor(adresser)
         mejlLäge = .klar
         jobb.klart("\(mejl.count) mejl, \(bilagor.count) bilagor")
+        sedanSist = Briefing.bygg(för: kund, möte: nil, arkiv: arkiv)
     }
 
     /// Letar åtaganden i mejl, automatiskt efter en hämtning eller på
