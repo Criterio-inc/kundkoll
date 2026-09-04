@@ -205,12 +205,14 @@ struct Kundinnehåll: View {
                     let öppna = b.öppnaUppgifter
                     if !öppna.isEmpty {
                         let sena = öppna.filter(\.försenad).count
+                        let väntar = b.väntarUtanSvar.count
                         Button {
                             flik = .attGöra
                         } label: {
                             HStack(spacing: 8) {
                                 Image(systemName: "checklist").foregroundStyle(.secondary).frame(width: 14)
-                                Text("\(öppna.count) öppna på tavlan" + (sena > 0 ? ", \(sena) försenade" : ""))
+                                Text("\(öppna.count) öppna på tavlan" + (sena > 0 ? ", \(sena) försenade" : "")
+                                     + (väntar > 0 ? " · \(väntar) jag väntar på utan att de hört av sig" : ""))
                                     .foregroundStyle(sena > 0 ? Color.orange : Color.primary)
                                 Spacer()
                             }

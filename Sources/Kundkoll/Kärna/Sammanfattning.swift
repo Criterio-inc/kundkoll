@@ -121,6 +121,11 @@ actor Sammanfattare {
         \(dag) — "före fredag" blir fredagens datum. Går det inte att räkna \
         ut, null.
 
+        Den som spelade in mötet heter \(Inställningar.användarnamn) och talar \
+        som «Jag» i transkriptet. När det är \(Inställningar.användarnamn) som \
+        ska göra något, skriv "jag" som vem; när någon annan lovat något, \
+        skriv den personens namn.
+
         Ta bara med sådant som verkligen sades. Hellre en tom lista än ett
         påhittat beslut. Skriv på svenska, kort och konkret, utan artigheter.
         Svara med enbart JSON.
@@ -155,7 +160,7 @@ actor Sammanfattare {
             kärna: rå.kärna ?? "",
             beslut: rå.beslut ?? [],
             åtaganden: (rå.åtaganden ?? []).map {
-                .init(vad: $0.vad, vem: tomSomNil($0.vem), när: tomSomNil($0.när),
+                .init(vad: Modellsvar.utanVäntaPå($0.vad), vem: tomSomNil($0.vem), när: tomSomNil($0.när),
                       senast: Uppgift.dag(tomSomNil($0.senast)))
             },
             öppet: rå.öppet ?? [])

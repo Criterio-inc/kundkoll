@@ -29,9 +29,24 @@ struct Uppgift: Codable, Hashable, Identifiable {
         }
     }
 
+    /// Åt vilket håll åtagandet går: något jag ska göra, eller något jag
+    /// väntar på från någon annan. Sparas bara när det satts för hand;
+    /// annars gissas det ur «vem».
+    enum Riktning: String, Codable, CaseIterable, Identifiable {
+        case jag, väntar
+        var id: String { rawValue }
+        var namn: String {
+            switch self {
+            case .jag: "Jag ska"
+            case .väntar: "Jag väntar på"
+            }
+        }
+    }
+
     var id = UUID()
     var vad: String
     var vem: String?
+    var riktning: Riktning?
     /// När, som det sades — "före fredag", "nästa vecka".
     var när: String?
     /// När som ett riktigt datum, när det gick att räkna ut. Det är detta
@@ -52,10 +67,11 @@ struct Uppgift: Codable, Hashable, Identifiable {
          senast: Date? = nil, påminnelse: String? = nil,
          läge: Läge = .attGöra, ursprung: Ursprung = .egen, källa: String? = nil,
          källtitel: String? = nil, projekt: String? = nil,
-         skapad: Date = Date(), ändrad: Date = Date()) {
+         skapad: Date = Date(), ändrad: Date = Date(), riktning: Riktning? = nil) {
         self.id = id
         self.vad = vad
         self.vem = vem
+        self.riktning = riktning
         self.när = när
         self.senast = senast
         self.påminnelse = påminnelse
@@ -75,6 +91,7 @@ struct Uppgift: Codable, Hashable, Identifiable {
         id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         vad = try c.decodeIfPresent(String.self, forKey: .vad) ?? ""
         vem = try c.decodeIfPresent(String.self, forKey: .vem)
+        riktning = try c.decodeIfPresent(Riktning.self, forKey: .riktning)
         när = try c.decodeIfPresent(String.self, forKey: .när)
         senast = try c.decodeIfPresent(Date.self, forKey: .senast)
         påminnelse = try c.decodeIfPresent(String.self, forKey: .påminnelse)
@@ -85,6 +102,33 @@ struct Uppgift: Codable, Hashable, Identifiable {
         projekt = try c.decodeIfPresent(String.self, forKey: .projekt)
         skapad = try c.decodeIfPresent(Date.self, forKey: .skapad) ?? Date()
         ändrad = try c.decodeIfPresent(Date.self, forKey: .ändrad) ?? Date()
+    }
+
+    /// Om det är jag som ska göra det. Satt för hand gäller det; annars
+    /// gissas det ur «vem»: tomt, «jag» eller mitt eget namn är mitt.
+    var mitt: Bool { (riktning ?? Self.gissaRiktning(vem)) == .jag }
+
+    /// Vad «vem» säger om riktningen. `jag` är användarens namn, i appen
+    /// det som står under Inställningar eller kontots namn i macOS.
+    static func gissaRiktning(_ vem: String?, jag: String = Inställningar.användarnamn) -> Riktning {
+        guard let vem, !vem.trimmingCharacters(in: .whitespaces).isEmpty else { return .jag }
+        let v = vem.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: ".,"))
+        if ["jag", "mig", "jag själv", "du", "dig"].contains(v) { return .jag }
+        let namn = jag.lowercased().trimmingCharacters(in: .whitespaces)
+        let förnamn = namn.split(separator: " ").first.map(String.init) ?? namn
+        if !namn.isEmpty, v == namn { return .jag }
+        if förnamn.count >= 2, v == förnamn { return .jag }
+        // «Pär L», «Pär Levander (Critero)»: börjar med förnamnet och resten
+        // står i det fulla namnet.
+        if förnamn.count >= 2, v.hasPrefix(förnamn + " ") {
+            let rest = v.dropFirst(förnamn.count + 1).split(separator: " ").first.map(String.init) ?? ""
+            let efternamn = namn.split(separator: " ").dropFirst().joined(separator: " ")
+            if !rest.isEmpty, !efternamn.isEmpty, efternamn.hasPrefix(rest.trimmingCharacters(in: CharacterSet(charactersIn: ".,()"))) {
+                return .jag
+            }
+        }
+        return .väntar
     }
 
     /// Om tiden har runnit ut utan att uppgiften blivit klar.
@@ -117,7 +161,8 @@ struct Uppgift: Codable, Hashable, Identifiable {
         let a = Self.stammar(vad), b = Self.stammar(annan.vad)
         guard !a.isEmpty, !b.isEmpty else { return false }
         if let x = vem, let y = annan.vem,
-           Self.förnamn(x) != Self.förnamn(y) { return false }
+           Self.förnamn(x) != Self.förnamn(y),
+           !(Self.gissaRiktning(x) == .jag && Self.gissaRiktning(y) == .jag) { return false }
         if let d1 = senast, let d2 = annan.senast, abs(d1.timeIntervalSince(d2)) > 7 * 86400 {
             return false
         }
@@ -170,6 +215,12 @@ actor Uppgiftsletare {
         {"uppgifter": [{"vad": "…", "vem": "namn eller null", \
         "när": "som det stod, eller null", "senast": "ÅÅÅÅ-MM-DD eller null"}]}
 
+        Den som läser det här heter \(Inställningar.användarnamn). När det är \
+        \(Inställningar.användarnamn) som ska göra något, skriv "jag" som vem. \
+        När någon annan lovat något, skriv den personens namn: det är sådant \
+        \(Inställningar.användarnamn) väntar på. "vad" är det personen ska \
+        göra eller leverera, aldrig "vänta på …".
+
         "senast" är sista dagen som ett riktigt datum, räknat från \(dag) — \
         "före fredag" blir fredagens datum. Går det inte att räkna ut, null.
 
@@ -220,7 +271,7 @@ actor Uppgiftsletare {
         guard let rå = try? JSONDecoder().decode(Rå.self, from: data) else { return nil }
         return (rå.uppgifter ?? [])
             .filter { $0.vad.count > 5 }
-            .map { Uppgift(vad: $0.vad, vem: tomSomNil($0.vem), när: tomSomNil($0.när),
+            .map { Uppgift(vad: Modellsvar.utanVäntaPå($0.vad), vem: tomSomNil($0.vem), när: tomSomNil($0.när),
                            senast: Uppgift.dag(tomSomNil($0.senast))) }
     }
 

@@ -25,4 +25,17 @@ enum Modellsvar {
         guard !t.isEmpty, t.lowercased() != "null" else { return nil }
         return t
     }
+
+    /// «Vänta på beslutet från nämnden» blir «Beslutet från nämnden». Modellen
+    /// ombeds skriva vad personen ska leverera, men qwen3 skriver ändå ofta
+    /// väntandet som uppgift; i spalten «Jag väntar på» blir det dubbelt.
+    static func utanVäntaPå(_ vad: String) -> String {
+        let l = vad.lowercased()
+        for prefix in ["vänta på att ", "vänta in att ", "vänta på ", "vänta in ", "invänta "] where l.hasPrefix(prefix) {
+            let rest = String(vad.dropFirst(prefix.count))
+            guard let första = rest.first else { return vad }
+            return första.uppercased() + rest.dropFirst()
+        }
+        return vad
+    }
 }

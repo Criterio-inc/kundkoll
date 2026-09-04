@@ -3,7 +3,8 @@ import SwiftUI
 /// Allt jag har att göra, hos alla kunder, sorterat på hur bråttom det är.
 ///
 /// Tavlorna är per kund men arbetsdagen är det inte. Det här är en läsvy
-/// över samma uppgifter: försenat överst, sedan veckan, sedan resten.
+/// över samma uppgifter, i två spalter: det jag ska göra och det jag väntar
+/// på från andra. I varje spalt försenat överst, sedan veckan, sedan resten.
 struct Minveckavy: View {
     @EnvironmentObject private var arkiv: Arkivet
 
@@ -33,15 +34,9 @@ struct Minveckavy: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                if rader.isEmpty {
-                    Text("Inget öppet åtagande hos någon kund. Skönt.")
-                        .foregroundStyle(.secondary)
-                }
-                ForEach(Grupp.allCases, id: \.self) { grupp in
-                    let ivarje = grupperade[grupp] ?? []
-                    if !ivarje.isEmpty {
-                        avsnitt(grupp, ivarje)
-                    }
+                HStack(alignment: .top, spacing: 24) {
+                    spalt("Jag ska", mina, tom: "Inget jag ska göra hos någon kund. Skönt.")
+                    spalt("Jag väntar på", väntade, tom: "Inget jag väntar på från någon.")
                 }
             }
             .padding(20)
@@ -59,14 +54,35 @@ struct Minveckavy: View {
         }
     }
 
+    private var mina: [(kund: Kund, uppgift: Uppgift)] { rader.filter { $0.uppgift.mitt } }
+    private var väntade: [(kund: Kund, uppgift: Uppgift)] { rader.filter { !$0.uppgift.mitt } }
+
     private var sammanfattning: String {
+        guard !rader.isEmpty else { return "" }
         let kunder = Set(rader.map(\.kund.namn)).count
-        switch rader.count {
-        case 0: return ""
-        case 1: return "1 öppet åtagande"
-        default: return "\(rader.count) öppna åtaganden hos "
-            + (kunder == 1 ? "en kund" : "\(kunder) kunder")
+        var delar: [String] = []
+        if !mina.isEmpty { delar.append("\(mina.count) att göra") }
+        if !väntade.isEmpty { delar.append("\(väntade.count) väntar jag på") }
+        return delar.joined(separator: " · ") + " hos " + (kunder == 1 ? "en kund" : "\(kunder) kunder")
+    }
+
+    /// En spalt: rubrik, sedan grupperna försenat, veckan, senare, utan datum.
+    private func spalt(_ rubrik: String, _ urval: [(kund: Kund, uppgift: Uppgift)],
+                       tom: String) -> some View {
+        let grupperade = Self.grupperade(urval)
+        return VStack(alignment: .leading, spacing: 16) {
+            Text(rubrik).font(.title3.weight(.semibold))
+            if urval.isEmpty {
+                Text(tom).foregroundStyle(.secondary)
+            }
+            ForEach(Grupp.allCases, id: \.self) { grupp in
+                let ivarje = grupperade[grupp] ?? []
+                if !ivarje.isEmpty {
+                    avsnitt(grupp, ivarje)
+                }
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func avsnitt(_ grupp: Grupp, _ ivarje: [(kund: Kund, uppgift: Uppgift)]) -> some View {
@@ -98,14 +114,16 @@ struct Minveckavy: View {
                 Image(systemName: "circle").foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
-            .help("Gör klar")
+            .help(u.mitt ? "Gör klar" : "Har kommit")
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(u.vad).fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 6) {
                     Text(rad.kund.namn)
                     if let p = u.projekt { Text("· \(p)") }
-                    if let vem = u.vem { Text("· \(vem)") }
+                    if let vem = u.vem, !u.mitt || Uppgift.gissaRiktning(vem) != .jag {
+                        Text("· \(vem)")
+                    }
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -126,8 +144,9 @@ struct Minveckavy: View {
 
     // MARK: - Urval
 
-    private var grupperade: [Grupp: [(kund: Kund, uppgift: Uppgift)]] {
-        Dictionary(grouping: rader) { grupp($0.uppgift) }
+    private static func grupperade(_ urval: [(kund: Kund, uppgift: Uppgift)])
+        -> [Grupp: [(kund: Kund, uppgift: Uppgift)]] {
+        Dictionary(grouping: urval) { Grupp(rawValue: grupp($0.uppgift)) ?? .utanDatum }
             .mapValues { $0.sorted {
                 ($0.uppgift.senast ?? .distantFuture, $0.uppgift.skapad)
                     < ($1.uppgift.senast ?? .distantFuture, $1.uppgift.skapad)
@@ -143,10 +162,6 @@ struct Minveckavy: View {
             return Grupp.veckan.rawValue
         }
         return Grupp.senare.rawValue
-    }
-
-    private func grupp(_ u: Uppgift) -> Grupp {
-        Grupp(rawValue: Self.grupp(u)) ?? .utanDatum
     }
 
     private func bocka(_ rad: (kund: Kund, uppgift: Uppgift)) {

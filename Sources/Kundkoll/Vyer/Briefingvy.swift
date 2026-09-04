@@ -28,6 +28,7 @@ struct Briefingvy: View {
                                 .foregroundStyle(.secondary)
                         }
                         if let m = brief.senaste { senast(m) }
+                        if !brief.väntarUtanSvar.isEmpty { väntarPå(brief.väntarUtanSvar) }
                         if !brief.öppnaUppgifter.isEmpty { åtaganden(brief.öppnaUppgifter) }
                         if !brief.mejlSedanSist.isEmpty { mejl(brief.mejlSedanSist) }
                     }
@@ -115,6 +116,38 @@ struct Briefingvy: View {
                 }
                 .foregroundStyle(.secondary)
                 .padding(.top, 2)
+            }
+        }
+        .padding(12)
+        .kort()
+    }
+
+    /// Det andra lovat och inte levererat, utan att ha hört av sig. Sådant
+    /// man vill ha på bordet när mötet börjar, inte komma på efteråt.
+    private func väntarPå(_ uppgifter: [Uppgift]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Väntar på, utan att de hört av sig · \(uppgifter.count)")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.orange)
+            ForEach(uppgifter.prefix(6)) { u in
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Image(systemName: "hourglass")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.orange)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(u.vad)
+                            .font(.callout)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if let vem = u.vem, let senast = u.senast {
+                            Text("\(vem) · skulle ha kommit \(DateFormatter.kortdag.string(from: senast)), inget mejl sedan dess")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer()
+                }
+                .contentShape(.rect)
+                .onTapGesture { redigerad = u }
             }
         }
         .padding(12)

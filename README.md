@@ -170,7 +170,10 @@ Modellen räknar också ut **riktiga datum**: «före fredag» sagt en onsdag bl
 fredagens datum, och det som passerats utan att bli klart rödmarkeras. En
 uppgift kan läggas i macOS Påminnelser — envägs: tavlan är sanningen och
 påminnelsen en spegel. **Min vecka** i sidopanelen samlar allt öppet hos alla
-kunder, försenat först.
+kunder i två spalter, «Jag ska» och «Jag väntar på», försenat först. Riktningen
+gissas ur «vem» (tomt, «jag» eller ditt namn är ditt) och går att sätta för hand
+på kortet. Ett väntat åtagande som passerat sitt datum utan att personen mejlat
+sedan dess tas upp i briefen inför nästa möte och i «Sedan sist».
 
 ## Söka
 

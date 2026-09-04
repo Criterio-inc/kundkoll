@@ -34,6 +34,7 @@ enum Tester {
         obsidian()
         omindexering()
         palett()
+        riktning()
         röster()
         ström()
         tavlanRäknarRätt()

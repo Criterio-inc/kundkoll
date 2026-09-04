@@ -38,9 +38,16 @@ struct Uppgiftsredigering: View {
                             .overlay(RoundedRectangle(cornerRadius: 6)
                                 .stroke(.quaternary))
                     }
+                    fält("Riktning") {
+                        Picker("", selection: riktningsval) {
+                            ForEach(Uppgift.Riktning.allCases) { Text($0.namn).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                    }
                     HStack(alignment: .top, spacing: 12) {
-                        fält("Vem") {
-                            TextField("", text: text($uppgift.vem))
+                        fält(uppgift.mitt ? "Vem" : "Vem jag väntar på") {
+                            TextField(uppgift.mitt ? "" : "namn", text: text($uppgift.vem))
                                 .textFieldStyle(.roundedBorder)
                         }
                         fält("När") {
@@ -107,7 +114,7 @@ struct Uppgiftsredigering: View {
             }
             .padding(16)
         }
-        .frame(width: 460, height: 420)
+        .frame(width: 460, height: 470)
     }
 
     private var ursprungstext: String {
@@ -151,6 +158,12 @@ struct Uppgiftsredigering: View {
             }
             läggerIPåminnelser = false
         }
+    }
+
+    /// Gissningen ur «vem» visas tills man väljer själv; då sparas valet.
+    private var riktningsval: Binding<Uppgift.Riktning> {
+        Binding(get: { uppgift.riktning ?? Uppgift.gissaRiktning(uppgift.vem) },
+                set: { uppgift.riktning = $0 })
     }
 
     private var projektval: Binding<String> {

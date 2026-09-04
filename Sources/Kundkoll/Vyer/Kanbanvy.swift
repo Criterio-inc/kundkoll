@@ -147,6 +147,10 @@ struct Kanbanvy: View {
 
             if u.vem != nil || u.när != nil || u.senast != nil {
                 HStack(spacing: 4) {
+                    if !u.mitt {
+                        Image(systemName: "hourglass").font(.system(size: 9))
+                            .help("Något jag väntar på")
+                    }
                     if let vem = u.vem { Text(vem) }
                     if let rad = närtext(u) {
                         if u.vem != nil { Text("·") }

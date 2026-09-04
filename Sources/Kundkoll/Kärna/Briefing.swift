@@ -16,6 +16,9 @@ struct Briefing {
     var öppnaFrågor: [String]
     /// Mejl som kommit efter senaste mötet.
     var mejlSedanSist: [Mailen.Mejl]
+    /// Sådant jag väntar på från någon annan, som passerat sitt datum utan
+    /// att något mejl kommit från den personen sedan dess.
+    var väntarUtanSvar: [Uppgift] = []
 
     var tom: Bool {
         senaste == nil && öppnaUppgifter.isEmpty && mejlSedanSist.isEmpty
@@ -26,7 +29,8 @@ struct Briefing {
                      möte: Kalendern.Möte?,
                      inspelningar: [Möte],
                      uppgifter: [Uppgift],
-                     mejl: [Mailen.Mejl]) -> Briefing {
+                     mejl: [Mailen.Mejl],
+                     idag: Date = Date()) -> Briefing {
         // Heter kalendermötet som en känd serie är det den förra i serien
         // man vill läsa på, inte nödvändigtvis det allra senaste mötet.
         var senaste = inspelningar.first
@@ -51,10 +55,32 @@ struct Briefing {
             .filter { ($0.datum ?? .distantPast) > sedan }
             .sorted { ($0.datum ?? .distantPast) > ($1.datum ?? .distantPast) }
 
+        // Ett väntat åtagande vars dag passerat: har personen hört av sig
+        // sedan dess räknas det som att det är på gång, annars sägs det här.
+        let dagensStart = Calendar.current.startOfDay(for: idag)
+        let utanSvar = öppna.filter { u in
+            guard !u.mitt, let vem = u.vem, let senast = u.senast, senast < dagensStart else { return false }
+            return !mejl.contains { m in
+                !m.skickat && (m.datum ?? .distantPast) > senast && avsändare(m.avsändare, är: vem)
+            }
+        }
+
         return Briefing(kund: kund, möte: möte, senaste: senaste,
                         öppnaUppgifter: öppna,
                         öppnaFrågor: senaste?.inspelning.sammanfattning?.öppet ?? [],
-                        mejlSedanSist: Array(nya.prefix(5)))
+                        mejlSedanSist: Array(nya.prefix(5)),
+                        väntarUtanSvar: utanSvar)
+    }
+
+    /// Om ett mejls avsändare («Anna Berg <anna@x.se>») är personen bakom
+    /// ett «vem» («Anna», «Anna Berg»). Förnamnet avgör; ett kort «vem»
+    /// under tre tecken matchar aldrig.
+    static func avsändare(_ avsändare: String, är vem: String) -> Bool {
+        guard let förnamn = vem.lowercased().split(separator: " ").first.map(String.init),
+              förnamn.count >= 3 else { return false }
+        let ord = avsändare.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "åäöéü")).inverted)
+        return ord.contains(förnamn)
     }
 
     @MainActor
