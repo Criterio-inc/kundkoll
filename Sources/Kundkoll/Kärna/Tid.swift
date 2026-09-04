@@ -4,15 +4,18 @@ import Foundation
 struct Tidspost: Codable, Identifiable, Hashable {
     var id = UUID()
     var vad: String
+    /// Projektets namn som etikett; `projektID` är nyckeln.
     var projekt: String?
+    var projektID: String?
     var start: Date
     var sekunder: Double
 
-    init(id: UUID = UUID(), vad: String, projekt: String? = nil,
+    init(id: UUID = UUID(), vad: String, projekt: String? = nil, projektID: String? = nil,
          start: Date = Date(), sekunder: Double) {
         self.id = id
         self.vad = vad
         self.projekt = projekt
+        self.projektID = projektID
         self.start = start
         self.sekunder = sekunder
     }
@@ -23,6 +26,7 @@ struct Tidspost: Codable, Identifiable, Hashable {
         id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         vad = try c.decodeIfPresent(String.self, forKey: .vad) ?? ""
         projekt = try c.decodeIfPresent(String.self, forKey: .projekt)
+        projektID = try c.decodeIfPresent(String.self, forKey: .projektID)
         start = try c.decodeIfPresent(Date.self, forKey: .start) ?? Date()
         sekunder = try c.decodeIfPresent(Double.self, forKey: .sekunder) ?? 0
     }

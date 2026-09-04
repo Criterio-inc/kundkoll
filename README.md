@@ -265,6 +265,7 @@ Allt hamnar under `~/Documents/Kunder`, en Obsidian-vault per kund:
     Projekt/
       Nytt lager/
         Nytt lager.md
+        .kundkoll/projekt.json   projektets fasta id
         Inspelningar/
         Dokument/
         Anteckningar/
@@ -284,7 +285,11 @@ Allt hamnar under `~/Documents/Kunder`, en Obsidian-vault per kund:
 ```
 
 Filsystemet är sanningen — ingen databas. En kund eller ett projekt som skapas
-för hand i Finder eller Obsidian dyker upp i appen utan vidare.
+för hand i Finder eller Obsidian dyker upp i appen utan vidare. Ett projekt får
+ett fast id i sin mapp första gången appen ser det; kort, tid, samtal,
+kalenderkopplingar och lägesbild pekar på id:t, så mappen kan byta namn i
+Finder utan att något lossnar. Möten och anteckningar hör till det projekt de
+ligger i. Namnen i filerna är etiketter som appen fräschar upp vid läsning.
 
 ## Krav
 

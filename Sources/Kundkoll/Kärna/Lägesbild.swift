@@ -30,9 +30,17 @@ struct Lägesbild: Codable {
 @MainActor
 enum Läget {
 
+    /// Filen heter efter projektets id, så att lägesbilden följer med när
+    /// projektet byter namn. En äldre fil med namnet flyttas första gången.
     private static func fil(_ kund: Kund, _ projekt: Projekt) -> URL {
+        let ny = kund.mapp.appending(path: ".kundkoll/läget-\(projekt.id).json")
         let namn = projekt.namn.replacingOccurrences(of: "/", with: "-")
-        return kund.mapp.appending(path: ".kundkoll/läget-\(namn).json")
+        let gammal = kund.mapp.appending(path: ".kundkoll/läget-\(namn).json")
+        let fm = FileManager.default
+        if !fm.fileExists(atPath: ny.path), fm.fileExists(atPath: gammal.path) {
+            try? fm.moveItem(at: gammal, to: ny)
+        }
+        return ny
     }
 
     static func läs(kund: Kund, projekt: Projekt) -> Lägesbild? {
@@ -52,7 +60,7 @@ enum Läget {
             .filter { $0.inspelning.projekt == projekt.namn }
             .map { $0.inspelning.sammanfattning?.skriven ?? $0.inspelning.inledd }
         tider += arkiv.uppgifter(för: kund)
-            .filter { $0.projekt == projekt.namn }
+            .filter { $0.projektID == projekt.id }
             .map(\.ändrad)
         tider += (arkiv.mailcache(för: kund)?.mejl ?? []).compactMap(\.datum)
         tider += arkiv.anteckningar(i: projekt.anteckningsmapp).map(\.ändrad)

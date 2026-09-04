@@ -17,10 +17,43 @@ struct Kund: Identifiable, Hashable {
 }
 
 struct Projekt: Identifiable, Hashable {
-    var id: String { mapp.path }
+    /// Ett fast id som bor i projektmappen (.kundkoll/projekt.json), så att
+    /// kort, tid, samtal och lägesbild följer med när mappen byter namn.
+    /// Namnet är etiketten, id:t är nyckeln.
+    var id: String
     var namn: String
     var mapp: URL
     var kundnamn: String
+
+    init(id: String? = nil, namn: String, mapp: URL, kundnamn: String) {
+        self.id = id ?? Self.läsID(i: mapp)
+        self.namn = namn
+        self.mapp = mapp
+        self.kundnamn = kundnamn
+    }
+
+    /// Läser id:t ur mappen, eller skriver ett nytt om det saknas: en mapp
+    /// som skapats i Finder får sitt id första gången appen ser den.
+    static func läsID(i mapp: URL) -> String {
+        let fil = mapp.appending(path: ".kundkoll/projekt.json")
+        struct Post: Codable { var id: String }
+        if let data = try? Data(contentsOf: fil),
+           let p = try? JSONDecoder().decode(Post.self, from: data), !p.id.isEmpty {
+            return p.id
+        }
+        let nytt = UUID().uuidString
+        try? FileManager.default.createDirectory(at: fil.deletingLastPathComponent(),
+                                                 withIntermediateDirectories: true)
+        if let data = try? JSONEncoder().encode(Post(id: nytt)) {
+            try? data.write(to: fil, options: .atomic)
+        }
+        return nytt
+    }
+
+    /// Om en mapp (ett möte, en anteckning) ligger i projektet.
+    func innehåller(_ url: URL) -> Bool {
+        url.standardizedFileURL.path.hasPrefix(mapp.standardizedFileURL.path + "/")
+    }
 
     var inspelningsmapp: URL { mapp.appending(path: "Inspelningar") }
     var dokumentmapp: URL { mapp.appending(path: "Dokument") }

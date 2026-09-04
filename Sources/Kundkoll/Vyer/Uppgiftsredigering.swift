@@ -80,7 +80,7 @@ struct Uppgiftsredigering: View {
                         fält("Projekt") {
                             Picker("", selection: projektval) {
                                 Text("Ingen").tag("")
-                                ForEach(projekt) { Text($0.namn).tag($0.namn) }
+                                ForEach(projekt) { Text($0.namn).tag($0.id) }
                             }
                             .labelsHidden()
                         }
@@ -167,8 +167,12 @@ struct Uppgiftsredigering: View {
     }
 
     private var projektval: Binding<String> {
-        Binding(get: { uppgift.projekt ?? "" },
-                set: { uppgift.projekt = $0.isEmpty ? nil : $0 })
+        Binding(get: { uppgift.projektID ?? "" },
+                set: { id in
+                    let p = projekt.first { $0.id == id }
+                    uppgift.projektID = p?.id
+                    uppgift.projekt = p?.namn
+                })
     }
 
     private func spara() {

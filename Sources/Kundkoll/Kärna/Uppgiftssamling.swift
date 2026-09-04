@@ -11,21 +11,27 @@ enum Uppgiftssamling {
     /// Mötets åtaganden till tavlan.
     static func frånMöte(_ sammanfattning: Mötessammanfattning,
                          inspelning: Inspelning, mapp: URL?) {
-        guard let kund = Arkivet.shared.kunder.first(where: { $0.namn == inspelning.kund })
+        let arkiv = Arkivet.shared
+        // Mappen säger vems mötet är; namnet i möte.json är reserv för
+        // inspelningar utan mapp.
+        guard let kund = mapp.flatMap({ arkiv.kund(innehållande: $0) })
+                ?? arkiv.kunder.first(where: { $0.namn == inspelning.kund })
         else { return }
+        let projekt = mapp.flatMap { arkiv.projekt(innehållande: $0, hos: kund) }
+            ?? inspelning.projekt.flatMap { namn in arkiv.projekt(för: kund).first { $0.namn == namn } }
         let nya = sammanfattning.åtaganden.map {
             Uppgift(vad: $0.vad, vem: $0.vem, när: $0.när, senast: $0.senast,
                     läge: $0.klart ? .klart : .attGöra,
                     ursprung: .möte,
-                    källa: mapp?.path,
+                    källa: mapp.map { arkiv.relativ($0, i: kund) },
                     källtitel: inspelning.titel,
-                    projekt: inspelning.projekt,
+                    projekt: projekt?.namn, projektID: projekt?.id,
                     skapad: inspelning.inledd)
         }
         // Skrivs sammanfattningen om byts mötets orörda kort ut, annars
         // låg gamla och nya formuleringar av samma löfte bredvid varandra.
-        if let källa = mapp?.path {
-            _ = try? Arkivet.shared.ersätt(kort: nya, ur: källa, för: kund)
+        if let mapp {
+            _ = try? arkiv.ersätt(kort: nya, ur: mapp, för: kund)
         } else {
             _ = try? Arkivet.shared.läggTill(nya, för: kund)
         }
@@ -35,7 +41,7 @@ enum Uppgiftssamling {
     /// titeln finns kvar för uppgifter som lades upp innan mappen sparades.
     static func hör(_ uppgift: Uppgift, till mapp: URL, titel: String) -> Bool {
         guard uppgift.ursprung == .möte else { return false }
-        if let källa = uppgift.källa { return källa == mapp.path }
+        if uppgift.källa != nil { return uppgift.kommer(ur: mapp) }
         return uppgift.källtitel == titel
     }
 
@@ -52,7 +58,16 @@ enum Uppgiftssamling {
 
     static func rundor(_ kund: Kund) -> Rundor {
         guard let data = try? Data(contentsOf: rundfil(kund)),
-              let r = try? JSONDecoder.kundkoll.decode(Rundor.self, from: data) else { return Rundor() }
+              var r = try? JSONDecoder.kundkoll.decode(Rundor.self, from: data) else { return Rundor() }
+        // Anteckningarna bokfördes förut på hela sökvägen; nu relativt
+        // kundmappen, så att bokföringen håller när mappen flyttas.
+        let gamla = r.anteckningar.keys.filter { $0.hasPrefix("/") }
+        for nyckel in gamla {
+            let relativ = Arkivet.shared.relativ(URL(fileURLWithPath: nyckel), i: kund)
+            guard relativ != nyckel else { continue }
+            r.anteckningar[relativ] = r.anteckningar.removeValue(forKey: nyckel)
+        }
+        if !gamla.isEmpty { spara(r, kund) }
         return r
     }
 
@@ -201,7 +216,8 @@ enum Uppgiftssamling {
         guard text.count > 60 else { return utfall }
         var rundor = rundor(kund)
         let avtryck = avtryck(text)
-        guard rundor.anteckningar[anteckning.fil.path] != avtryck else { return utfall }
+        let nyckel = Arkivet.shared.relativ(anteckning.fil, i: kund)
+        guard rundor.anteckningar[nyckel] != avtryck else { return utfall }
 
         let letare = Uppgiftsletare()
         utfall.modell = letare.etikett
@@ -217,15 +233,16 @@ enum Uppgiftssamling {
         utfall.genomgångna = 1
         // En anteckning i ett projekts mapp hör till projektet, och då ska
         // kortet också göra det.
-        let projekt = Self.projektnamn(ur: anteckning.fil)
+        let projekt = Arkivet.shared.projekt(innehållande: anteckning.fil, hos: kund)
         let uppgifter = u.map {
             Uppgift(vad: $0.vad, vem: $0.vem, när: $0.när, senast: $0.senast,
-                    ursprung: .anteckning, källa: anteckning.fil.path,
-                    källtitel: anteckning.titel, projekt: projekt, skapad: anteckning.ändrad)
+                    ursprung: .anteckning, källa: nyckel,
+                    källtitel: anteckning.titel, projekt: projekt?.namn, projektID: projekt?.id,
+                    skapad: anteckning.ändrad)
         }
         let före = Arkivet.shared.uppgifter(för: kund).count
         let efter = (try? Arkivet.shared.läggTill(uppgifter, för: kund))?.count ?? före
-        rundor.anteckningar[anteckning.fil.path] = avtryck
+        rundor.anteckningar[nyckel] = avtryck
         spara(rundor, kund)
         utfall.nya = efter - före
         return utfall

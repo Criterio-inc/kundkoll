@@ -44,14 +44,19 @@ final class Arkivet: ObservableObject {
     /// Alla inspelningar för en kund, nyast först. Läser möte.json i varje
     /// inspelningsmapp, både under Samtal/ och under varje projekt.
     func inspelningar(för kund: Kund) -> [Möte] {
+        let projekt = projekt(för: kund)
         var rötter = [kund.samtalsmapp]
-        rötter += projekt(för: kund).map(\.inspelningsmapp)
+        rötter += projekt.map(\.inspelningsmapp)
         return rötter
             .flatMap { mappar(i: $0) }
             .compactMap { mapp in
                 guard let data = try? Data(contentsOf: mapp.appending(path: "möte.json")),
-                      let i = try? JSONDecoder.kundkoll.decode(Inspelning.self, from: data)
+                      var i = try? JSONDecoder.kundkoll.decode(Inspelning.self, from: data)
                 else { return nil }
+                // Var mötet ligger är sanningen om vem det tillhör; namnen i
+                // möte.json är etiketter som skrevs när mötet spelades in.
+                i.kund = kund.namn
+                i.projekt = projekt.first { $0.innehåller(mapp) }?.namn
                 return Möte(inspelning: i, mapp: mapp)
             }
             .sorted { $0.inspelning.inledd > $1.inspelning.inledd }
@@ -61,8 +66,64 @@ final class Arkivet: ObservableObject {
     /// läser om med den när något sparats i bakgrunden, så att den inte
     /// skriver tillbaka en gammal kopia över arkivtranskriptet.
     func inspelning(i mapp: URL) -> Inspelning? {
-        guard let data = try? Data(contentsOf: mapp.appending(path: "möte.json")) else { return nil }
-        return try? JSONDecoder.kundkoll.decode(Inspelning.self, from: data)
+        guard let data = try? Data(contentsOf: mapp.appending(path: "möte.json")),
+              var i = try? JSONDecoder.kundkoll.decode(Inspelning.self, from: data) else { return nil }
+        if let kund = kund(innehållande: mapp) {
+            i.kund = kund.namn
+            i.projekt = projekt(innehållande: mapp, hos: kund)?.namn
+        }
+        return i
+    }
+
+    // MARK: - Namn är etiketter, id och läge är nycklar
+
+    /// Kunden en mapp ligger hos.
+    func kund(innehållande url: URL) -> Kund? {
+        let väg = Self.väg(url)
+        return kunder.first { väg.hasPrefix(Self.väg($0.mapp) + "/") }
+    }
+
+    /// Projektet en mapp ligger i (ett möte, en anteckning), om något.
+    func projekt(innehållande url: URL, hos kund: Kund) -> Projekt? {
+        projekt(för: kund).first { $0.innehåller(url) }
+    }
+
+    /// Sökvägen relativt kundmappen, så att den håller när mappen flyttas.
+    /// Ligger den inte under kunden ges hela sökvägen.
+    func relativ(_ url: URL, i kund: Kund) -> String {
+        let väg = Self.väg(url), rot = Self.väg(kund.mapp) + "/"
+        return väg.hasPrefix(rot) ? String(väg.dropFirst(rot.count)) : väg
+    }
+
+    private func relativ(_ väg: String?, i kund: Kund) -> String? {
+        guard let väg, väg.hasPrefix("/") else { return nil }
+        let r = relativ(URL(fileURLWithPath: väg), i: kund)
+        return r == väg ? nil : r
+    }
+
+    nonisolated private static func väg(_ url: URL) -> String {
+        url.standardizedFileURL.resolvingSymlinksInPath().path
+    }
+
+    /// Fräschar upp etiketten ur id:t, och ger en gammal etikett sitt id.
+    /// Ger det nya paret när något ändrades, annars nil.
+    private func knyt(namn: String?, id: String?, bland projekt: [Projekt]) -> (namn: String?, id: String?)? {
+        if let id, let p = projekt.first(where: { $0.id == id }) {
+            return namn == p.namn ? nil : (p.namn, id)
+        }
+        if id == nil, let namn, let p = projekt.first(where: { $0.namn == namn }) {
+            return (namn, p.id)
+        }
+        return nil
+    }
+
+    /// En relativ källa «Projekt/<gammalt namn>/…» följer med när projektet
+    /// bytt namn, så att mötesvyn fortfarande hittar sina kort.
+    private func följMed(källa: String?, till p: Projekt?) -> String? {
+        guard let källa, let p, källa.hasPrefix("Projekt/"), !källa.hasPrefix("Projekt/\(p.namn)/") else { return nil }
+        let delar = källa.split(separator: "/", omittingEmptySubsequences: false)
+        guard delar.count > 2 else { return nil }
+        return (["Projekt", p.namn] + delar.dropFirst(2).map(String.init)).joined(separator: "/")
     }
 
     /// Inspelningsmappar vars metadata saknas eller inte går att läsa.
@@ -195,8 +256,19 @@ final class Arkivet: ObservableObject {
 
     func tidsposter(för kund: Kund) -> [Tidspost] {
         guard let data = try? Data(contentsOf: tidsfil(kund)),
-              let t = try? JSONDecoder.kundkoll.decode([Tidspost].self, from: data)
+              var t = try? JSONDecoder.kundkoll.decode([Tidspost].self, from: data)
         else { return [] }
+        let projekt = projekt(för: kund)
+        var ändrat = false
+        for i in t.indices {
+            if let nytt = knyt(namn: t[i].projekt, id: t[i].projektID, bland: projekt) {
+                (t[i].projekt, t[i].projektID) = nytt
+                ändrat = true
+            }
+        }
+        if ändrat, let data = try? JSONEncoder.kundkoll.encode(t) {
+            try? data.write(to: tidsfil(kund), options: .atomic)
+        }
         return t.sorted { $0.start > $1.start }
     }
 
@@ -250,10 +322,18 @@ final class Arkivet: ObservableObject {
         kund.mapp.appending(path: ".kundkoll/möteskopplingar.json")
     }
 
+    /// Mötes-id → projektets id, tom sträng för kundnivå, «!» för uteslutet.
+    /// Äldre filer har projektets namn; det byts mot id:t när det går.
     func möteskopplingar(för kund: Kund) -> [String: String] {
         guard let data = try? Data(contentsOf: möteskopplingsfil(kund)),
-              let k = try? JSONDecoder().decode([String: String].self, from: data)
+              var k = try? JSONDecoder().decode([String: String].self, from: data)
         else { return [:] }
+        let projekt = projekt(för: kund)
+        var ändrat = false
+        for (m, v) in k where !v.isEmpty && v != Self.uteslutetMöte && !projekt.contains(where: { $0.id == v }) {
+            if let p = projekt.first(where: { $0.namn == v }) { k[m] = p.id; ändrat = true }
+        }
+        if ändrat { try? skrivMöteskopplingar(k, för: kund) }
         return k
     }
 
@@ -261,9 +341,9 @@ final class Arkivet: ObservableObject {
     /// finns betyder att mötet hör hit — så även ett möte som ingen regel
     /// känner igen (inga deltagare, inget kundnamn i titeln) kan tas i
     /// anspråk för hand. Tom sträng är kundnivå.
-    func kopplaMöte(_ mötesID: String, till projekt: String?, för kund: Kund) throws {
+    func kopplaMöte(_ mötesID: String, till projekt: Projekt?, för kund: Kund) throws {
         var alla = möteskopplingar(för: kund)
-        alla[mötesID] = projekt ?? ""
+        alla[mötesID] = projekt?.id ?? ""
         try skrivMöteskopplingar(alla, för: kund)
     }
 
@@ -301,14 +381,35 @@ final class Arkivet: ObservableObject {
 
     func uppgifter(för kund: Kund) -> [Uppgift] {
         guard let data = try? Data(contentsOf: uppgiftsfil(kund)),
-              let u = try? JSONDecoder.kundkoll.decode([Uppgift].self, from: data)
+              var u = try? JSONDecoder.kundkoll.decode([Uppgift].self, from: data)
         else { return [] }
+        // Projektnamnet fräschas upp ur id:t, en gammal etikett får sitt id,
+        // och en gammal absolut källa blir relativ. Skrivs tillbaka utan att
+        // räknaren rör sig: det här är läsning, inte en ändring att lyssna på.
+        let projekt = projekt(för: kund)
+        var ändrat = false
+        for i in u.indices {
+            if let nytt = knyt(namn: u[i].projekt, id: u[i].projektID, bland: projekt) {
+                (u[i].projekt, u[i].projektID) = nytt
+                ändrat = true
+            }
+            if let r = relativ(u[i].källa, i: kund) { u[i].källa = r; ändrat = true }
+            if let r = följMed(källa: u[i].källa, till: projekt.first { $0.id == u[i].projektID }) {
+                u[i].källa = r
+                ändrat = true
+            }
+        }
+        if ändrat { try? skrivUppgifter(u, för: kund) }
         return u
     }
 
-    func sparaUppgifter(_ uppgifter: [Uppgift], för kund: Kund) throws {
+    private func skrivUppgifter(_ uppgifter: [Uppgift], för kund: Kund) throws {
         let data = try JSONEncoder.kundkoll.encode(uppgifter)
         try data.write(to: uppgiftsfil(kund), options: .atomic)
+    }
+
+    func sparaUppgifter(_ uppgifter: [Uppgift], för kund: Kund) throws {
+        try skrivUppgifter(uppgifter, för: kund)
         try skrivUppgiftsnot(uppgifter, hos: kund)
         // Tavlan lyssnar på räknaren: kort som kommer ur en mejlrunda eller
         // ett avslutat möte ska synas utan att man byter flik.
@@ -336,9 +437,9 @@ final class Arkivet: ObservableObject {
     /// samma möte som fortfarande står orörda under Att göra tas bort, och
     /// de nya läggs till. Kort som flyttats eller bockats av lämnas kvar.
     @discardableResult
-    func ersätt(kort nya: [Uppgift], ur källa: String, för kund: Kund) throws -> [Uppgift] {
+    func ersätt(kort nya: [Uppgift], ur mapp: URL, för kund: Kund) throws -> [Uppgift] {
         let kvar = uppgifter(för: kund).filter {
-            !($0.ursprung == .möte && $0.källa == källa && $0.läge == .attGöra)
+            !($0.ursprung == .möte && $0.kommer(ur: mapp) && $0.läge == .attGöra)
         }
         try sparaUppgifter(kvar, för: kund)
         return try läggTill(nya, för: kund)
@@ -758,7 +859,7 @@ final class Arkivet: ObservableObject {
 
     /// Kundens samtal, nyast först. Ett projekt ser bara sina egna, och ett
     /// möte bara de som ställts om just det mötet.
-    func samtal(för kund: Kund, projekt: String?, möte: String? = nil) -> [Samtal] {
+    func samtal(för kund: Kund, projekt: Projekt?, möte: String? = nil) -> [Samtal] {
         let mapp = samtalsmappen(kund)
         guard let filer = try? fm.contentsOfDirectory(
             at: mapp, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
@@ -766,13 +867,21 @@ final class Arkivet: ObservableObject {
             // Inget här än — kanske finns en chatt från tiden före samtalen.
             return flyttaInGammalChatt(kund, projekt: projekt)
         }
+        let alla = self.projekt(för: kund)
         return filer
             .filter { $0.pathExtension == "json" }
             .compactMap { url -> Samtal? in
-                guard let data = try? Data(contentsOf: url) else { return nil }
-                return try? JSONDecoder.kundkoll.decode(Samtal.self, from: data)
+                guard let data = try? Data(contentsOf: url),
+                      var s = try? JSONDecoder.kundkoll.decode(Samtal.self, from: data) else { return nil }
+                if let nytt = knyt(namn: s.projekt, id: s.projektID, bland: alla) {
+                    (s.projekt, s.projektID) = nytt
+                    if let ny = try? JSONEncoder.kundkoll.encode(s) { try? ny.write(to: url, options: .atomic) }
+                }
+                return s
             }
-            .filter { $0.möte == möte && ($0.möte != nil || $0.projekt == projekt) }
+            // Ett samtal med ett projektnamn som inte längre finns hör ändå
+            // inte till kundnivån; därför namnet som reserv för id:t.
+            .filter { $0.möte == möte && ($0.möte != nil || ($0.projektID ?? $0.projekt) == projekt?.id) }
             .sorted { $0.ändrad > $1.ändrad }
     }
 
@@ -795,7 +904,8 @@ final class Arkivet: ObservableObject {
 
     /// Tar hand om chattarna från tiden då varje kund hade exakt en.
     @discardableResult
-    private func flyttaInGammalChatt(_ kund: Kund, projekt: String?) -> [Samtal] {
+    private func flyttaInGammalChatt(_ kund: Kund, projekt p: Projekt?) -> [Samtal] {
+        let projekt = p?.namn
         let gammal = projekt.map { kund.mapp.appending(path: ".kundkoll/chatt-\(städa($0)).json") }
             ?? kund.mapp.appending(path: ".kundkoll/chatt.json")
         guard let data = try? Data(contentsOf: gammal),

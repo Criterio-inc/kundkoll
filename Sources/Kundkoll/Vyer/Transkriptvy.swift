@@ -409,9 +409,7 @@ struct Transkriptvy: View {
     // MARK: - Handling
 
     private var projekt: Projekt? {
-        inspelning.projekt.flatMap { namn in
-            arkiv.projekt(för: kund).first { $0.namn == namn }
-        }
+        arkiv.projekt(innehållande: mapp, hos: kund)
     }
 
     /// Uppgifterna som kom ur det här mötet. Tavlan är sanningen — det som

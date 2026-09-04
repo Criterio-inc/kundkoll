@@ -566,7 +566,7 @@ extension Tester {
                              för: kund)
             Prov.lika(arkiv.samtal(för: kund, projekt: nil).count, 2,
                       "kundens samtal är två")
-            Prov.lika(arkiv.samtal(för: kund, projekt: "Nytt lager").count, 1,
+            Prov.lika(arkiv.samtal(för: kund, projekt: projekt).count, 1,
                       "projektet ser bara sitt eget")
             _ = projekt
 
@@ -702,7 +702,7 @@ extension Tester {
                              för: kund)
             Prov.lika(arkiv.samtal(för: kund, projekt: nil).count, 2,
                       "kundens samtal är två")
-            Prov.lika(arkiv.samtal(för: kund, projekt: "Nytt lager").count, 1,
+            Prov.lika(arkiv.samtal(för: kund, projekt: projekt).count, 1,
                       "projektet ser bara sitt eget")
             _ = projekt
 

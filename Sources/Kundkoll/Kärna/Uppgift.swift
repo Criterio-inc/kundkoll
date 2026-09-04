@@ -59,14 +59,17 @@ struct Uppgift: Codable, Hashable, Identifiable {
     /// Var den kom ifrån, så man kan gå tillbaka och läsa sammanhanget.
     var källa: String?
     var källtitel: String?
+    /// Projektets namn, en etikett som arkivet fräschar upp ur id:t vid
+    /// läsning. Nyckeln är `projektID`.
     var projekt: String?
+    var projektID: String?
     var skapad = Date()
     var ändrad = Date()
 
     init(id: UUID = UUID(), vad: String, vem: String? = nil, när: String? = nil,
          senast: Date? = nil, påminnelse: String? = nil,
          läge: Läge = .attGöra, ursprung: Ursprung = .egen, källa: String? = nil,
-         källtitel: String? = nil, projekt: String? = nil,
+         källtitel: String? = nil, projekt: String? = nil, projektID: String? = nil,
          skapad: Date = Date(), ändrad: Date = Date(), riktning: Riktning? = nil) {
         self.id = id
         self.vad = vad
@@ -80,6 +83,7 @@ struct Uppgift: Codable, Hashable, Identifiable {
         self.källa = källa
         self.källtitel = källtitel
         self.projekt = projekt
+        self.projektID = projektID
         self.skapad = skapad
         self.ändrad = ändrad
     }
@@ -100,8 +104,18 @@ struct Uppgift: Codable, Hashable, Identifiable {
         källa = try c.decodeIfPresent(String.self, forKey: .källa)
         källtitel = try c.decodeIfPresent(String.self, forKey: .källtitel)
         projekt = try c.decodeIfPresent(String.self, forKey: .projekt)
+        projektID = try c.decodeIfPresent(String.self, forKey: .projektID)
         skapad = try c.decodeIfPresent(Date.self, forKey: .skapad) ?? Date()
         ändrad = try c.decodeIfPresent(Date.self, forKey: .ändrad) ?? Date()
+    }
+
+    /// Om kortet kom ur mötet i mappen. Källan sparas som sökväg relativt
+    /// kundmappen, så att den håller när mappen flyttas; äldre kort har
+    /// hela sökvägen och känns igen på slutet av den.
+    func kommer(ur mapp: URL) -> Bool {
+        guard let källa, !källa.isEmpty else { return false }
+        let väg = mapp.standardizedFileURL.path
+        return källa == väg || väg.hasSuffix("/" + källa)
     }
 
     /// Om det är jag som ska göra det. Satt för hand gäller det; annars

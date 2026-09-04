@@ -20,7 +20,7 @@ struct Kanbanvy: View {
 
     private var synliga: [Uppgift] {
         guard let projekt else { return uppgifter }
-        return uppgifter.filter { $0.projekt == projekt.namn }
+        return uppgifter.filter { $0.projektID == projekt.id }
     }
 
     /// Öppna kort vars datum har passerat — de röda.
@@ -197,7 +197,7 @@ struct Kanbanvy: View {
     private func läggTill() {
         let text = ny.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return }
-        _ = try? arkiv.läggTill([Uppgift(vad: text, projekt: projekt?.namn)], för: kund)
+        _ = try? arkiv.läggTill([Uppgift(vad: text, projekt: projekt?.namn, projektID: projekt?.id)], för: kund)
         ny = ""
         läsOm()
     }

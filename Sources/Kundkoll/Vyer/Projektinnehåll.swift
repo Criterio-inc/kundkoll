@@ -162,7 +162,7 @@ struct Projektinnehåll: View {
 
     /// Det räknbara, som alltid stämmer oavsett vad modellen skrev.
     private var faktarad: String {
-        let egna = arkiv.uppgifter(för: kund).filter { $0.projekt == projekt.namn }
+        let egna = arkiv.uppgifter(för: kund).filter { $0.projektID == projekt.id }
         let öppna = egna.filter { $0.läge != .klart }
         let försenade = öppna.filter(\.försenad).count
         var delar: [String] = []
@@ -229,6 +229,6 @@ struct Projektinnehåll: View {
     }
 
     private func läsIn() {
-        inspelningar = arkiv.inspelningar(för: kund).filter { $0.inspelning.projekt == projekt.namn }
+        inspelningar = arkiv.inspelningar(för: kund).filter { projekt.innehåller($0.mapp) }
     }
 }

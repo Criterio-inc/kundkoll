@@ -36,13 +36,14 @@ extension Tester {
             try! arkiv.läggTill([Uppgift(vad: "Skicka veckorapporten", läge: .klart)], för: kund)
             let efter = try! arkiv.läggTill([Uppgift(vad: "Skicka veckorapporten")], för: kund)
             Prov.lika(efter.count, 2, "ett avklarat kort hindrar inte samma löfte på nytt")
-            let m = "/tmp/möte"
-            try! arkiv.ersätt(kort: [Uppgift(vad: "Ring Bo om leveransen", ursprung: .möte, källa: m)], ur: m, för: kund)
+            let mötet = kund.samtalsmapp.appending(path: "2026-09-01 0900 Möte")
+            let m = "Samtal/2026-09-01 0900 Möte"
+            try! arkiv.ersätt(kort: [Uppgift(vad: "Ring Bo om leveransen", ursprung: .möte, källa: m)], ur: mötet, för: kund)
             var flyttat = arkiv.uppgifter(för: kund).first { $0.vad == "Ring Bo om leveransen" }!
             flyttat.läge = .pågår
             try! arkiv.uppdatera(flyttat, för: kund)
             try! arkiv.läggTill([Uppgift(vad: "Boka uppföljning", ursprung: .möte, källa: m)], för: kund)
-            let ny = try! arkiv.ersätt(kort: [Uppgift(vad: "Boka uppföljningsmöte i oktober", ursprung: .möte, källa: m)], ur: m, för: kund)
+            let ny = try! arkiv.ersätt(kort: [Uppgift(vad: "Boka uppföljningsmöte i oktober", ursprung: .möte, källa: m)], ur: mötet, för: kund)
             Prov.kolla(ny.contains { $0.vad == "Ring Bo om leveransen" && $0.läge == .pågår }, "ett kort som flyttats lämnas kvar vid omskrivning")
             Prov.kolla(!ny.contains { $0.vad == "Boka uppföljning" }, "ett orört kort ur samma möte byts ut")
             Prov.kolla(ny.contains { $0.vad == "Boka uppföljningsmöte i oktober" }, "mot det nya")

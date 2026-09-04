@@ -39,7 +39,7 @@ struct Tidsvy: View {
             }
 
             if let p = tidur.pågående {
-                if p.kund == kund.namn && p.projekt == projekt.namn {
+                if p.kund == kund.namn && (p.projektID ?? p.projekt) == projekt.id {
                     egetUr(p)
                 } else {
                     Text("Uret går redan i \(p.projekt ?? p.kund) — «\(p.vad)». "
@@ -114,7 +114,7 @@ struct Tidsvy: View {
     }
 
     private func starta() {
-        tidur.starta(kund: kund.namn, projekt: projekt.namn,
+        tidur.starta(kund: kund.namn, projekt: projekt.namn, projektID: projekt.id,
                      vad: vad.trimmingCharacters(in: .whitespaces))
         vad = ""
     }
@@ -143,7 +143,8 @@ struct Tidsvy: View {
     private func läggTill() {
         guard let sekunder = Tidspost.tolkaLängd(manuellLängd) else { return }
         let post = Tidspost(vad: manuellVad.trimmingCharacters(in: .whitespaces),
-                            projekt: projekt.namn, start: manuellDag, sekunder: sekunder)
+                            projekt: projekt.namn, projektID: projekt.id,
+                            start: manuellDag, sekunder: sekunder)
         try? arkiv.läggTill(post, för: kund)
         manuellVad = ""
         manuellLängd = ""
@@ -217,7 +218,7 @@ struct Tidsvy: View {
     }
 
     private func läsOm() {
-        poster = arkiv.tidsposter(för: kund).filter { $0.projekt == projekt.namn }
+        poster = arkiv.tidsposter(för: kund).filter { $0.projektID == projekt.id }
     }
 }
 

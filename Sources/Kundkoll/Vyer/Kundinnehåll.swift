@@ -312,7 +312,7 @@ struct Kundinnehåll: View {
                             Menu {
                                 Button("Inget projekt") { koppla(m, till: nil) }
                                 ForEach(projekt) { p in
-                                    Button(p.namn) { koppla(m, till: p.namn) }
+                                    Button(p.namn) { koppla(m, till: p) }
                                 }
                                 Divider()
                                 Button("Hör inte till \(kund.namn)", role: .destructive) {
@@ -361,13 +361,13 @@ struct Kundinnehåll: View {
         }
     }
 
-    private func koppla(_ m: Kalendern.Möte, till projektnamn: String?) {
-        try? arkiv.kopplaMöte(m.id, till: projektnamn, för: kund)
+    private func koppla(_ m: Kalendern.Möte, till projekt: Projekt?) {
+        try? arkiv.kopplaMöte(m.id, till: projekt, för: kund)
         möteskopplingar = arkiv.möteskopplingar(för: kund)
     }
 
     private func kopplatProjekt(_ m: Kalendern.Möte) -> Projekt? {
-        möteskopplingar[m.id].flatMap { namn in projekt.first { $0.namn == namn } }
+        möteskopplingar[m.id].flatMap { id in projekt.first { $0.id == id } }
     }
 
     /// "om 20 minuter", "i dag 14:00", "på torsdag" — närmare till hands än

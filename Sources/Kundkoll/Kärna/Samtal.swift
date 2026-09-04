@@ -8,7 +8,9 @@ struct Samtal: Codable, Identifiable, Hashable {
     var id = UUID()
     /// Härleds ur den första frågan, men går att ändra.
     var titel: String
+    /// Projektets namn som etikett; `projektID` är nyckeln.
     var projekt: String?
+    var projektID: String?
     /// Satt när samtalet gäller ett enskilt möte. Då hör det hemma i
     /// transkriptvyn och ska inte dyka upp i kundens allmänna chatt.
     var möte: String?
@@ -28,11 +30,13 @@ struct Samtal: Codable, Identifiable, Hashable {
     }
 
     init(id: UUID = UUID(), titel: String = "Nytt samtal", projekt: String? = nil,
+         projektID: String? = nil,
          möte: String? = nil, meddelanden: [Chatt.Meddelande] = [],
          skapad: Date = Date(), ändrad: Date = Date()) {
         self.id = id
         self.titel = titel
         self.projekt = projekt
+        self.projektID = projektID
         self.möte = möte
         self.meddelanden = meddelanden
         self.skapad = skapad
@@ -44,6 +48,7 @@ struct Samtal: Codable, Identifiable, Hashable {
         id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         titel = try c.decodeIfPresent(String.self, forKey: .titel) ?? "Samtal"
         projekt = try c.decodeIfPresent(String.self, forKey: .projekt)
+        projektID = try c.decodeIfPresent(String.self, forKey: .projektID)
         möte = try c.decodeIfPresent(String.self, forKey: .möte)
         meddelanden = try c.decodeIfPresent([Chatt.Meddelande].self, forKey: .meddelanden) ?? []
         skapad = try c.decodeIfPresent(Date.self, forKey: .skapad) ?? Date()

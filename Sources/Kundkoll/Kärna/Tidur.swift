@@ -16,6 +16,7 @@ final class Tidur: ObservableObject {
     struct Pågående: Codable, Equatable {
         var kund: String
         var projekt: String?
+        var projektID: String?
         var vad: String
         var start: Date
         /// Sekunder räknade före den senaste återupptagningen.
@@ -24,10 +25,11 @@ final class Tidur: ObservableObject {
         var senasteStart: Date
         var pausad = false
 
-        init(kund: String, projekt: String?, vad: String,
+        init(kund: String, projekt: String?, projektID: String? = nil, vad: String,
              start: Date = Date()) {
             self.kund = kund
             self.projekt = projekt
+            self.projektID = projektID
             self.vad = vad
             self.start = start
             self.senasteStart = start
@@ -38,6 +40,7 @@ final class Tidur: ObservableObject {
             let c = try avkodare.container(keyedBy: CodingKeys.self)
             kund = try c.decodeIfPresent(String.self, forKey: .kund) ?? ""
             projekt = try c.decodeIfPresent(String.self, forKey: .projekt)
+            projektID = try c.decodeIfPresent(String.self, forKey: .projektID)
             vad = try c.decodeIfPresent(String.self, forKey: .vad) ?? ""
             start = try c.decodeIfPresent(Date.self, forKey: .start) ?? Date()
             ackumulerat = try c.decodeIfPresent(Double.self, forKey: .ackumulerat) ?? 0
@@ -81,9 +84,9 @@ final class Tidur: ObservableObject {
 
     // MARK: - Körning
 
-    func starta(kund: String, projekt: String?, vad: String) {
+    func starta(kund: String, projekt: String?, projektID: String? = nil, vad: String) {
         guard pågående == nil else { return }
-        pågående = Pågående(kund: kund, projekt: projekt, vad: vad)
+        pågående = Pågående(kund: kund, projekt: projekt, projektID: projektID, vad: vad)
         Notiser.begär()
     }
 
@@ -113,7 +116,8 @@ final class Tidur: ObservableObject {
         let sekunder = p.gången(nu: tid)
         guard sekunder >= 30 else { return nil }   // kortare är ett felklick
         let post = Tidspost(vad: p.vad.isEmpty ? "Arbete" : p.vad,
-                            projekt: p.projekt, start: p.start, sekunder: sekunder)
+                            projekt: p.projekt, projektID: p.projektID,
+                            start: p.start, sekunder: sekunder)
         if let kund = Arkivet.shared.kunder.first(where: { $0.namn == p.kund }) {
             try? Arkivet.shared.läggTill(post, för: kund)
         }

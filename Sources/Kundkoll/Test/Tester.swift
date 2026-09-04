@@ -31,6 +31,7 @@ enum Tester {
         möteskopplingar()
         mötesserier()
         mötesuppgifter()
+        namnbyte()
         obsidian()
         omindexering()
         palett()

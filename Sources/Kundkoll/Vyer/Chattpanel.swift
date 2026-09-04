@@ -376,7 +376,7 @@ struct Chattpanel: View {
 
     /// Ett tomt samtal med rätt hemvist.
     private func tomtSamtal() -> Samtal {
-        Samtal(projekt: projekt?.namn, möte: möte?.id.uuidString)
+        Samtal(projekt: projekt?.namn, projektID: projekt?.id, möte: möte?.id.uuidString)
     }
 
     /// Hela mötet som en källa. Frågan gäller det som sades, så transkriptet
@@ -397,7 +397,7 @@ struct Chattpanel: View {
     }
 
     private func förbered() async {
-        tidigare = arkiv.samtal(för: kund, projekt: projekt?.namn, möte: möte?.id.uuidString)
+        tidigare = arkiv.samtal(för: kund, projekt: projekt, möte: möte?.id.uuidString)
         samtal = tidigare.first ?? tomtSamtal()
         // En mötschatt håller sig till mötet. En projektchatt söker i
         // projektets mappar; kundchatten i alla projektens, men bara några,
@@ -567,7 +567,7 @@ struct Chattpanel: View {
         spara()
         samtal = tomtSamtal()
         fel = nil
-        tidigare = arkiv.samtal(för: kund, projekt: projekt?.namn, möte: möte?.id.uuidString)
+        tidigare = arkiv.samtal(för: kund, projekt: projekt, möte: möte?.id.uuidString)
     }
 
     private func byt(till annat: Samtal) {
@@ -579,14 +579,14 @@ struct Chattpanel: View {
 
     private func taBort() {
         try? arkiv.taBort(samtal, för: kund)
-        tidigare = arkiv.samtal(för: kund, projekt: projekt?.namn, möte: möte?.id.uuidString)
+        tidigare = arkiv.samtal(för: kund, projekt: projekt, möte: möte?.id.uuidString)
         samtal = tidigare.first ?? tomtSamtal()
     }
 
     private func spara() {
         guard !samtal.tomt else { return }
         try? arkiv.spara(samtal, för: kund)
-        tidigare = arkiv.samtal(för: kund, projekt: projekt?.namn, möte: möte?.id.uuidString)
+        tidigare = arkiv.samtal(för: kund, projekt: projekt, möte: möte?.id.uuidString)
         // Titeln sätts vid sparning; hämta tillbaka den.
         if let uppdaterad = tidigare.first(where: { $0.id == samtal.id }) {
             samtal.titel = uppdaterad.titel
