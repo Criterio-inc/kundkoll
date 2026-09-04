@@ -49,13 +49,6 @@ struct Kundinnehåll: View {
     @State private var slutförfel: [URL: String] = [:]
     /// En påbörjad inspelning som ska kastas, efter bekräftelse.
     @State private var attKastaPåbörjad: URL?
-    /// Mappar utanför kundmappen, och hur många dokument ur var och en som
-    /// ligger i kunskapsbanken.
-    @State private var kopplade: [Kopplad] = []
-    @State private var dokumentantal: [String: (filer: Int, medText: Int)] = [:]
-    @State private var läserIn = false
-    @State private var dokumentfel: String?
-    @State private var iMolnet = 0
 
     enum Flik: String, CaseIterable, Identifiable {
         case översikt, attGöra, inspelningar, anteckningar, mail
@@ -111,14 +104,7 @@ struct Kundinnehåll: View {
         }
         .background(Stil.botten)
         .navigationTitle(kund.namn)
-        .onDrop(of: [.fileURL], isTargeted: nil) { leverantörer in
-            guard let l = leverantörer.first else { return false }
-            _ = l.loadObject(ofClass: URL.self) { url, _ in
-                guard let url, Import.format.contains(url.pathExtension.lowercased()) else { return }
-                Task { @MainActor in släpptFil = url; visaImport = true }
-            }
-            return true
-        }
+        .tarEmotInspelningsfil(förvald: $släpptFil, visaImport: $visaImport)
         .sheet(isPresented: $visaNyttProjekt) { nyttProjektBlad }
         .sheet(isPresented: $visaKontakter) { Kontaktvy(kund: kund).onDisappear(perform: läsOm) }
         .sheet(isPresented: $visaImport) {
@@ -137,20 +123,7 @@ struct Kundinnehåll: View {
         .sheet(item: $briefing) { m in
             Briefingvy(kund: kund, möte: m) { öppnad = $0 }
         }
-        .confirmationDialog(
-            "Flytta inspelningen till papperskorgen?",
-            isPresented: Binding(get: { attKasta != nil }, set: { if !$0 { attKasta = nil } }),
-            presenting: attKasta
-        ) { v in
-            Button("Flytta till papperskorgen", role: .destructive) {
-                try? arkiv.kastaInspelning(i: v.mapp)
-                attKasta = nil
-                läsOm()
-            }
-            Button("Avbryt", role: .cancel) { attKasta = nil }
-        } message: { v in
-            Text("\(v.inspelning.titel) med ljud och transkript flyttas till papperskorgen. Du kan ta tillbaka den därifrån.")
-        }
+        .bekräftarKast(av: $attKasta, arkiv: arkiv, efter: läsOm)
         .onAppear {
             läsOm()
             hämtaKontaktbilder()
@@ -163,9 +136,6 @@ struct Kundinnehåll: View {
         // sammanfattningen — ska dyka upp utan att appen startas om.
         .onChange(of: arkiv.sparningar) { läsOm() }
         .onChange(of: arbeten.senaste) { sedanSist = Briefing.bygg(för: kund, möte: nil, arkiv: arkiv) }
-        .onReceive(NotificationCenter.default.publisher(for: .dokumentIndexerade)) { _ in
-            räknaDokument()
-        }
         .task(id: kund.id) { await hämtaMöten() }
         .task(id: kund.id) { await visaMejl() }
         // Ett nyinbokat eller flyttat möte ska synas direkt.
@@ -196,7 +166,7 @@ struct Kundinnehåll: View {
         sedanSistAvsnitt
         mötesavsnitt
         projektavsnitt
-        mappavsnitt
+        Mappavsnitt(placering: .kund(kund), kund: kund)
         kontaktavsnitt
         if !inspelningar.isEmpty {
             avsnitt("Senaste inspelningarna") {
@@ -799,120 +769,7 @@ struct Kundinnehåll: View {
         kontakter = arkiv.kontakter(för: kund)
         inspelningar = arkiv.inspelningar(för: kund)
         ofullständiga = arkiv.ofullständiga(för: kund)
-        kopplade = arkiv.kopplade(för: kund)
-        räknaDokument()
         sedanSist = Briefing.bygg(för: kund, möte: nil, arkiv: arkiv)
-    }
-
-    // MARK: - Kopplade mappar
-
-    /// Mappar utanför kundmappen — OneDrive, en delad mapp, ett arkiv. De
-    /// rörs inte; dokumenten i dem läses in i kunskapsbanken.
-    private var mappavsnitt: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Avsnittsrubrik("Kopplade mappar")
-                Spacer()
-                Button("Koppla mapp", action: väljMapp).buttonStyle(.link)
-            }
-            if kopplade.isEmpty {
-                Text("Peka ut en mapp med kundens material — OneDrive, en delad mapp, ett arkiv. Word, Excel, PowerPoint, PDF, text och bilder läses in i kunskapsbanken så att chatten kan svara ur dem. Mappen rörs inte.")
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                if iMolnet > 0 {
-                    Label("\(iMolnet) filer ligger kvar i molnet och kan inte läsas. Högerklicka mappen i Finder och välj «Behåll alltid på den här enheten».",
-                          systemImage: "icloud.and.arrow.down")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                if let dokumentfel {
-                    Label("Någon fil gick inte att läsa: \(dokumentfel)",
-                          systemImage: "exclamationmark.triangle")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                mapplista
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var mapplista: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(kopplade.enumerated()), id: \.element.id) { i, k in
-                HStack(spacing: 10) {
-                    Image(systemName: k.finns ? "folder" : "questionmark.folder")
-                        .foregroundStyle(k.finns ? Color.secondary : Color.orange)
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 6) {
-                            Text(k.visatNamn)
-                            if let n = dokumentantal[k.väg] {
-                                Märke(text: Indexering.dokumentetikett(filer: n.filer, medText: n.medText, pågår: läserIn),
-                                      ikon: "doc.richtext")
-                            }
-                        }
-                        Text(k.finns ? k.väg : "Mappen finns inte längre")
-                            .font(.caption)
-                            .foregroundStyle(k.finns ? Color.secondary : Color.orange)
-                            .lineLimit(1)
-                            .truncationMode(.head)
-                    }
-                    Spacer()
-                    if k.finns {
-                        Button { NSWorkspace.shared.open(k.url) } label: {
-                            Image(systemName: "arrow.up.forward.square")
-                        }
-                        .buttonStyle(.borderless)
-                        .help("Visa i Finder")
-                    }
-                    Button {
-                        kopplade = (try? arkiv.koppla(bort: k, från: kund)) ?? kopplade
-                        Indexering.glöm(k, hos: kund)
-                    } label: {
-                        Image(systemName: "minus.circle")
-                    }
-                    .buttonStyle(.borderless)
-                    .help("Koppla bort mappen. Innehållet rörs inte, men försvinner ur kunskapsbanken.")
-                }
-                .padding(.horizontal, 12).padding(.vertical, 9)
-                if i < kopplade.count - 1 { Divider() }
-            }
-        }
-        .kort(hörn: Stil.radhörn)
-    }
-
-    private func väljMapp() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = true
-        panel.message = "Välj en mapp med material om \(kund.namn)"
-        guard panel.runModal() == .OK else { return }
-        for url in panel.urls {
-            kopplade = (try? arkiv.koppla(url, till: kund)) ?? kopplade
-        }
-        räknaDokument()
-        Indexering.dokumentIBakgrunden(för: kund)
-    }
-
-    /// Hur många dokument ur varje mapp som ligger i kunskapsbanken.
-    private func räknaDokument() {
-        läserIn = Indexering.pågår(kund)
-        dokumentfel = Indexering.senasteUtfall[kund.id]?.fel
-        iMolnet = Indexering.senasteUtfall[kund.id]?.platshållare ?? 0
-        guard !kopplade.isEmpty, let bank = try? Kunskapsbank(kund: kund) else {
-            dokumentantal = [:]
-            return
-        }
-        var ut: [String: (filer: Int, medText: Int)] = [:]
-        for k in kopplade {
-            ut[k.väg] = (bank.antalKällor(under: k.väg + "/"),
-                         bank.antalDokument(under: k.väg + "/"))
-        }
-        dokumentantal = ut
     }
 
     /// Kopplade kontakter utan bild får sin profilbild ur macOS Kontakter,

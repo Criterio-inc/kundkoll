@@ -298,6 +298,15 @@ extension Tester {
             Prov.lika(arkiv.kopplade(för: projekt).count, 0, "den går att koppla bort")
             Prov.kolla(FileManager.default.fileExists(atPath: mapp.path),
                        "och mappen ligger kvar på disk — bara kopplingen försvann")
+
+            // Kunden har samma uppsättning genom Placering; filen bor hos kunden.
+            try! arkiv.koppla(mapp, till: .kund(kund))
+            Prov.lika(arkiv.kopplade(för: kund).count, 1, "mappen kopplas till kunden")
+            Prov.lika(arkiv.kopplade(för: projekt).count, 0, "utan att projektet påverkas")
+            Prov.kolla(FileManager.default.fileExists(atPath: kund.mapp.appending(path: "kopplade-mappar.json").path),
+                       "kopplingsfilen ligger i kundmappen")
+            try! arkiv.koppla(bort: arkiv.kopplade(för: kund).first!, från: .kund(kund))
+            Prov.lika(arkiv.kopplade(för: kund).count, 0, "och går att koppla bort från kunden")
         }
 
         do {   // genomgång av en mapp

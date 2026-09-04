@@ -417,74 +417,50 @@ final class Arkivet: ObservableObject {
 
     // MARK: - Kopplade mappar
 
-    private func kopplingsfil(_ projekt: Projekt) -> URL {
-        projekt.mapp.appending(path: "kopplade-mappar.json")
+    // Mappar utanför kundmappen som hör till kunden eller till ett projekt.
+    // En mapp som är hela kundrelationen, OneDrive, en delad mapp, ett arkiv,
+    // hör inte hemma under ett enskilt projekt; därför finns båda nivåerna.
+    // Samma kod för båda: Placering säger var filen bor.
+
+    private func kopplingsfil(_ placering: Placering) -> URL {
+        placering.mapp.appending(path: "kopplade-mappar.json")
     }
 
-    func kopplade(för projekt: Projekt) -> [Kopplad] {
-        guard let data = try? Data(contentsOf: kopplingsfil(projekt)),
+    func kopplade(för placering: Placering) -> [Kopplad] {
+        guard let data = try? Data(contentsOf: kopplingsfil(placering)),
               let k = try? JSONDecoder.kundkoll.decode([Kopplad].self, from: data)
         else { return [] }
         return k
     }
 
-    func sparaKopplade(_ mappar: [Kopplad], för projekt: Projekt) throws {
+    func sparaKopplade(_ mappar: [Kopplad], för placering: Placering) throws {
         let data = try JSONEncoder.kundkoll.encode(mappar)
-        try data.write(to: kopplingsfil(projekt), options: .atomic)
+        try data.write(to: kopplingsfil(placering), options: .atomic)
     }
 
     @discardableResult
-    func koppla(_ mapp: URL, till projekt: Projekt) throws -> [Kopplad] {
-        var alla = kopplade(för: projekt)
+    func koppla(_ mapp: URL, till placering: Placering) throws -> [Kopplad] {
+        var alla = kopplade(för: placering)
         let väg = mapp.standardizedFileURL.path
         guard !alla.contains(where: { $0.väg == väg }) else { return alla }
         alla.append(Kopplad(väg: väg))
-        try sparaKopplade(alla, för: projekt)
+        try sparaKopplade(alla, för: placering)
         return alla
     }
 
     @discardableResult
-    func koppla(bort mapp: Kopplad, från projekt: Projekt) throws -> [Kopplad] {
-        let kvar = kopplade(för: projekt).filter { $0.väg != mapp.väg }
-        try sparaKopplade(kvar, för: projekt)
+    func koppla(bort mapp: Kopplad, från placering: Placering) throws -> [Kopplad] {
+        let kvar = kopplade(för: placering).filter { $0.väg != mapp.väg }
+        try sparaKopplade(kvar, för: placering)
         return kvar
     }
 
-    // Samma sak på kunden. En mapp som är hela kundrelationen — OneDrive,
-    // en delad mapp, ett arkiv — hör inte hemma under ett enskilt projekt.
-
-    private func kopplingsfil(_ kund: Kund) -> URL {
-        kund.mapp.appending(path: "kopplade-mappar.json")
-    }
-
-    func kopplade(för kund: Kund) -> [Kopplad] {
-        guard let data = try? Data(contentsOf: kopplingsfil(kund)),
-              let k = try? JSONDecoder.kundkoll.decode([Kopplad].self, from: data)
-        else { return [] }
-        return k
-    }
-
-    func sparaKopplade(_ mappar: [Kopplad], för kund: Kund) throws {
-        let data = try JSONEncoder.kundkoll.encode(mappar)
-        try data.write(to: kopplingsfil(kund), options: .atomic)
-    }
-
+    func kopplade(för kund: Kund) -> [Kopplad] { kopplade(för: .kund(kund)) }
+    func kopplade(för projekt: Projekt) -> [Kopplad] { kopplade(för: .projekt(projekt)) }
     @discardableResult
-    func koppla(_ mapp: URL, till kund: Kund) throws -> [Kopplad] {
-        var alla = kopplade(för: kund)
-        let väg = mapp.standardizedFileURL.path
-        guard !alla.contains(where: { $0.väg == väg }) else { return alla }
-        alla.append(Kopplad(väg: väg))
-        try sparaKopplade(alla, för: kund)
-        return alla
-    }
-
+    func koppla(_ mapp: URL, till projekt: Projekt) throws -> [Kopplad] { try koppla(mapp, till: .projekt(projekt)) }
     @discardableResult
-    func koppla(bort mapp: Kopplad, från kund: Kund) throws -> [Kopplad] {
-        let kvar = kopplade(för: kund).filter { $0.väg != mapp.väg }
-        try sparaKopplade(kvar, för: kund)
-        return kvar
-    }
+    func koppla(bort mapp: Kopplad, från projekt: Projekt) throws -> [Kopplad] { try koppla(bort: mapp, från: .projekt(projekt)) }
 
     // MARK: - Anteckningar
 

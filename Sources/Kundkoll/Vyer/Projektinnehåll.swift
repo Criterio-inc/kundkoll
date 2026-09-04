@@ -10,10 +10,6 @@ struct Projektinnehåll: View {
     @EnvironmentObject private var session: Inspelningssession
 
     @State private var flik: Flik = .översikt
-    @State private var kopplade: [Kopplad] = []
-    /// Dokument ur varje kopplad mapp i kunskapsbanken, och om inläsningen pågår.
-    @State private var dokumentantal: [String: (filer: Int, medText: Int)] = [:]
-    @State private var läserIn = false
     @State private var inspelningar: [Möte] = []
     @State private var öppnad: Möte?
     @State private var attKasta: Möte?
@@ -68,7 +64,7 @@ struct Projektinnehåll: View {
                     switch flik {
                     case .översikt:
                         lägesavsnitt
-                        mappavsnitt
+                        Mappavsnitt(placering: .projekt(projekt), kund: kund)
                     case .attGöra: Kanbanvy(kund: kund, projekt: projekt)
                     case .inspelningar: inspelningsflik
                     case .anteckningar: Anteckningslista(mapp: projekt.anteckningsmapp)
@@ -90,28 +86,8 @@ struct Projektinnehåll: View {
             Importvy(kund: kund, projekt: arkiv.projekt(för: kund),
                      förvald: släpptFil, förvaltProjekt: projekt, vidKlar: läsIn)
         }
-        .onDrop(of: [.fileURL], isTargeted: nil) { leverantörer in
-            guard let l = leverantörer.first else { return false }
-            _ = l.loadObject(ofClass: URL.self) { url, _ in
-                guard let url, Import.format.contains(url.pathExtension.lowercased()) else { return }
-                Task { @MainActor in släpptFil = url; visaImport = true }
-            }
-            return true
-        }
-        .confirmationDialog(
-            "Flytta inspelningen till papperskorgen?",
-            isPresented: Binding(get: { attKasta != nil }, set: { if !$0 { attKasta = nil } }),
-            presenting: attKasta
-        ) { v in
-            Button("Flytta till papperskorgen", role: .destructive) {
-                try? arkiv.kastaInspelning(i: v.mapp)
-                attKasta = nil
-                läsIn()
-            }
-            Button("Avbryt", role: .cancel) { attKasta = nil }
-        } message: { v in
-            Text("\(v.inspelning.titel) med ljud och transkript flyttas till papperskorgen.")
-        }
+        .tarEmotInspelningsfil(förvald: $släpptFil, visaImport: $visaImport)
+        .bekräftarKast(av: $attKasta, arkiv: arkiv, efter: läsIn)
         .onAppear {
             läsIn()
             // Lägesbilden ska bara finnas där. Saknas den, eller har underlaget
@@ -126,9 +102,6 @@ struct Projektinnehåll: View {
             }
         }
         .onChange(of: arkiv.sparningar) { läsIn() }
-        .onReceive(NotificationCenter.default.publisher(for: .dokumentIndexerade)) { _ in
-            räknaDokument()
-        }
     }
 
     /// Var projektet står just nu, skrivet av modellen ur uppgifter, möten,
@@ -228,64 +201,6 @@ struct Projektinnehåll: View {
         }
     }
 
-    /// Mappar utanför kundmappen som hör till projektet.
-    private var mappavsnitt: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Avsnittsrubrik("Kopplade mappar")
-                Spacer()
-                Button("Koppla mapp", action: väljMapp).buttonStyle(.link)
-            }
-            if kopplade.isEmpty {
-                Text("Peka ut en mapp som hör till projektet. Dokument — Word, Excel, PowerPoint, PDF, text, bilder — läses in i kunskapsbanken. Källkod indexeras inte utan genomsöks av en agent när du frågar, så att svaret bygger på hur filerna ser ut just nu.")
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(kopplade.enumerated()), id: \.element.id) { i, k in
-                        HStack(spacing: 10) {
-                            Image(systemName: k.finns ? "folder" : "questionmark.folder")
-                                .foregroundStyle(k.finns ? Color.secondary : Color.orange)
-                            VStack(alignment: .leading, spacing: 2) {
-                                HStack(spacing: 6) {
-                                    Text(k.visatNamn)
-                                    if let n = dokumentantal[k.väg] {
-                                        Märke(text: Indexering.dokumentetikett(filer: n.filer, medText: n.medText, pågår: läserIn),
-                                              ikon: "doc.richtext")
-                                    }
-                                }
-                                Text(k.finns ? k.väg : "Mappen finns inte längre")
-                                    .font(.caption)
-                                    .foregroundStyle(k.finns ? Color.secondary : Color.orange)
-                                    .lineLimit(1)
-                                    .truncationMode(.head)
-                            }
-                            Spacer()
-                            if k.finns {
-                                Button { NSWorkspace.shared.open(k.url) } label: {
-                                    Image(systemName: "arrow.up.forward.square")
-                                }
-                                .buttonStyle(.borderless)
-                                .help("Visa i Finder")
-                            }
-                            Button {
-                                kopplade = (try? arkiv.koppla(bort: k, från: projekt)) ?? kopplade
-                                Indexering.glöm(k, hos: kund)
-                            } label: {
-                                Image(systemName: "minus.circle")
-                            }
-                            .buttonStyle(.borderless)
-                            .help("Koppla bort mappen. Innehållet rörs inte, men försvinner ur kunskapsbanken.")
-                        }
-                        .padding(.horizontal, 12).padding(.vertical, 9)
-                        if i < kopplade.count - 1 { Divider() }
-                    }
-                }
-                .kort(hörn: Stil.radhörn)
-            }
-        }
-    }
-
     private var inspelningsflik: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -313,38 +228,7 @@ struct Projektinnehåll: View {
         }
     }
 
-    private func väljMapp() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = true
-        panel.message = "Välj en mapp som hör till \(projekt.namn)"
-        guard panel.runModal() == .OK else { return }
-        for url in panel.urls {
-            kopplade = (try? arkiv.koppla(url, till: projekt)) ?? kopplade
-        }
-        Indexering.dokumentIBakgrunden(för: kund)
-        räknaDokument()
-    }
-
-    /// Hur många dokument ur varje mapp som ligger i kunskapsbanken.
-    private func räknaDokument() {
-        läserIn = Indexering.pågår(kund)
-        guard !kopplade.isEmpty, let bank = try? Kunskapsbank(kund: kund) else {
-            dokumentantal = [:]
-            return
-        }
-        var ut: [String: (filer: Int, medText: Int)] = [:]
-        for k in kopplade {
-            ut[k.väg] = (bank.antalKällor(under: k.väg + "/"),
-                         bank.antalDokument(under: k.väg + "/"))
-        }
-        dokumentantal = ut
-    }
-
     private func läsIn() {
-        kopplade = arkiv.kopplade(för: projekt)
-        räknaDokument()
         inspelningar = arkiv.inspelningar(för: kund).filter { $0.inspelning.projekt == projekt.namn }
     }
 }

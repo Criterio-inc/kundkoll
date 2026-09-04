@@ -46,6 +46,14 @@ enum Placering: Hashable {
         }
     }
 
+    /// Kundens eller projektets egen mapp.
+    var mapp: URL {
+        switch self {
+        case .kund(let k): k.mapp
+        case .projekt(let p): p.mapp
+        }
+    }
+
     /// Mappen där inspelningsmappen skapas.
     var inspelningsrot: URL {
         switch self {
