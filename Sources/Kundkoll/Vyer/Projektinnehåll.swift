@@ -14,9 +14,9 @@ struct Projektinnehåll: View {
     /// Dokument ur varje kopplad mapp i kunskapsbanken, och om inläsningen pågår.
     @State private var dokumentantal: [String: (filer: Int, medText: Int)] = [:]
     @State private var läserIn = false
-    @State private var inspelningar: [(Inspelning, URL)] = []
-    @State private var öppnad: Kundinnehåll.Öppnad?
-    @State private var attKasta: Kundinnehåll.Öppnad?
+    @State private var inspelningar: [Möte] = []
+    @State private var öppnad: Möte?
+    @State private var attKasta: Möte?
     @State private var visaImport = false
     @State private var släpptFil: URL?
     @State private var lägesbild: Lägesbild?
@@ -197,7 +197,7 @@ struct Projektinnehåll: View {
         var u = "\(öppna.count) öppna uppgifter"
         if försenade > 0 { u += " · \(försenade) försenade" }
         delar.append(u)
-        if let senaste = inspelningar.first?.0.inledd {
+        if let senaste = inspelningar.first?.inspelning.inledd {
             delar.append("senast \(DateFormatter.kortdag.string(from: senaste))")
         }
         return delar.joined(separator: " · ")
@@ -307,8 +307,8 @@ struct Projektinnehåll: View {
             } else {
                 Inspelningslista(
                     rader: inspelningar,
-                    öppna: { öppnad = .init(inspelning: $0, mapp: $1) },
-                    kasta: { attKasta = .init(inspelning: $0, mapp: $1) })
+                    öppna: { öppnad = $0 },
+                    kasta: { attKasta = $0 })
             }
         }
     }
@@ -345,6 +345,6 @@ struct Projektinnehåll: View {
     private func läsIn() {
         kopplade = arkiv.kopplade(för: projekt)
         räknaDokument()
-        inspelningar = arkiv.inspelningar(för: kund).filter { $0.0.projekt == projekt.namn }
+        inspelningar = arkiv.inspelningar(för: kund).filter { $0.inspelning.projekt == projekt.namn }
     }
 }

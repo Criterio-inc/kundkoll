@@ -80,7 +80,7 @@ extension Tester {
 
             let tillbaka = arkiv.inspelningar(för: kund)
             Prov.lika(tillbaka.count, 1, "sparad inspelning hittas igen")
-            Prov.lika(tillbaka.first?.0.yttranden.count, 2, "alla rader kommer med")
+            Prov.lika(tillbaka.first?.inspelning.yttranden.count, 2, "alla rader kommer med")
 
             let md = try! String(contentsOf: mapp.appending(path: "Transkript.md"), encoding: .utf8)
             Prov.kolla(md.contains("[[Acme]]"), "markdown länkar till kunden")

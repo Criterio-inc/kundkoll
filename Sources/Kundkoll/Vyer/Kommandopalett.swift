@@ -20,7 +20,7 @@ struct Kommandopalett: View {
         enum Slag {
             case kund(Kund)
             case projekt(Projekt, Kund)
-            case inspelning(Inspelning, URL, Kund)
+            case inspelning(Möte, Kund)
             case uppgift(Uppgift, Kund)
             case minVecka
         }
@@ -31,7 +31,7 @@ struct Kommandopalett: View {
             switch slag {
             case .kund(let k): k.namn
             case .projekt(let p, _): p.namn
-            case .inspelning(let i, _, _): i.titel
+            case .inspelning(let m, _): m.inspelning.titel
             case .uppgift(let u, _): u.vad
             case .minVecka: "Min vecka"
             }
@@ -41,8 +41,8 @@ struct Kommandopalett: View {
             switch slag {
             case .kund: "kund"
             case .projekt(_, let k): k.namn
-            case .inspelning(let i, _, let k):
-                "\(k.namn) · \(DateFormatter.kortdag.string(from: i.inledd))"
+            case .inspelning(let m, let k):
+                "\(k.namn) · \(DateFormatter.kortdag.string(from: m.inspelning.inledd))"
             case .uppgift(_, let k): "\(k.namn) · att göra"
             case .minVecka: "alla kunder"
             }
@@ -184,8 +184,8 @@ struct Kommandopalett: View {
             for p in arkiv.projekt(för: kund) {
                 ut.append(Träff(slag: .projekt(p, kund)))
             }
-            for (i, mapp) in arkiv.inspelningar(för: kund) {
-                ut.append(Träff(slag: .inspelning(i, mapp, kund)))
+            for m in arkiv.inspelningar(för: kund) {
+                ut.append(Träff(slag: .inspelning(m, kund)))
             }
             for u in arkiv.uppgifter(för: kund) where u.läge != .klart {
                 ut.append(Träff(slag: .uppgift(u, kund)))

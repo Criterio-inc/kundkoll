@@ -55,6 +55,15 @@ enum Placering: Hashable {
     }
 }
 
+/// Ett hållet möte som det ligger på disk: inspelningen ur möte.json och
+/// mappen den bor i. Det är paret som skickas runt i appen, från arkivets
+/// lista till mötesvyn, paletten och briefingen.
+struct Möte: Identifiable, Hashable {
+    let inspelning: Inspelning
+    let mapp: URL
+    var id: UUID { inspelning.id }
+}
+
 /// Vem som talar. Följer av vilket ljudspår raden kom från, inte av diarisering.
 enum Röst: String, Codable, Hashable {
     case jag

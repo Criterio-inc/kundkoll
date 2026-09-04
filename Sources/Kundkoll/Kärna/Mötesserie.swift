@@ -20,13 +20,13 @@ enum Mötesserie {
 
     /// Närmast föregående möte i samma serie, om det finns ett.
     static func föregående(_ inspelning: Inspelning,
-                           bland alla: [(Inspelning, URL)]) -> (Inspelning, URL)? {
+                           bland alla: [Möte]) -> Möte? {
         let egen = nyckel(inspelning.titel)
         guard !egen.isEmpty else { return nil }
         return alla
-            .filter { $0.0.id != inspelning.id }
-            .filter { nyckel($0.0.titel) == egen }
-            .filter { $0.0.inledd < inspelning.inledd }
-            .max { $0.0.inledd < $1.0.inledd }
+            .filter { $0.inspelning.id != inspelning.id }
+            .filter { nyckel($0.inspelning.titel) == egen }
+            .filter { $0.inspelning.inledd < inspelning.inledd }
+            .max { $0.inspelning.inledd < $1.inspelning.inledd }
     }
 }

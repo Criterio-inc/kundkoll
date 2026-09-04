@@ -6,7 +6,7 @@ struct Briefingvy: View {
     let kund: Kund
     var möte: Kalendern.Möte?
     /// Öppnar ett tidigare möte i mötesvyn; briefen stängs först.
-    var visaMöte: (Inspelning, URL) -> Void
+    var visaMöte: (Möte) -> Void
 
     @EnvironmentObject private var arkiv: Arkivet
     @EnvironmentObject private var session: Inspelningssession
@@ -27,7 +27,7 @@ struct Briefingvy: View {
                                  + "inga öppna åtaganden och inga nya mejl.")
                                 .foregroundStyle(.secondary)
                         }
-                        if let (i, mapp) = brief.senaste { senast(i, mapp) }
+                        if let m = brief.senaste { senast(m) }
                         if !brief.öppnaUppgifter.isEmpty { åtaganden(brief.öppnaUppgifter) }
                         if !brief.mejlSedanSist.isEmpty { mejl(brief.mejlSedanSist) }
                     }
@@ -84,15 +84,16 @@ struct Briefingvy: View {
         .padding(16)
     }
 
-    private func senast(_ i: Inspelning, _ mapp: URL) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+    private func senast(_ m: Möte) -> some View {
+        let i = m.inspelning
+        return VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text("Senast · \(DateFormatter.dag.string(from: i.inledd))")
                     .font(.subheadline.weight(.semibold))
                 Spacer()
                 Button("Öppna") {
                     stäng()
-                    visaMöte(i, mapp)
+                    visaMöte(m)
                 }
                 .buttonStyle(.link)
             }

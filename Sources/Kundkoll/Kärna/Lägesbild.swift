@@ -49,8 +49,8 @@ enum Läget {
         let arkiv = arkiv ?? .shared
         var tider: [Date] = []
         tider += arkiv.inspelningar(för: kund)
-            .filter { $0.0.projekt == projekt.namn }
-            .map { $0.0.sammanfattning?.skriven ?? $0.0.inledd }
+            .filter { $0.inspelning.projekt == projekt.namn }
+            .map { $0.inspelning.sammanfattning?.skriven ?? $0.inspelning.inledd }
         tider += arkiv.uppgifter(för: kund)
             .filter { $0.projekt == projekt.namn }
             .map(\.ändrad)
@@ -77,7 +77,7 @@ enum Läget {
         let dokument = (try? Kunskapsbank(kund: kund))?.senasteDokument(max: 8) ?? []
         let träffar = underlag(
             projekt: projekt.namn,
-            inspelningar: arkiv.inspelningar(för: kund).map(\.0),
+            inspelningar: arkiv.inspelningar(för: kund).map(\.inspelning),
             uppgifter: arkiv.uppgifter(för: kund),
             mejl: arkiv.mailcache(för: kund)?.mejl ?? [],
             anteckningar: arkiv.anteckningar(i: projekt.anteckningsmapp),

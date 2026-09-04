@@ -27,8 +27,8 @@ struct Huvudvy: View {
     @State private var palettUppgift: Palettuppgift?
 
     struct Palettmöte: Identifiable {
-        let kund: Kund, inspelning: Inspelning, mapp: URL
-        var id: UUID { inspelning.id }
+        let kund: Kund, möte: Möte
+        var id: UUID { möte.id }
     }
     struct Palettuppgift: Identifiable {
         let kund: Kund, uppgift: Uppgift
@@ -91,9 +91,9 @@ struct Huvudvy: View {
                 case .kund(let k): val = .kund(k)
                 case .projekt(let p, _): val = .projekt(p)
                 case .minVecka: val = .minVecka
-                case .inspelning(let i, let mapp, let kund):
+                case .inspelning(let m, let kund):
                     val = .kund(kund)
-                    palettMöte = Palettmöte(kund: kund, inspelning: i, mapp: mapp)
+                    palettMöte = Palettmöte(kund: kund, möte: m)
                 case .uppgift(let u, let kund):
                     val = .kund(kund)
                     palettUppgift = Palettuppgift(kund: kund, uppgift: u)
@@ -101,7 +101,7 @@ struct Huvudvy: View {
             }
         }
         .sheet(item: $palettMöte) { v in
-            Transkriptvy(kund: v.kund, inspelning: v.inspelning, mapp: v.mapp)
+            Transkriptvy(kund: v.kund, inspelning: v.möte.inspelning, mapp: v.möte.mapp)
         }
         .sheet(item: $palettUppgift) { v in
             Uppgiftsredigering(uppgift: v.uppgift, kund: v.kund,
@@ -109,8 +109,8 @@ struct Huvudvy: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .palett)) { _ in visaPalett = true }
         .sheet(item: $briefing) { v in
-            Briefingvy(kund: v.kund, möte: v.möte) { i, mapp in
-                palettMöte = Palettmöte(kund: v.kund, inspelning: i, mapp: mapp)
+            Briefingvy(kund: v.kund, möte: v.möte) { m in
+                palettMöte = Palettmöte(kund: v.kund, möte: m)
             }
         }
         // Ett klick på en briefingnotis landar här: rätt kund väljs och
@@ -125,8 +125,8 @@ struct Huvudvy: View {
             }
             // Notisen «Sammanfattat — 3 åtaganden» ska öppna mötet den talar om.
             if let väg = n.userInfo?["mapp"] as? String,
-               let rad = arkiv.inspelningar(för: kund).first(where: { $0.1.path == väg }) {
-                palettMöte = Palettmöte(kund: kund, inspelning: rad.0, mapp: rad.1)
+               let m = arkiv.inspelningar(för: kund).first(where: { $0.mapp.path == väg }) {
+                palettMöte = Palettmöte(kund: kund, möte: m)
             }
         }
         // Påminnelserna en kvart före kundmöten bokas om varje gång kalendern

@@ -19,7 +19,7 @@ struct Kundinnehåll: View {
     @State private var projekt: [Projekt] = []
     @State private var kontakter: [Kontakt] = []
     @State private var möten: [Kalendern.Möte] = []
-    @State private var inspelningar: [(Inspelning, URL)] = []
+    @State private var inspelningar: [Möte] = []
     @State private var visaBilagor = false
     @State private var mejl: [Mailen.Mejl] = []
     @State private var bilagor: [Bilagor.Bilaga] = []
@@ -33,8 +33,8 @@ struct Kundinnehåll: View {
     @State private var visaKontakter = false
     @State private var visaImport = false
     @State private var släpptFil: URL?
-    @State private var öppnad: Öppnad?
-    @State private var attKasta: Öppnad?
+    @State private var öppnad: Möte?
+    @State private var attKasta: Möte?
     @State private var ofullständiga: [(mapp: URL, storlek: Int)] = []
     /// Det som hänt hos kunden sedan sist: samma underlag som briefen, utan
     /// möte. Byggs ur filerna, ingen modell.
@@ -81,12 +81,6 @@ struct Kundinnehåll: View {
     }
 
     enum Mejlläge: Equatable { case ejHämtat, hämtar(String), klar, fel(String) }
-
-    struct Öppnad: Identifiable {
-        let inspelning: Inspelning
-        let mapp: URL
-        var id: UUID { inspelning.id }
-    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -141,9 +135,7 @@ struct Kundinnehåll: View {
             }
         }
         .sheet(item: $briefing) { m in
-            Briefingvy(kund: kund, möte: m) { i, mapp in
-                öppnad = Öppnad(inspelning: i, mapp: mapp)
-            }
+            Briefingvy(kund: kund, möte: m) { öppnad = $0 }
         }
         .confirmationDialog(
             "Flytta inspelningen till papperskorgen?",
@@ -221,9 +213,10 @@ struct Kundinnehåll: View {
         if let b = sedanSist, !b.tom || !Arbeten.logg(i: kund.mapp).isEmpty {
             avsnitt("Sedan sist") {
                 VStack(alignment: .leading, spacing: 8) {
-                    if let (i, mapp) = b.senaste {
+                    if let m = b.senaste {
+                        let i = m.inspelning
                         Button {
-                            öppnad = Öppnad(inspelning: i, mapp: mapp)
+                            öppnad = m
                         } label: {
                             HStack(alignment: .top, spacing: 8) {
                                 Image(systemName: "waveform").foregroundStyle(.secondary).frame(width: 14)
@@ -582,10 +575,8 @@ struct Kundinnehåll: View {
         }
     }
 
-    private func inspelningslista(_ rader: [(Inspelning, URL)]) -> some View {
-        Inspelningslista(rader: rader,
-                         öppna: { öppnad = Öppnad(inspelning: $0, mapp: $1) },
-                         kasta: { attKasta = Öppnad(inspelning: $0, mapp: $1) })
+    private func inspelningslista(_ rader: [Möte]) -> some View {
+        Inspelningslista(rader: rader, öppna: { öppnad = $0 }, kasta: { attKasta = $0 })
     }
 
     // MARK: - Mail
@@ -1115,9 +1106,9 @@ struct Kundinnehåll: View {
 
 /// Lista över inspelningar, med papperskorg vid hovring.
 struct Inspelningslista: View {
-    let rader: [(Inspelning, URL)]
-    var öppna: (Inspelning, URL) -> Void
-    var kasta: (Inspelning, URL) -> Void
+    let rader: [Möte]
+    var öppna: (Möte) -> Void
+    var kasta: (Möte) -> Void
 
     @EnvironmentObject private var session: Inspelningssession
     @State private var hovrad: Int?
@@ -1126,10 +1117,10 @@ struct Inspelningslista: View {
         VStack(spacing: 0) {
             ForEach(Array(rader.enumerated()), id: \.offset) { i, rad in
                 ZStack(alignment: .trailing) {
-                    Button { öppna(rad.0, rad.1) } label: { innehåll(rad.0, mapp: rad.1) }
+                    Button { öppna(rad) } label: { innehåll(rad.inspelning, mapp: rad.mapp) }
                         .buttonStyle(.plain)
                     if hovrad == i {
-                        Button { kasta(rad.0, rad.1) } label: {
+                        Button { kasta(rad) } label: {
                             Image(systemName: "trash").foregroundStyle(.secondary)
                         }
                         .buttonStyle(.borderless)
@@ -1139,9 +1130,9 @@ struct Inspelningslista: View {
                 }
                 .onHover { hovrar in hovrad = hovrar ? i : (hovrad == i ? nil : hovrad) }
                 .contextMenu {
-                    Button("Visa i Finder") { NSWorkspace.shared.open(rad.1) }
+                    Button("Visa i Finder") { NSWorkspace.shared.open(rad.mapp) }
                     Divider()
-                    Button("Flytta till papperskorgen", role: .destructive) { kasta(rad.0, rad.1) }
+                    Button("Flytta till papperskorgen", role: .destructive) { kasta(rad) }
                 }
                 if i < rader.count - 1 { Divider() }
             }

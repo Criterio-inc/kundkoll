@@ -4,14 +4,14 @@ extension Tester {
     static func briefing() {
         Prov.svit("Briefing")
 
-        func inspelning(_ titel: String, _ dag: String, öppet: [String] = []) -> (Inspelning, URL) {
+        func inspelning(_ titel: String, _ dag: String, öppet: [String] = []) -> Möte {
             var i = Inspelning(titel: titel, inledd: Uppgift.dag(dag)!, längd: 60, kund: "Acme",
                                projekt: nil, mikrofon: nil, liveYttranden: [], arkivYttranden: nil)
             if !öppet.isEmpty {
                 i.sammanfattning = Mötessammanfattning(kärna: "Kärnan i \(titel)", beslut: [],
                                                        åtaganden: [], öppet: öppet)
             }
-            return (i, URL(fileURLWithPath: "/x/\(titel) \(dag)"))
+            return Möte(inspelning: i, mapp: URL(fileURLWithPath: "/x/\(titel) \(dag)"))
         }
         func mejl(_ ämne: String, _ dag: String) -> Mailen.Mejl {
             Mailen.Mejl(datum: Uppgift.dag(dag), datumText: dag,
@@ -33,7 +33,7 @@ extension Tester {
                               mejl: [mejl("Efter mötet", "2026-09-02"),
                                      mejl("Före mötet", "2026-08-15")])
 
-        Prov.lika(b.senaste?.0.titel, "magnus 1on1 20260901",
+        Prov.lika(b.senaste?.inspelning.titel, "magnus 1on1 20260901",
                   "serien går före det allra senaste mötet")
         Prov.lika(b.öppnaFrågor, ["Priset?"], "de obesvarade frågorna följer med")
         Prov.lika(b.öppnaUppgifter.map(\.vad), ["Skicka offerten"],
@@ -45,7 +45,7 @@ extension Tester {
         let utanMöte = Briefing.bygg(kund: "Acme", möte: nil,
                                      inspelningar: [senaste, iSerien],
                                      uppgifter: [], mejl: [])
-        Prov.lika(utanMöte.senaste?.0.titel, "Styrgrupp",
+        Prov.lika(utanMöte.senaste?.inspelning.titel, "Styrgrupp",
                   "utan kalendermöte gäller det senaste mötet rakt av")
 
         let tom = Briefing.bygg(kund: "Acme", möte: nil, inspelningar: [],

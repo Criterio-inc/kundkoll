@@ -29,7 +29,7 @@ struct Transkriptvy: View {
     @StateObject private var spelare = Yttrandespelare()
     @State private var hovrad: UUID?
     /// Närmast föregående möte i samma serie, när det finns ett.
-    @State private var förra: (Inspelning, URL)?
+    @State private var förra: Möte?
     /// Åtaganden från förra mötet som fortfarande är öppna.
     @State private var kvarSedanSist = 0
 
@@ -230,7 +230,7 @@ struct Transkriptvy: View {
     /// vad som sades på förra.
     @ViewBuilder
     private var förraGången: some View {
-        if let (f, _) = förra {
+        if let f = förra?.inspelning {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Label("Förra gången · \(DateFormatter.dag.string(from: f.inledd))",
@@ -260,10 +260,10 @@ struct Transkriptvy: View {
     }
 
     /// Byter till ett annat möte i samma vy — bläddring i serien.
-    private func visa(_ annat: (Inspelning, URL)) {
+    private func visa(_ annat: Möte) {
         spelare.sluta()
-        inspelning = annat.0
-        mapp = annat.1
+        inspelning = annat.inspelning
+        mapp = annat.mapp
         läsUppgifter()
     }
 
@@ -423,7 +423,7 @@ struct Transkriptvy: View {
         förra = Mötesserie.föregående(inspelning, bland: arkiv.inspelningar(för: kund))
         kvarSedanSist = förra.map { f in
             arkiv.uppgifter(för: kund)
-                .filter { Uppgiftssamling.hör($0, till: f.1, titel: f.0.titel) }
+                .filter { Uppgiftssamling.hör($0, till: f.mapp, titel: f.inspelning.titel) }
                 .filter { $0.läge != .klart }
                 .count
         } ?? 0
@@ -432,7 +432,8 @@ struct Transkriptvy: View {
     /// Förra mötets sammanfattning som underlag åt chatten, så att "vad sa
     /// vi förra gången?" har något att stå på även utan sökträff.
     private var förraSomUnderlag: [Kunskapsbank.Träff] {
-        guard let (f, m) = förra, let s = f.sammanfattning, !s.kärna.isEmpty else { return [] }
+        guard let förra, let s = förra.inspelning.sammanfattning, !s.kärna.isEmpty else { return [] }
+        let (f, m) = (förra.inspelning, förra.mapp)
         var text = s.kärna
         if !s.beslut.isEmpty { text += "\nBeslut: " + s.beslut.joined(separator: "; ") }
         if !s.öppet.isEmpty { text += "\nÖppet: " + s.öppet.joined(separator: "; ") }

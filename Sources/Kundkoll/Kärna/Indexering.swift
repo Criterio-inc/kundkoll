@@ -30,7 +30,7 @@ enum Indexering {
     /// på huvudtråden och frös fönstret i sekunder när mycket var nytt.
     struct Underlag: @unchecked Sendable {
         let kundmapp: URL
-        let inspelningar: [(Inspelning, URL)]
+        let inspelningar: [Möte]
         let anteckningar: [Anteckning]
         let mailfil: URL
         let mailcache: Arkivet.Mailcache?
@@ -73,7 +73,8 @@ enum Indexering {
         var r = Resultat()
 
         // Transkript
-        for (inspelning, mapp) in u.inspelningar {
+        for möte in u.inspelningar {
+            let (inspelning, mapp) = (möte.inspelning, möte.mapp)
             let json = mapp.appending(path: "möte.json")
             guard bank.behöverIndexeras(json) else { r.oförändrade += 1; continue }
             try bank.glöm(källa: json.path)

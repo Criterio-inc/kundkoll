@@ -43,7 +43,7 @@ final class Arkivet: ObservableObject {
 
     /// Alla inspelningar för en kund, nyast först. Läser möte.json i varje
     /// inspelningsmapp, både under Samtal/ och under varje projekt.
-    func inspelningar(för kund: Kund) -> [(Inspelning, URL)] {
+    func inspelningar(för kund: Kund) -> [Möte] {
         var rötter = [kund.samtalsmapp]
         rötter += projekt(för: kund).map(\.inspelningsmapp)
         return rötter
@@ -52,9 +52,9 @@ final class Arkivet: ObservableObject {
                 guard let data = try? Data(contentsOf: mapp.appending(path: "möte.json")),
                       let i = try? JSONDecoder.kundkoll.decode(Inspelning.self, from: data)
                 else { return nil }
-                return (i, mapp)
+                return Möte(inspelning: i, mapp: mapp)
             }
-            .sorted { $0.0.inledd > $1.0.inledd }
+            .sorted { $0.inspelning.inledd > $1.inspelning.inledd }
     }
 
     /// En inspelning ur sin mapp, som den ligger på disk just nu. Mötesvyn
