@@ -29,4 +29,36 @@ enum Mötesserie {
             .filter { $0.inspelning.inledd < inspelning.inledd }
             .max { $0.inspelning.inledd < $1.inspelning.inledd }
     }
+
+    /// Mötena i serien fram till och med det här, äldst först.
+    static func kedja(tillOchMed inspelning: Inspelning, bland alla: [Möte]) -> [Inspelning] {
+        var ut = [inspelning]
+        var nuvarande = inspelning
+        while ut.count < 24, let f = föregående(nuvarande, bland: alla) {
+            ut.append(f.inspelning)
+            nuvarande = f.inspelning
+        }
+        return ut.reversed()
+    }
+
+    /// Frågorna som fortfarande är öppna efter ett möte: allt som lämnats
+    /// öppet i serien, minus det som ett senare möte besvarat. Samma princip
+    /// som tavlan, tillämpad på frågor.
+    static func öppnaFrågor(tillOchMed inspelning: Inspelning, bland alla: [Möte]) -> [String] {
+        var öppna: [String] = []
+        for m in kedja(tillOchMed: inspelning, bland: alla) {
+            guard let s = m.sammanfattning else { continue }
+            let besvarade = Set(s.besvarade.map(normalisera))
+            öppna.removeAll { besvarade.contains(normalisera($0)) }
+            for f in s.öppet where !öppna.contains(where: { normalisera($0) == normalisera(f) }) {
+                öppna.append(f)
+            }
+        }
+        return öppna
+    }
+
+    private static func normalisera(_ s: String) -> String {
+        s.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: ".?!"))
+    }
 }

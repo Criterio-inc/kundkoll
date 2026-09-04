@@ -168,6 +168,11 @@ struct Kanbanvy: View {
             }
             .font(.caption2)
             .foregroundStyle(.tertiary)
+            if let förslag = u.klartFörslag, u.läge != .klart {
+                Klartförslag(text: förslag,
+                             bekräfta: { flytta(u, till: .klart) },
+                             behåll: { var k = u; k.klartFörslag = nil; try? arkiv.uppdatera(k, för: kund); läsOm() })
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(9)
@@ -178,12 +183,7 @@ struct Kanbanvy: View {
         .contextMenu {
             ForEach(Uppgift.Läge.allCases) { läge in
                 if läge != u.läge {
-                    Button("Flytta till \(läge.namn)") {
-                        var flyttad = u
-                        flyttad.läge = läge
-                        try? arkiv.uppdatera(flyttad, för: kund)
-                        läsOm()
-                    }
+                    Button("Flytta till \(läge.namn)") { flytta(u, till: läge) }
                 }
             }
             Divider()
@@ -208,5 +208,32 @@ struct Kanbanvy: View {
         u.senast.map { DateFormatter.kortdag.string(from: $0) } ?? u.när
     }
 
+    private func flytta(_ u: Uppgift, till läge: Uppgift.Läge) {
+        var flyttad = u
+        flyttad.läge = läge
+        try? arkiv.uppdatera(flyttad, för: kund)
+        läsOm()
+    }
+
     private func läsOm() { uppgifter = arkiv.uppgifter(för: kund) }
+}
+
+/// «Verkar klart enligt …» med en bock att bekräfta och ett sätt att säga
+/// nej. Förslaget står kvar tills någon av dem trycks.
+struct Klartförslag: View {
+    let text: String
+    var bekräfta: () -> Void
+    var behåll: () -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "checkmark.circle.badge.questionmark")
+                .foregroundStyle(.green)
+            Text("Verkar klart").foregroundStyle(.green)
+            Button("Klart", action: bekräfta).buttonStyle(.link)
+            Button("Behåll", action: behåll).buttonStyle(.link).foregroundStyle(.secondary)
+        }
+        .font(.caption)
+        .help(text)
+    }
 }

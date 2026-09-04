@@ -35,6 +35,39 @@ enum Uppgiftssamling {
         } else {
             _ = try? Arkivet.shared.läggTill(nya, för: kund)
         }
+        föreslåKlart(sammanfattning.verkarKlara, enligt: inspelning, för: kund)
+    }
+
+    /// Kort som mötet säger verkar gjorda får ett förslag, inte en stängning.
+    static func föreslåKlart(_ förslag: [Mötessammanfattning.Klartbelägg], enligt inspelning: Inspelning,
+                             för kund: Kund, arkiv: Arkivet = .shared) {
+        guard !förslag.isEmpty else { return }
+        var alla = arkiv.uppgifter(för: kund)
+        let när = "enligt «\(inspelning.titel)» \(DateFormatter.kortdag.string(from: inspelning.inledd))"
+        var ändrat = false
+        for f in förslag {
+            guard let i = alla.firstIndex(where: { $0.id == f.kort }),
+                  alla[i].läge != .klart, alla[i].klartFörslag == nil else { continue }
+            alla[i].klartFörslag = f.belägg.isEmpty ? "Verkar klart \(när)" : "Verkar klart \(när): «\(f.belägg)»"
+            ändrat = true
+        }
+        if ändrat { try? arkiv.sparaUppgifter(alla, för: kund) }
+    }
+
+    /// Vad förra mötet i serien lämnade efter sig, som underlag till
+    /// sammanfattningen av det här. nil när det inte finns något förra möte
+    /// eller inget öppet.
+    static func förra(för inspelning: Inspelning, mapp: URL?, arkiv: Arkivet = .shared) -> Sammanfattare.Förra? {
+        guard let kund = mapp.flatMap({ arkiv.kund(innehållande: $0) })
+                ?? arkiv.kunder.first(where: { $0.namn == inspelning.kund }) else { return nil }
+        let alla = arkiv.inspelningar(för: kund)
+        guard let f = Mötesserie.föregående(inspelning, bland: alla) else { return nil }
+        let kort = arkiv.uppgifter(för: kund)
+            .filter { $0.läge != .klart && hör($0, till: f.mapp, titel: f.inspelning.titel) }
+            .map { Sammanfattare.Förra.Kort(id: $0.id, vad: $0.vad) }
+        let frågor = Mötesserie.öppnaFrågor(tillOchMed: f.inspelning, bland: alla)
+        let ut = Sammanfattare.Förra(öppnaKort: Array(kort.prefix(15)), öppnaFrågor: Array(frågor.prefix(15)))
+        return ut.tom ? nil : ut
     }
 
     /// Om en uppgift kom ur ett visst möte. Mappen är det säkra kännetecknet;

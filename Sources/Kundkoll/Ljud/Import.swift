@@ -191,8 +191,10 @@ actor Import {
             källfil: källfil,
             språk: språk)
 
+        let underlag = inspelning
+        let förra = await MainActor.run { Uppgiftssamling.förra(för: underlag, mapp: mapp) }
         inspelning.sammanfattning = try? await Sammanfattare()
-            .skriv(för: inspelning, kund: placering.kundnamn, automatiskt: true)
+            .skriv(för: inspelning, kund: placering.kundnamn, automatiskt: true, förra: förra)
         let klar = inspelning
         try await MainActor.run {
             try Arkivet.shared.spara(klar, i: mapp)

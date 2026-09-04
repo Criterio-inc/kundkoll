@@ -135,7 +135,12 @@ Briefen byggs helt ur det som redan finns: ingen modell, ingen väntan.
 
 Återkommande möten kedjas till **serier** på titeln med siffrorna bortplockade.
 Mötesvyn visar «Förra gången», och mötets chatt får förra sammanfattningen som
-stående underlag.
+stående underlag. När ett möte i serien sammanfattas får modellen förra mötets
+öppna kort och obesvarade frågor och säger vilka som verkar avklarade eller
+besvarade, med ett ordagrant belägg ur transkriptet; ett belägg som inte står
+där fälls. Kortet får «Verkar klart» med en bock att bekräfta och ett
+«Behåll»; inget stängs av sig självt. Frågorna lever genom serien: briefen
+visar det som fortfarande är öppet, inte det som fick svar i mellantiden.
 
 ## Läget och tiden i ett projekt
 
@@ -150,7 +155,10 @@ om vad du gör, och fält för att skriva in tid i efterhand («1:30», «1,5»
 eller «90»). Går datorn i vila fryser uret vid insomningen; vid uppvaknandet
 frågar en notis om tiden ska loggas eller räknas vidare — sovtid smyger
 aldrig in i loggen. En smal rad längst ned i fönstret visar uret var du än
-är, och loggen skrivs som `Tid.md` med summor per projekt.
+är, och loggen skrivs som `Tid.md` med summor per projekt. Veckans hållna
+möten i projektet ligger som förslag under uret, med titel, datum och längd
+ifyllda: «Logga» gör en tidspost av mötet, «Hoppa över» tar bort förslaget,
+och äldre förslag försvinner tyst.
 
 ## Att göra
 

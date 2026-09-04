@@ -14,15 +14,64 @@ struct Tidsvy: View {
     @State private var manuellVad = ""
     @State private var manuellLängd = ""
     @State private var manuellDag = Date()
+    @State private var förslag: [Möte] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             uravsnitt
+            if !förslag.isEmpty { förslagsavsnitt }
             efterhandsavsnitt
             loggavsnitt
         }
         .onAppear(perform: läsOm)
         .onChange(of: tidur.pågående) { läsOm() }
+        .onChange(of: arkiv.sparningar) { läsOm() }
+    }
+
+    // MARK: - Förslag ur mötena
+
+    /// Appen vet när varje möte började och hur länge det pågick. Ett hållet
+    /// möte är en tidspost ett klick bort; ingen behöver ha startat uret.
+    private var förslagsavsnitt: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Avsnittsrubrik("Möten som inte loggats")
+            VStack(spacing: 0) {
+                ForEach(Array(förslag.enumerated()), id: \.element.id) { i, m in
+                    HStack(spacing: 10) {
+                        Image(systemName: "waveform").foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(m.inspelning.titel)
+                            Text("\(DateFormatter.kortdag.string(from: m.inspelning.inledd)) · \(Tidspost.längdtext(m.inspelning.längd))")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button("Logga") {
+                            try? arkiv.läggTill(Tidspost.ur(m, projekt: projekt), för: kund)
+                            läsOm()
+                        }
+                        Button("Hoppa över") { avfärda(m) }
+                            .buttonStyle(.link).foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 12).padding(.vertical, 9)
+                    if i < förslag.count - 1 { Divider() }
+                }
+            }
+            .kort(hörn: Stil.radhörn)
+        }
+    }
+
+    private static let avfärdadeNyckel = "kundkoll.avfärdadeTidsförslag"
+
+    private var avfärdade: Set<UUID> {
+        Set((UserDefaults.standard.stringArray(forKey: Self.avfärdadeNyckel) ?? []).compactMap(UUID.init))
+    }
+
+    private func avfärda(_ m: Möte) {
+        var lista = UserDefaults.standard.stringArray(forKey: Self.avfärdadeNyckel) ?? []
+        lista.append(m.id.uuidString)
+        // Listan växer aldrig utan gräns: gamla förslag försvinner ändå efter en vecka.
+        UserDefaults.standard.set(Array(lista.suffix(200)), forKey: Self.avfärdadeNyckel)
+        läsOm()
     }
 
     // MARK: - Uret
@@ -219,6 +268,9 @@ struct Tidsvy: View {
 
     private func läsOm() {
         poster = arkiv.tidsposter(för: kund).filter { $0.projektID == projekt.id }
+        förslag = Tidspost.förslag(
+            ur: arkiv.inspelningar(för: kund).filter { projekt.innehåller($0.mapp) },
+            poster: poster, avfärdade: avfärdade)
     }
 }
 

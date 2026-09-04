@@ -127,6 +127,11 @@ struct Minveckavy: View {
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                if let förslag = u.klartFörslag {
+                    Klartförslag(text: förslag,
+                                 bekräfta: { bocka(rad) },
+                                 behåll: { var k = u; k.klartFörslag = nil; try? arkiv.uppdatera(k, för: rad.kund); läsOm() })
+                }
             }
             Spacer()
             if let senast = u.senast {

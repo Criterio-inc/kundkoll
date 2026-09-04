@@ -67,7 +67,7 @@ struct Briefing {
 
         return Briefing(kund: kund, möte: möte, senaste: senaste,
                         öppnaUppgifter: öppna,
-                        öppnaFrågor: senaste?.inspelning.sammanfattning?.öppet ?? [],
+                        öppnaFrågor: senaste.map { Mötesserie.öppnaFrågor(tillOchMed: $0.inspelning, bland: inspelningar) } ?? [],
                         mejlSedanSist: Array(nya.prefix(5)),
                         väntarUtanSvar: utanSvar)
     }

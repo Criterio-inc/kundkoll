@@ -63,6 +63,10 @@ struct Uppgift: Codable, Hashable, Identifiable {
     /// läsning. Nyckeln är `projektID`.
     var projekt: String?
     var projektID: String?
+    /// Satt när ett senare möte i serien sagt att det här verkar gjort:
+    /// «Verkar klart enligt Byggmöte 8 sep». Kortet står kvar tills du
+    /// bockar; ett kort som stängs av misstag är ett åtagande som glöms.
+    var klartFörslag: String?
     var skapad = Date()
     var ändrad = Date()
 
@@ -70,7 +74,8 @@ struct Uppgift: Codable, Hashable, Identifiable {
          senast: Date? = nil, påminnelse: String? = nil,
          läge: Läge = .attGöra, ursprung: Ursprung = .egen, källa: String? = nil,
          källtitel: String? = nil, projekt: String? = nil, projektID: String? = nil,
-         skapad: Date = Date(), ändrad: Date = Date(), riktning: Riktning? = nil) {
+         skapad: Date = Date(), ändrad: Date = Date(), riktning: Riktning? = nil,
+         klartFörslag: String? = nil) {
         self.id = id
         self.vad = vad
         self.vem = vem
@@ -84,6 +89,7 @@ struct Uppgift: Codable, Hashable, Identifiable {
         self.källtitel = källtitel
         self.projekt = projekt
         self.projektID = projektID
+        self.klartFörslag = klartFörslag
         self.skapad = skapad
         self.ändrad = ändrad
     }
@@ -105,6 +111,7 @@ struct Uppgift: Codable, Hashable, Identifiable {
         källtitel = try c.decodeIfPresent(String.self, forKey: .källtitel)
         projekt = try c.decodeIfPresent(String.self, forKey: .projekt)
         projektID = try c.decodeIfPresent(String.self, forKey: .projektID)
+        klartFörslag = try c.decodeIfPresent(String.self, forKey: .klartFörslag)
         skapad = try c.decodeIfPresent(Date.self, forKey: .skapad) ?? Date()
         ändrad = try c.decodeIfPresent(Date.self, forKey: .ändrad) ?? Date()
     }

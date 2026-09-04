@@ -14,6 +14,7 @@ enum Tester {
         arkivet()
         betydelse()
         briefing()
+        förslag()
         indexetFöljerFilerna()
         inspelningensFelvägar()
         kontaktOchRöstprofil()

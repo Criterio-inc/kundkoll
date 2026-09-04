@@ -304,8 +304,10 @@ final class Inspelningssession: ObservableObject {
             // landade i. Sammanfattningen skrivs sist, när talarna är kända.
             var sammanfattningsfel: String?
             do {
+                let underlag = uppdaterad
+                let förra = await MainActor.run { Uppgiftssamling.förra(för: underlag, mapp: mapp) }
                 let s = try await Sammanfattare().skriv(för: uppdaterad, kund: uppdaterad.kund,
-                                                        automatiskt: true)
+                                                        automatiskt: true, förra: förra)
                 uppdaterad.sammanfattning = s
                 let inspelning = uppdaterad
                 await MainActor.run {

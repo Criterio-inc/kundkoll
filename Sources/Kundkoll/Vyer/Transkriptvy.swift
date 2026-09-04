@@ -192,6 +192,7 @@ struct Transkriptvy: View {
                     }
                     if !s.beslut.isEmpty { punktlista("Beslut", s.beslut) }
                     if !s.öppet.isEmpty { punktlista("Öppna frågor", s.öppet) }
+                    if !s.besvarade.isEmpty { punktlista("Besvarat från förra mötet", s.besvarade) }
                     if !s.beslut.isEmpty || !s.öppet.isEmpty || !uppgifter.isEmpty {
                         Divider()
                     }
@@ -247,9 +248,11 @@ struct Transkriptvy: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 if kvarSedanSist > 0 {
-                    Text(kvarSedanSist == 1
-                         ? "1 åtagande därifrån är fortfarande öppet"
-                         : "\(kvarSedanSist) åtaganden därifrån är fortfarande öppna")
+                    let föreslagna = inspelning.sammanfattning?.verkarKlara.count ?? 0
+                    Text((kvarSedanSist == 1
+                          ? "1 åtagande därifrån är fortfarande öppet"
+                          : "\(kvarSedanSist) åtaganden därifrån är fortfarande öppna")
+                         + (föreslagna > 0 ? ", \(föreslagna) verkar klara enligt det här mötet: se tavlan" : ""))
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
@@ -507,7 +510,8 @@ struct Transkriptvy: View {
         fel = nil
         defer { sammanfattar = false }
         do {
-            let s = try await Sammanfattare().skriv(för: inspelning, kund: kund.namn)
+            let förra = Uppgiftssamling.förra(för: inspelning, mapp: mapp)
+            let s = try await Sammanfattare().skriv(för: inspelning, kund: kund.namn, förra: förra)
             inspelning.sammanfattning = s
             try arkiv.spara(inspelning, i: mapp)
             Uppgiftssamling.frånMöte(s, inspelning: inspelning, mapp: mapp)
