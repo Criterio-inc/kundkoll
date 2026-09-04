@@ -1,217 +1,45 @@
 import SwiftUI
 import AppKit
 
-/// `Kundkoll --test` kör provsviten i terminalen, annars startar appen.
-/// Testramverken följer inte med Command Line Tools, så testerna bor i appen.
+/// `Kundkoll --test` kör provsviten i terminalen, `--hjälp` listar de andra
+/// provlägena, annars startar appen. Testramverken följer inte med Command
+/// Line Tools, så proven bor i appen. Lägena står i Test/Provlägen.swift.
 @main
 struct Ingång {
     static func main() {
-        if let i = CommandLine.arguments.firstIndex(of: "--prov-insikter") {
-            let modeller = Array(CommandLine.arguments.dropFirst(i + 1))
-            let sem = DispatchSemaphore(value: 0)
-            nonisolated(unsafe) var kod: Int32 = 1
-            Task.detached { kod = await Insiktsprov.kör(modeller: modeller); sem.signal() }
-            sem.wait()
-            exit(kod)
-        }
-        if let i = CommandLine.arguments.firstIndex(of: "--prov-transkribering"),
-           i + 1 < CommandLine.arguments.count {
-            let a = CommandLine.arguments
-            let motor = i + 2 < a.count ? a[i + 2] : nil
-            let modell = i + 3 < a.count ? a[i + 3] : nil
-            let sem = DispatchSemaphore(value: 0)
-            nonisolated(unsafe) var kod: Int32 = 1
-            Task.detached {
-                kod = await Transkriberingsprov.kör(fil: a[i + 1], motor: motor, modell: modell)
-                sem.signal()
+        let a = CommandLine.arguments.dropFirst()
+        if let första = a.first, första.hasPrefix("--") {
+            if första == "--hjälp" || första == "--help" {
+                print(Provlägen.hjälp); exit(0)
             }
-            sem.wait()
-            exit(kod)
-        }
-        if let i = CommandLine.arguments.firstIndex(of: "--transkribera-om"),
-           i + 1 < CommandLine.arguments.count {
-            let a = CommandLine.arguments
-            let mapp = URL(fileURLWithPath: a[i + 1])
-            let språk = i + 2 < a.count ? (a[i + 2] == "auto" ? nil : a[i + 2]) : "sv"
-            nonisolated(unsafe) var kod: Int32? = nil
-            Task { @MainActor in
-                do {
-                    guard let data = try? Data(contentsOf: mapp.appending(path: "möte.json")),
-                          let gammal = try? JSONDecoder.kundkoll.decode(Inspelning.self, from: data),
-                          let kund = Arkivet.shared.kunder.first(where: { $0.namn == gammal.kund })
-                    else { throw Enkeltfel("Hittar ingen läsbar inspelning i \(mapp.path)") }
-                    let placering: Placering = gammal.projekt.flatMap { namn in
-                        Arkivet.shared.projekt(för: kund).first { $0.namn == namn }
-                            .map { Placering.projekt($0) }
-                    } ?? .kund(kund)
-                    let profiler = Arkivet.shared.röstprofiler(för: kund)
-                    print("Modell: \(Modellval.läs().etikett)")
-                    let ny = try await Import().slutför(
-                        mapp: mapp, placering: placering, profiler: profiler,
-                        titel: gammal.titel, språk: språk,
-                        vidLäge: { l in print("  \(l.steg)") })
-                    print("Klar: \(ny.yttranden.count) yttranden")
-                    for y in ny.yttranden.prefix(4) { print("  · \(y.text.prefix(80))") }
-                    kod = ny.yttranden.isEmpty ? 1 : 0
-                } catch {
-                    print("Gick inte: \(error.localizedDescription)")
-                    kod = 1
-                }
+            guard let läge = Provlägen.alla.first(where: { $0.flagga == första }) else {
+                print("Okänt läge: \(första)\n\n\(Provlägen.hjälp)"); exit(2)
             }
-            while kod == nil {
-                RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.1))
+            let argument = Array(a.dropFirst())
+            guard argument.count >= läge.minst else {
+                print("\(läge.flagga) behöver: \(läge.bruk)"); exit(2)
             }
-            exit(kod ?? 1)
-        }
-        if let i = CommandLine.arguments.firstIndex(of: "--prov-läget"),
-           i + 2 < CommandLine.arguments.count {
-            let a = CommandLine.arguments
-            // Läget.skriv är huvudaktörsbunden, så huvudtråden kan inte stå i
-            // en semafor — den pumpar körslingan tills jobbet är klart.
-            nonisolated(unsafe) var kod: Int32? = nil
-            Task { @MainActor in
-                do {
-                    guard let kund = Arkivet.shared.kunder.first(where: { $0.namn == a[i + 1] }),
-                          let projekt = Arkivet.shared.projekt(för: kund)
-                            .first(where: { $0.namn == a[i + 2] })
-                    else { throw Enkeltfel("Hittar inte \(a[i + 1]) / \(a[i + 2])") }
-                    print("Modell: \(Modellval.läs().etikett)")
-                    let bild = try await Läget.skriv(kund: kund, projekt: projekt)
-                    print(bild.text)
-                    Prov.svit("Lägesbilden skarpt")
-                    Prov.kolla(!bild.text.isEmpty, "modellen skrev en lägesbild")
-                    kod = Prov.sammanfatta()
-                } catch {
-                    print("Gick inte: \(error.localizedDescription)")
-                    kod = 1
-                }
-            }
-            while kod == nil {
-                RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.1))
-            }
-            exit(kod ?? 1)
-        }
-        if let i = CommandLine.arguments.firstIndex(of: "--prov-uppgifter"),
-           i + 1 < CommandLine.arguments.count {
-            // Kör uppgiftsletaren på en textfil och skriver ut vad modellen
-            // svarade, eller felet — det som rundan i appen annars döljer.
-            let fil = CommandLine.arguments[i + 1]
-            nonisolated(unsafe) var kod: Int32? = nil
-            Task { @MainActor in
-                do {
-                    let text = try String(contentsOfFile: fil, encoding: .utf8)
-                    print("Modell: \(Modellval.läs().leverantör.namn) · \(Modellval.läs().modell)")
-                    let t0 = Date()
-                    let letare = Uppgiftsletare()
-                    let u = try await letare.leta(i: text, sammanhang: "ett mejl jag fått",
-                                                  kund: "Provkunden")
-                    print(String(format: "%d uppgifter på %.1f s", u.count, Date().timeIntervalSince(t0)))
-                    for x in u { print("  · \(x.vad)\(x.vem.map { " — \($0)" } ?? "")\(x.när.map { " (\($0))" } ?? "")") }
-                    if u.isEmpty { print("Råsvar:\n\(await letare.senasteSvar)") }
-                    kod = 0
-                } catch {
-                    print("Gick inte: \(error.localizedDescription)")
-                    kod = 1
-                }
-            }
-            while kod == nil { RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.1)) }
-            exit(kod ?? 1)
-        }
-        if CommandLine.arguments.contains("--prov-datum") {
-            let sem = DispatchSemaphore(value: 0)
-            nonisolated(unsafe) var kod: Int32 = 1
-            Task.detached { kod = await Datumprov.kör(); sem.signal() }
-            sem.wait()
-            exit(kod)
-        }
-        if CommandLine.arguments.contains("--test") {
-            exit(MainActor.assumeIsolated { Tester.kör() })
-        }
-        if let i = CommandLine.arguments.firstIndex(of: "--prov-omröst"),
-           i + 1 < CommandLine.arguments.count {
-            let a = CommandLine.arguments
-            let förväntat = i + 2 < a.count ? Int(a[i + 2]) : nil
-            let sem = DispatchSemaphore(value: 0)
-            nonisolated(unsafe) var kod: Int32 = 1
-            Task.detached { kod = await Omröstprov.kör(mapp: a[i + 1], förväntat: förväntat); sem.signal() }
-            sem.wait()
-            exit(kod)
-        }
-        if let i = CommandLine.arguments.firstIndex(of: "--prov-chatt") {
-            let arg = Array(CommandLine.arguments.dropFirst(i + 1))
-            let sem = DispatchSemaphore(value: 0)
-            nonisolated(unsafe) var kod: Int32 = 1
-            Task.detached { kod = await Chattprov.kör(argument: arg); sem.signal() }
-            sem.wait()
-            exit(kod)
-        }
-        if let i = CommandLine.arguments.firstIndex(of: "--prov-kodagent"),
-           i + 2 < CommandLine.arguments.count {
-            let a = CommandLine.arguments
-            let sem = DispatchSemaphore(value: 0)
-            nonisolated(unsafe) var kod: Int32 = 1
-            Task.detached { kod = await Kodagentprov.kör(mapp: a[i + 1], fråga: a[i + 2]); sem.signal() }
-            sem.wait()
-            exit(kod)
-        }
-        if let i = CommandLine.arguments.firstIndex(of: "--prov-bilagehämtning"),
-           i + 1 < CommandLine.arguments.count {
-            let a = CommandLine.arguments
-            let mapp = i + 2 < a.count ? a[i + 2] : nil
-            let sem = DispatchSemaphore(value: 0)
-            nonisolated(unsafe) var kod: Int32 = 1
-            Task.detached { kod = await Bilageprov.hämtning(adress: a[i + 1], mapp: mapp); sem.signal() }
-            sem.wait()
-            exit(kod)
-        }
-        if let i = CommandLine.arguments.firstIndex(of: "--prov-dokument"),
-           i + 1 < CommandLine.arguments.count {
-            let mapp = CommandLine.arguments[i + 1]
-            let sem = DispatchSemaphore(value: 0)
-            nonisolated(unsafe) var kod: Int32 = 1
-            Task.detached { kod = await Dokumentprov.kör(mapp: mapp); sem.signal() }
-            sem.wait()
-            exit(kod)
-        }
-        if let i = CommandLine.arguments.firstIndex(of: "--prov-bilaga") {
-            let filer = Array(CommandLine.arguments.dropFirst(i + 1))
-            let sem = DispatchSemaphore(value: 0)
-            nonisolated(unsafe) var kod: Int32 = 1
-            Task.detached { kod = await Bilageprov.kör(filer: filer); sem.signal() }
-            sem.wait()
-            exit(kod)
-        }
-        if let i = CommandLine.arguments.firstIndex(of: "--prov-import") {
-            let filer = Array(CommandLine.arguments.dropFirst(i + 1))
-            let sem = DispatchSemaphore(value: 0)
-            nonisolated(unsafe) var kod: Int32 = 1
-            Task.detached { kod = await Importprov.kör(filer: filer); sem.signal() }
-            sem.wait()
-            exit(kod)
-        }
-        if let i = CommandLine.arguments.firstIndex(of: "--prov-röst"),
-           i + 2 < CommandLine.arguments.count {
-            let a = CommandLine.arguments
-            let facit = i + 3 < a.count ? a[i + 3] : nil
-            let sem = DispatchSemaphore(value: 0)
-            nonisolated(unsafe) var kod: Int32 = 1
-            Task.detached {
-                kod = await Röstprov.kör(ljud: a[i + 1], whisper: a[i + 2], facit: facit)
-                sem.signal()
-            }
-            sem.wait()
-            exit(kod)
-        }
-        if let i = CommandLine.arguments.firstIndex(of: "--prov-ljud"),
-           i + 1 < CommandLine.arguments.count {
-            let fil = CommandLine.arguments[i + 1]
-            let sem = DispatchSemaphore(value: 0)
-            nonisolated(unsafe) var kod: Int32 = 1
-            Task.detached { kod = await Ljudprov.kör(fil: fil); sem.signal() }
-            sem.wait()
-            exit(kod)
+            kör(läge, argument)
         }
         Kundkoll.main()
+    }
+
+    /// Kör ett provläge till slut och avslutar med dess kod. Huvudtråden
+    /// pumpar körslingan i stället för att stå i en semafor, så jobbet får
+    /// använda huvudaktören utan att låsa (se Provläge).
+    static func kör(_ läge: Provläge, _ argument: [String]) -> Never {
+        nonisolated(unsafe) var kod: Int32? = nil
+        Task { @MainActor in
+            do { kod = try await läge.kör(argument) }
+            catch {
+                print("Gick inte: \(error.localizedDescription)")
+                kod = 1
+            }
+        }
+        while kod == nil {
+            RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.1))
+        }
+        exit(kod ?? 1)
     }
 }
 

@@ -130,7 +130,8 @@ Provsviten körs i terminalen, utan Xcode:
 
 ```bash
 swift build
-.build/arm64-apple-macosx/debug/Kundkoll --test
+.build/arm64-apple-macosx/debug/Kundkoll --test     # provsviten
+.build/arm64-apple-macosx/debug/Kundkoll --hjälp    # de andra provlägena
 ```
 
 ## 4. Behörigheter

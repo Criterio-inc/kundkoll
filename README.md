@@ -315,21 +315,15 @@ fönstret först, gör flera försök, och faller tillbaka på hela skärmen.
 
 ```bash
 ./scripts/bygg-app.sh                                        # dist/Critero-kundkoll.app
-.build/arm64-apple-macosx/debug/Kundkoll --test              # 562 enhetstester
+.build/arm64-apple-macosx/debug/Kundkoll --test              # provsviten, 704 prov
+.build/arm64-apple-macosx/debug/Kundkoll --hjälp             # alla provlägen med argument
 .build/arm64-apple-macosx/debug/Kundkoll --prov-ljud f.wav   # hela kedjan skarpt
 .build/arm64-apple-macosx/debug/Kundkoll --prov-röst ljud.wav w.json facit.json
-.build/arm64-apple-macosx/debug/Kundkoll --prov-import fil.mp4 fil.m4a
 .build/arm64-apple-macosx/debug/Kundkoll --prov-chatt [leverantör] [modell]
-.build/arm64-apple-macosx/debug/Kundkoll --prov-bilaga fil.pdf bild.png
-.build/arm64-apple-macosx/debug/Kundkoll --prov-dokument <mapp>   # hur många filer som ger text, per typ
-.build/arm64-apple-macosx/debug/Kundkoll --prov-omröst <inspelningsmapp> [antal]
-.build/arm64-apple-macosx/debug/Kundkoll --prov-kodagent <mapp> "<fråga>"
-.build/arm64-apple-macosx/debug/Kundkoll --prov-insikter [modell …]
-.build/arm64-apple-macosx/debug/Kundkoll --prov-datum   # relativa uttryck → riktiga datum
-.build/arm64-apple-macosx/debug/Kundkoll --prov-transkribering f.wav [motor] [modell]
 ```
 
-Xcode behövs inte — Command Line Tools räcker. Har du ett Developer
+Ett provläge med fel argument skriver hjälpen och slutar med kod 2 i stället
+för att tyst starta appen. Xcode behövs inte, Command Line Tools räcker. Har du ett Developer
 ID-certifikat anger du det med `KUNDKOLL_SIGNERING`, så signeras appen med
 det och macOS kommer ihåg beviljade behörigheter mellan ombyggen. Utan
 certifikat signeras appen ad hoc och behörigheterna får ges om vid varje bygge.

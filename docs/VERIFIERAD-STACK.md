@@ -218,7 +218,8 @@ på inbyggda embeddings. Planen är SQLite FTS5 med BM25.
 ```bash
 ./scripts/bygg-app.sh          # bygger och signerar dist/Kundkoll.app
 swift build                    # bara kompilering
-.build/arm64-apple-macosx/debug/Kundkoll --test              # 61 enhetstester
+.build/arm64-apple-macosx/debug/Kundkoll --test              # provsviten
+.build/arm64-apple-macosx/debug/Kundkoll --hjälp             # alla provlägen
 .build/arm64-apple-macosx/debug/Kundkoll --prov-ljud f.wav   # hela kedjan skarpt
 ```
 
@@ -237,7 +238,9 @@ bli 0,6 s gammal. Fönstret stängdes då först vid 15-sekundersgränsen — li
 transkriptet hade kommit med 15 sekunders fördröjning i stället för 1–2.
 
 **Deadlock i ljudprovet.** En semafor på huvudtråden väntade på arbete som
-behövde huvudtråden för att köra.
+behövde huvudtråden för att köra. Sedan dess kör alla provlägen genom samma
+ram (`Ingång.kör`): huvudtråden pumpar körslingan tills jobbet är klart, så
+valet mellan semafor och körslinga görs inte längre per läge.
 
 **En mätning som var för bra för att stämma.** Första mätningen av
 `whisper-server` gav 8 ms per fönster. Porten var upptagen av ett annat lokalt
