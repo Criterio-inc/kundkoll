@@ -1,4 +1,6 @@
 import SwiftUI
+import AppKit
+import UniformTypeIdentifiers
 
 /// Kundens kontaktlista. Personer kan hämtas ur macOS Kontakter eller skrivas
 /// upp för hand — alla man talar med finns inte i adressboken.
@@ -13,6 +15,8 @@ struct Kontaktvy: View {
     @State private var träffar: [Kontakt] = []
     @State private var nyttNamn = ""
     @State private var redigerar: Kontakt?
+    /// Vad senaste filimporten gav, eller varför den inte gick.
+    @State private var importbesked: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -103,10 +107,48 @@ struct Kontaktvy: View {
                 Text("Klicka på en kontakt för att fylla i uppgifter eller lägga upp den i Kontakter.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    Button("Importera fil …", action: väljFil)
+                        .help("vCard (.vcf) eller CSV från Outlook. Går också att släppa på listan.")
+                    if let importbesked {
+                        Text(importbesked).font(.caption).foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                }
             }
             .padding(12)
         }
         .frame(minWidth: 300)
+        .onDrop(of: [.fileURL], isTargeted: nil) { objekt in
+            for o in objekt {
+                _ = o.loadObject(ofClass: URL.self) { url, _ in
+                    guard let url else { return }
+                    Task { @MainActor in importera(url) }
+                }
+            }
+            return !objekt.isEmpty
+        }
+    }
+
+    /// Öppnar filväljaren för en vCard- eller CSV-fil från Outlook.
+    private func väljFil() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.vCard, .commaSeparatedText, .plainText]
+        panel.allowsMultipleSelection = true
+        panel.message = "Välj en vCard- eller CSV-fil med kontakter. I Outlook: markera personerna och dra dem till Finder."
+        guard panel.runModal() == .OK else { return }
+        for url in panel.urls { importera(url) }
+    }
+
+    private func importera(_ url: URL) {
+        do {
+            let lästa = try Kontaktimport.läs(url)
+            let utfall = try arkiv.läggTill(lästa, hos: kund)
+            kontakter = utfall.kontakter
+            importbesked = "\(url.lastPathComponent): \(utfall.nya) nya, \(utfall.sammanslagna) fanns redan."
+        } catch {
+            importbesked = "\(url.lastPathComponent): \(error.localizedDescription)"
+        }
     }
 
     private var adressboken: some View {

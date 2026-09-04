@@ -95,7 +95,11 @@ hand, och redigeras i appen — namn, roll, flera adresser och telefonnummer. En
 kontakt som skrivits upp för hand kan läggas upp i macOS Kontakter, och ändringar
 skrivas tillbaka dit. Det sker bara på knapptryck: adressboken är din egen och
 delas med telefonen, så appen ändrar inget där i bakgrunden. En person du satt
-namn på i ett transkript läggs upp som kontakt automatiskt.
+namn på i ett transkript läggs upp som kontakt automatiskt. Många på en gång
+kommer in via fil: «Importera fil …» i kontaktfönstret läser vCard (dra
+personerna från Outlook till Finder) och CSV (Outlook på webben, engelska
+eller svenska rubriker). Samma person som redan finns slås ihop på e-post
+eller namn, aldrig dubbelt.
 
 **Mail** (AppleScript): söker mejl på kundens adresser, öppnar dem i Mail.
 Adresserna är kontakternas, i den ordning de står och högst tolv — utan

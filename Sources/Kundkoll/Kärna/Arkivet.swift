@@ -518,24 +518,33 @@ final class Arkivet: ObservableObject {
 
     @discardableResult
     func läggTill(_ kontakt: Kontakt, hos kund: Kund) throws -> [Kontakt] {
-        var alla = kontakter(för: kund)
-        // Samma person två gånger blir lätt av att både adressboken och ett
-        // kalendermöte föreslår hen.
-        if let i = alla.firstIndex(where: {
-            ($0.systemID != nil && $0.systemID == kontakt.systemID)
-                || $0.namn.caseInsensitiveCompare(kontakt.namn) == .orderedSame
-        }) {
-            var ihop = alla[i]
-            ihop.roll = ihop.roll ?? kontakt.roll
-            ihop.systemID = ihop.systemID ?? kontakt.systemID
-            for e in kontakt.epost where !ihop.epost.contains(e) { ihop.epost.append(e) }
-            for t in kontakt.telefon where !ihop.telefon.contains(t) { ihop.telefon.append(t) }
-            alla[i] = ihop
-        } else {
-            alla.append(kontakt)
+        try läggTill([kontakt], hos: kund).kontakter
+    }
+
+    struct Importutfall {
+        var kontakter: [Kontakt]
+        var nya = 0
+        var sammanslagna = 0
+    }
+
+    /// Lägger till många på en gång, med en enda skrivning. Samma person två
+    /// gånger blir lätt av att både adressboken och ett kalendermöte föreslår
+    /// hen, eller av att en Outlook-fil innehåller den som redan finns:
+    /// samma adressboks-id, e-postadress eller namn räknas som samma person.
+    func läggTill(_ många: [Kontakt], hos kund: Kund) throws -> Importutfall {
+        var utfall = Importutfall(kontakter: kontakter(för: kund))
+        for kontakt in många {
+            if let i = utfall.kontakter.firstIndex(where: { $0.ärSammaPerson(som: kontakt) }) {
+                utfall.kontakter[i].taUpp(kontakt)
+                utfall.sammanslagna += 1
+            } else {
+                utfall.kontakter.append(kontakt)
+                utfall.nya += 1
+            }
         }
-        try sparaKontakter(alla, för: kund)
-        return alla
+        try sparaKontakter(utfall.kontakter, för: kund)
+        utfall.kontakter = kontakter(för: kund)
+        return utfall
     }
 
     func taBort(_ kontakt: Kontakt, hos kund: Kund) throws {
