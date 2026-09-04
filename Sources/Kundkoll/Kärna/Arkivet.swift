@@ -799,23 +799,50 @@ final class Arkivet: ObservableObject {
 
         var ålder: TimeInterval { Date().timeIntervalSince(hämtad) }
 
+        /// Innehållet som text, för att se om något ändrats sedan sist.
+        static func avtryck(_ mejl: [Mailen.Mejl], _ bilagor: [Bilagor.Bilaga]) -> String {
+            let m = mejl.map { "\($0.id)|\($0.ämne)|\($0.text.count)" }.joined(separator: "\n")
+            let b = bilagor.map { "\($0.fil)|\($0.text?.count ?? -1)" }.joined(separator: "\n")
+            return m + "\n--\n" + b
+        }
+
         /// Äldre än så här och det är värt att hämta om automatiskt.
         var färsk: Bool { ålder < 15 * 60 }
     }
 
     func mailcache(för kund: Kund) -> Mailcache? {
         let url = kund.mailmapp.appending(path: "mail.json")
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        return try? JSONDecoder.kundkoll.decode(Mailcache.self, from: data)
+        guard let data = try? Data(contentsOf: url),
+              var cache = try? JSONDecoder.kundkoll.decode(Mailcache.self, from: data) else { return nil }
+        // När mejlen hämtades står i en sidofil: mail.json rörs bara när
+        // innehållet ändrats, annars läste indexet om alla mejl och bilagor
+        // var femtonde minut utan att något var nytt.
+        if let t = try? hämtadfil(kund).resourceValues(forKeys: [.contentModificationDateKey])
+            .contentModificationDate, t > cache.hämtad {
+            cache.hämtad = t
+        }
+        return cache
     }
 
+    private func hämtadfil(_ kund: Kund) -> URL { kund.mailmapp.appending(path: ".hämtad") }
+
+    /// Sant om filen skrevs; falskt när innehållet var oförändrat.
+    @discardableResult
     func sparaMail(_ mejl: [Mailen.Mejl], bilagor: [Bilagor.Bilaga] = [],
-                   för kund: Kund) throws {
+                   för kund: Kund) throws -> Bool {
         try fm.createDirectory(at: kund.mailmapp, withIntermediateDirectories: true)
+        try Data().write(to: hämtadfil(kund))
+        // Jämförs på det som betyder något, inte på hela värdet: ett datum
+        // som gått genom JSON kan skilja sig i bråkdelar av en sekund.
+        if let gammal = mailcache(för: kund),
+           Mailcache.avtryck(gammal.mejl, gammal.bilagor) == Mailcache.avtryck(mejl, bilagor) {
+            return false
+        }
         let cache = Mailcache(hämtad: Date(), mejl: mejl, bilagor: bilagor)
         let data = try JSONEncoder.kundkoll.encode(cache)
         try data.write(to: kund.mailmapp.appending(path: "mail.json"), options: .atomic)
         try skrivMailnot(cache, hos: kund)
+        return true
     }
 
     /// Korrespondensen som markdown, så att den syns i Obsidian bredvid

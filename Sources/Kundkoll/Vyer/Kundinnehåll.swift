@@ -874,7 +874,7 @@ struct Kundinnehåll: View {
     ///   återkomsten till appen använder olika gränser: den som just kommit
     ///   tillbaka vill se det senaste, medan en timer som går hela dagen inte
     ///   ska söka i Mail i onödan.
-    private func visaMejl(äldreÄn: TimeInterval = 15 * 60) async {
+    private func visaMejl(äldreÄn: TimeInterval = 60 * 60) async {
         // Kontakterna läses här och inte ur vyns tillstånd: den fylls av
         // onAppear, som kan hinna köra efter den här uppgiften.
         let adresser = Mailen.adresser(ur: arkiv.kontakter(för: kund))
@@ -1004,7 +1004,12 @@ struct Kundinnehåll: View {
         hittade = hittade.filter { sedda.insert($0.fil).inserted }
         guard !hittade.isEmpty else { return }
 
+        // Text som redan lästs ut behålls; bildtolkning av varje skärmdump
+        // vid varje hämtning var det som höll datorn varm under möten.
+        let redan = Dictionary(bilagor.compactMap { b in b.text.map { (b.fil, $0) } },
+                               uniquingKeysWith: { a, _ in a })
         for (i, b) in hittade.enumerated() {
+            if let t = redan[b.fil] { hittade[i].text = t; continue }
             if mejl.isEmpty { mejlLäge = .hämtar("Läser bilaga \(i + 1) av \(hittade.count) — \(b.namn)") }
             hittade[i].text = await Bilagor.text(ur: b)
         }

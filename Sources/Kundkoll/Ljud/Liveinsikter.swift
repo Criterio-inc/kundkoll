@@ -81,7 +81,7 @@ final class Liveinsikter: ObservableObject {
 
         Task {
             bank = try? Kunskapsbank(kund: kund)
-            if let bank { _ = try? Indexering.kör(för: kund, bank: bank) }
+            if let bank { _ = try? await Indexering.körIBakgrunden(för: kund, bank: bank) }
             if await !insiktsmodell.tillgänglig {
                 varning = "Når ingen lokal modell. Starta Ollama för att få insikter under samtalet."
             }

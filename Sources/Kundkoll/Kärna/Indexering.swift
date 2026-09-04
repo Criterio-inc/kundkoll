@@ -17,19 +17,63 @@ enum Indexering {
         var oförändrade = 0
         /// Filer som inte gick att läsa in. Se `fel` för den första.
         var fällda = 0
+        /// Källor vars filer inte finns längre och som därför glömts.
+        var glömda = 0
         var fel: String?
         /// Filer vars innehåll ligger kvar i molnet. De hoppas över utan att
         /// markeras, så att de läses när de hämtats hem.
         var platshållare = 0
     }
 
+    /// Det som ska indexeras, läst på huvudaktören. Själva genomgången
+    /// (filläsning och FTS-skrivning) sker sedan vid sidan av: den låg förut
+    /// på huvudtråden och frös fönstret i sekunder när mycket var nytt.
+    struct Underlag: @unchecked Sendable {
+        let kundmapp: URL
+        let inspelningar: [(Inspelning, URL)]
+        let anteckningar: [Anteckning]
+        let mailfil: URL
+        let mailcache: Arkivet.Mailcache?
+        let samtalsmapp: URL
+        let kontaktfil: URL
+        let kontakter: [Kontakt]
+
+        @MainActor init(kund: Kund) {
+            let arkiv = Arkivet.shared
+            kundmapp = kund.mapp
+            inspelningar = arkiv.inspelningar(för: kund)
+            var mappar = [kund.anteckningsmapp]
+            mappar += arkiv.projekt(för: kund).map(\.anteckningsmapp)
+            anteckningar = mappar.flatMap { arkiv.anteckningar(i: $0) }
+            mailfil = kund.mailmapp.appending(path: "mail.json")
+            mailcache = arkiv.mailcache(för: kund)
+            samtalsmapp = kund.mapp.appending(path: ".kundkoll/samtal")
+            kontaktfil = kund.kontaktmapp.appending(path: "kontakter.json")
+            kontakter = arkiv.kontakter(för: kund)
+        }
+    }
+
+    /// Synkront, för proven och för den som redan står på huvudaktören.
     @discardableResult
     static func kör(för kund: Kund, bank: Kunskapsbank) throws -> Resultat {
+        try indexera(Underlag(kund: kund), bank: bank)
+    }
+
+    /// Läser underlaget på huvudaktören och gör arbetet vid sidan av.
+    @discardableResult
+    static func körIBakgrunden(för kund: Kund, bank: Kunskapsbank) async throws -> Resultat {
+        let u = Underlag(kund: kund)
+        return try await Task.detached(priority: .utility) {
+            try indexera(u, bank: bank)
+        }.value
+    }
+
+    @discardableResult
+    nonisolated static func indexera(_ u: Underlag, bank: Kunskapsbank) throws -> Resultat {
         var r = Resultat()
-        let arkiv = Arkivet.shared
 
         // Transkript
-        for (inspelning, mapp) in arkiv.inspelningar(för: kund) {
+        for (inspelning, mapp) in u.inspelningar {
             let json = mapp.appending(path: "möte.json")
             guard bank.behöverIndexeras(json) else { r.oförändrade += 1; continue }
             try bank.glöm(källa: json.path)
@@ -67,10 +111,8 @@ enum Indexering {
         }
 
         // Anteckningar, både kundens och projektens
-        var anteckningsmappar = [kund.anteckningsmapp]
-        anteckningsmappar += arkiv.projekt(för: kund).map(\.anteckningsmapp)
-        for mapp in anteckningsmappar {
-            for a in arkiv.anteckningar(i: mapp) {
+        do {
+            for a in u.anteckningar {
                 guard bank.behöverIndexeras(a.fil) else { r.oförändrade += 1; continue }
                 try bank.glöm(källa: a.fil.path)
                 for (i, stycke) in dela(a.text).enumerated() {
@@ -89,10 +131,10 @@ enum Indexering {
 
         // Mejl: ämnesraderna. Brödtexten hämtas inte ur Mail, så det är vad
         // vi har — och ämnet räcker långt för att hitta rätt tråd.
-        let mailfil = kund.mailmapp.appending(path: "mail.json")
+        let mailfil = u.mailfil
         if FileManager.default.fileExists(atPath: mailfil.path), bank.behöverIndexeras(mailfil) {
             try bank.glöm(källa: mailfil.path)
-            if let cache = arkiv.mailcache(för: kund) {
+            if let cache = u.mailcache {
                 for m in cache.mejl {
                     let huvud = "\(m.skickat ? "Skickat till" : "Från") \(m.avsändarnamn): \(m.ämne)"
                     // Brödtexten indexeras med, i stycken när den är lång.
@@ -145,7 +187,7 @@ enum Indexering {
         // vilja hitta igen — särskilt slutsatser som inte skrivits ned någon
         // annanstans. De viktas ner vid sökning: de säger vad modellen
         // svarade, inte vad som faktiskt hände.
-        let samtalsmapp = kund.mapp.appending(path: ".kundkoll/samtal")
+        let samtalsmapp = u.samtalsmapp
         if let filer = try? FileManager.default.contentsOfDirectory(
             at: samtalsmapp, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
             for fil in filer where fil.pathExtension == "json" {
@@ -174,10 +216,10 @@ enum Indexering {
         }
 
         // Kontakter
-        let kontaktfil = kund.kontaktmapp.appending(path: "kontakter.json")
+        let kontaktfil = u.kontaktfil
         if FileManager.default.fileExists(atPath: kontaktfil.path), bank.behöverIndexeras(kontaktfil) {
             try bank.glöm(källa: kontaktfil.path)
-            for k in arkiv.kontakter(för: kund) {
+            for k in u.kontakter {
                 var rader = [k.namn]
                 if let roll = k.roll { rader.append(roll) }
                 rader += k.epost
@@ -188,6 +230,16 @@ enum Indexering {
             }
             try bank.markeraIndexerad(kontaktfil)
             r.indexerade += 1
+        }
+
+        // Det som inte finns längre glöms: ett kastat möte, en raderad
+        // anteckning, en bilaga som försvunnit. Bara riktiga sökvägar; en
+        // fil som tillfälligt inte går att nå (en utloggad OneDrive) räknas
+        // också som borta, och läses in igen när den är tillbaka.
+        for källa in bank.allaKällor()
+        where källa.hasPrefix("/") && !FileManager.default.fileExists(atPath: källa) {
+            try bank.glömHelt(källa: källa)
+            r.glömda += 1
         }
 
         return r
@@ -310,7 +362,7 @@ enum Indexering {
             guard let bank = try? Kunskapsbank(kund: kund) else {
                 jobb?.föll("Kunskapsbanken gick inte att öppna"); return
             }
-            _ = try? kör(för: kund, bank: bank)
+            _ = try? await körIBakgrunden(för: kund, bank: bank)
             do {
                 let r = try await indexeraDokument(för: kund, bank: bank)
                 senasteUtfall[kund.id] = r
@@ -328,7 +380,7 @@ enum Indexering {
 
     /// Delar ett transkript i stycken med talare och tid kvar i texten, så att
     /// ett svar kan säga vem som sa vad och när.
-    static func stycken(av inspelning: Inspelning) -> [String] {
+    nonisolated static func stycken(av inspelning: Inspelning) -> [String] {
         var ut: [String] = []
         var nuvarande = ""
         for y in inspelning.yttranden {
@@ -345,7 +397,7 @@ enum Indexering {
     }
 
     /// Delar en text vid styckegränser, utan att kapa mitt i ett stycke.
-    static func dela(_ text: String, storlek: Int = styckestorlek) -> [String] {
+    nonisolated static func dela(_ text: String, storlek: Int = styckestorlek) -> [String] {
         let block = text.components(separatedBy: "\n\n")
         var ut: [String] = []
         var nuvarande = ""

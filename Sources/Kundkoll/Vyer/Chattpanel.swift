@@ -420,7 +420,7 @@ struct Chattpanel: View {
         status = "Läser igenom materialet …"
         do {
             let b = try Kunskapsbank(kund: kund)
-            let r = try Indexering.kör(för: kund, bank: b)
+            let r = try await Indexering.körIBakgrunden(för: kund, bank: b)
             bank = b
             // Dokumenten ur kopplade mappar tar längre tid och läses i
             // bakgrunden; det som redan är inläst är sökbart direkt.

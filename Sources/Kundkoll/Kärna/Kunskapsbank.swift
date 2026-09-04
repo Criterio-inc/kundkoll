@@ -149,6 +149,28 @@ final class Kunskapsbank {
         sqlite3_step(k)
     }
 
+    /// Alla källor indexet känner till, för att glömma dem som inte finns
+    /// längre. Indexet lärde sig förut nya filer men glömde aldrig raderade:
+    /// ett kastat möte fortsatte citeras i chatten.
+    func allaKällor() -> [String] {
+        var s: OpaquePointer?
+        defer { sqlite3_finalize(s) }
+        guard sqlite3_prepare_v2(db, "SELECT källa FROM källor", -1, &s, nil) == SQLITE_OK else { return [] }
+        var ut: [String] = []
+        while sqlite3_step(s) == SQLITE_ROW { ut.append(text(s, 0)) }
+        return ut
+    }
+
+    /// Glömmer källan och spåret av att den funnits, för en fil som är borta.
+    func glömHelt(källa: String) throws {
+        try glöm(källa: källa)
+        var s: OpaquePointer?
+        defer { sqlite3_finalize(s) }
+        sqlite3_prepare_v2(db, "DELETE FROM källor WHERE källa = ?", -1, &s, nil)
+        bind(s, 1, källa)
+        sqlite3_step(s)
+    }
+
     /// Källorna under en mapp — för att glömma filer som försvunnit ur den.
     func källor(under prefix: String) -> [String] {
         var s: OpaquePointer?
