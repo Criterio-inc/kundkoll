@@ -52,6 +52,7 @@ struct Kanbanvy: View {
             }
         }
         .onAppear(perform: läsOm)
+        .onChange(of: arkiv.sparningar) { läsOm() }
         .sheet(item: $redigerad) { u in
             Uppgiftsredigering(uppgift: u, kund: kund,
                                projekt: projekt == nil ? arkiv.projekt(för: kund) : [],

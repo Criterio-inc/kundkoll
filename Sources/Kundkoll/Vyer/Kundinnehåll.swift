@@ -24,6 +24,9 @@ struct Kundinnehåll: View {
     @State private var mejl: [Mailen.Mejl] = []
     @State private var bilagor: [Bilagor.Bilaga] = []
     @State private var mejlLäge: Mejlläge = .ejHämtat
+    /// Den retroaktiva genomgången av alla mejl: pågår den, och vad gav den.
+    @State private var mejlrundaPågår = false
+    @State private var mejlrundaBesked: String?
 
     @State private var visaNyttProjekt = false
     @State private var nyttProjektnamn = ""
@@ -518,6 +521,16 @@ struct Kundinnehåll: View {
                         }
                     }
                     .kort(hörn: Stil.radhörn)
+                    HStack(spacing: 8) {
+                        Button("Leta åtaganden i alla \(mejl.count) mejl", action: letaIAllaMejl)
+                            .buttonStyle(.link)
+                            .disabled(mejlrundaPågår)
+                            .help("Går igenom allt som ligger sparat, även äldre mejl, och lägger det som ska göras på tavlan.")
+                        if mejlrundaPågår { ProgressView().controlSize(.small) }
+                        if let mejlrundaBesked {
+                            Text(mejlrundaBesked).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
                 }
             }
         }
@@ -817,9 +830,32 @@ struct Kundinnehåll: View {
         mejl = samlat.filter { sedda.insert($0.id).inserted }
             .sorted { ($0.datum ?? .distantPast) > ($1.datum ?? .distantPast) }
         try? arkiv.sparaMail(mejl, bilagor: bilagor, för: kund)
+        // Nya mejl kan bära åtaganden. I bakgrunden, och oberoende av
+        // bilagorna: tidigare låg anropet sist i bilagehämtningen, bakom en
+        // spärr som avbröt när inga bilagor fanns, så rundan uteblev oftast.
+        let mejlen = mejl
+        Task { await Uppgiftssamling.frånMejl(mejlen, kund: kund) }
 
         await hämtaBilagor(adresser)
         mejlLäge = .klar
+    }
+
+    /// Går igenom allt som ligger sparat, äldst först. Ett modellanrop per
+    /// mejl, så det tar en stund; framstegen visas i mejlavsnittet.
+    private func letaIAllaMejl() {
+        guard !mejlrundaPågår else { return }
+        mejlrundaPågår = true
+        mejlrundaBesked = nil
+        let mejlen = mejl
+        Task {
+            let nya = await Uppgiftssamling.frånMejl(mejlen, kund: kund, alla: true) { i, n in
+                mejlrundaBesked = "Letar åtaganden i mejl \(i) av \(n) …"
+            }
+            mejlrundaPågår = false
+            mejlrundaBesked = nya == 0
+                ? "Inga nya åtaganden i mejlen."
+                : "\(nya) nya på tavlan under Att göra."
+        }
     }
 
     private func hämtaBilagor(_ adresser: [String]) async {
@@ -854,10 +890,6 @@ struct Kundinnehåll: View {
         bilagor = hittade
         try? arkiv.sparaMail(mejl, bilagor: hittade, för: kund)
         indexeraIBakgrunden()
-        // Nya mejl kan bära åtaganden. Görs efter indexeringen, i bakgrunden,
-        // så att listan inte står och väntar.
-        let mejlen = mejl
-        Task { await Uppgiftssamling.frånMejl(mejlen, kund: kund) }
     }
 
     /// Håller indexet aktuellt utan att man behöver öppna chatten.

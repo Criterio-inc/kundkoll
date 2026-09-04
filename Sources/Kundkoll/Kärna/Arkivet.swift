@@ -302,6 +302,9 @@ final class Arkivet: ObservableObject {
         let data = try JSONEncoder.kundkoll.encode(uppgifter)
         try data.write(to: uppgiftsfil(kund), options: .atomic)
         try skrivUppgiftsnot(uppgifter, hos: kund)
+        // Tavlan lyssnar på räknaren: kort som kommer ur en mejlrunda eller
+        // ett avslutat möte ska synas utan att man byter flik.
+        sparningar += 1
     }
 
     /// Lägger till nya uppgifter utan att skapa dubbletter av sådant som redan

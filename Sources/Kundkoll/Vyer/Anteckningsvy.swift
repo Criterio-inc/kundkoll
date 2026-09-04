@@ -19,6 +19,8 @@ struct Anteckningsvy: View {
     @State private var titel = ""
     @State private var text = ""
     @State private var sparaJobb: Task<Void, Never>?
+    /// Letar åtaganden en stund efter att man slutat skriva.
+    @State private var letaJobb: Task<Void, Never>?
     @State private var meddelande: String?
 
     var body: some View {
@@ -87,7 +89,7 @@ struct Anteckningsvy: View {
             titel = anteckning.titel
             text = anteckning.text
         }
-        .onDisappear { spara() }
+        .onDisappear { spara(); leta() }
     }
 
     private var miniatyrer: some View {
@@ -202,6 +204,28 @@ struct Anteckningsvy: View {
         anteckning.ändrad = Date()
         try? arkiv.spara(anteckning)
         vidÄndring()
+        schemaläggLetning()
+    }
+
+    // MARK: - Åtaganden ur anteckningen
+
+    /// Väntar tills man slutat skriva på riktigt: en modellrunda per
+    /// sparning vore en runda var sekund.
+    private func schemaläggLetning() {
+        letaJobb?.cancel()
+        letaJobb = Task {
+            try? await Task.sleep(for: .seconds(20))
+            guard !Task.isCancelled else { return }
+            leta()
+        }
+    }
+
+    private func leta() {
+        letaJobb?.cancel(); letaJobb = nil
+        let a = anteckning
+        guard let kund = arkiv.kunder.first(where: { a.fil.path.hasPrefix($0.mapp.path + "/") })
+        else { return }
+        Task { await Uppgiftssamling.frånAnteckning(a, kund: kund) }
     }
 
     private func byNamn() {

@@ -155,8 +155,12 @@ aldrig in i loggen. En smal rad längst ned i fönstret visar uret var du än
 ## Att göra
 
 Åtaganden hamnar på en tavla med tre spalter, utan att någon skriver in dem.
-Mötets sammanfattning bidrar med sina, och nya mejl gås igenom när de hämtas.
-Samma sak nämnd i både ett möte och ett mejl blir ett kort, inte två.
+Mötets sammanfattning bidrar med sina, nya mejl gås igenom när de hämtas, och
+en anteckning gås igenom en stund efter att man slutat skriva i den. Samma sak
+nämnd i både ett möte och ett mejl blir ett kort, inte två. Vad som redan
+gåtts igenom bokförs per kund, så inget mejl går genom modellen två gånger.
+Äldre mejl tas inte av sig själva — «Leta åtaganden i alla mejl» i mejlfliken
+gör den genomgången på begäran, äldst först, och kan ta några minuter.
 
 Korten dras mellan spalterna och öppnas med ett klick — det mesta är utplockat
 av en modell, och en modell formulerar sig inte alltid som man själv skulle ha
