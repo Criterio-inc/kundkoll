@@ -111,49 +111,10 @@ actor Import {
         let wav = mapp.appending(path: "motpart.wav")
         let längd = try await Self.tillWhisperformat(källa, mål: wav)
 
-        await MainActor.run {
-            vidLäge(Läge(steg: "Transkriberar \(formateraLängd(längd)) med KB-Whisper", andel: 0))
-        }
-        let rader = try await Arkivtranskribering.kör(
-            fil: wav, röst: .motpart, språk: språk, totalLängd: längd,
-            vidFramsteg: { f in
-                vidLäge(Läge(steg: "Transkriberar \(formateraLängd(längd))",
-                             andel: f.andel, senaste: f.senasteRad))
-            })
-        guard !rader.isEmpty else { throw Fel.ingetTal }
-
-        let uppdelning = await röstanalys.delaUpp(
-            fil: wav, yttranden: rader, antal: väntadeRöster, profiler: profiler,
-            vidLäge: { steg in vidLäge(Läge(steg: steg, andel: nil)) })
-        let märkta = uppdelning.yttranden
-        let namn = uppdelning.namn
-
-        await MainActor.run { vidLäge(Läge(steg: "Sammanfattar mötet", andel: nil)) }
-        var inspelning = Inspelning(
-            titel: titel, inledd: inledd, längd: längd,
-            kund: placering.kundnamn,
-            projekt: { if case .projekt(let p) = placering { p.namn } else { nil } }(),
-            mikrofon: nil,
-            liveYttranden: [],
-            arkivYttranden: märkta,
-            röstnamn: namn,
-            kallade: [],
-            enspårig: true,
-            källfil: källa.lastPathComponent,
-            språk: språk)
-
-        inspelning.sammanfattning = try? await Sammanfattare()
-            .skriv(för: inspelning, kund: placering.kundnamn, automatiskt: true)
-        let klar = inspelning
-        try await MainActor.run {
-            try Arkivet.shared.spara(klar, i: mapp)
-            // En importerad inspelning ska ge uppgifter på tavlan precis som
-            // ett möte som spelats in i appen.
-            if let s = klar.sammanfattning {
-                Uppgiftssamling.frånMöte(s, inspelning: klar, mapp: mapp)
-            }
-            Notiser.mötetKlart(klar, mapp: mapp)
-        }
+        let inspelning = try await slutförInspelning(
+            wav: wav, mapp: mapp, längd: längd, placering: placering, titel: titel,
+            inledd: inledd, tidigare: nil, källfil: källa.lastPathComponent,
+            profiler: profiler, väntadeRöster: väntadeRöster, språk: språk, vidLäge: vidLäge)
         lyckades = true
         return (inspelning, mapp)
     }
@@ -180,6 +141,27 @@ actor Import {
             ?? (try? wav.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate)
             ?? Date()
 
+        // Titeln står i mappnamnet: "2026-08-31 1548 magnus 1on1".
+        let namn = mapp.lastPathComponent
+        let urMapp = namn.split(separator: " ").dropFirst(2).joined(separator: " ")
+        let titel = angiven ?? (urMapp.isEmpty ? namn : urMapp)
+
+        return try await slutförInspelning(
+            wav: wav, mapp: mapp, längd: längd, placering: placering, titel: titel,
+            inledd: inledd, tidigare: tidigare, källfil: tidigare?.källfil,
+            profiler: profiler, väntadeRöster: nil, språk: språk, vidLäge: vidLäge)
+    }
+
+    /// Det som import och «gör klart» har gemensamt när ljudet väl ligger i
+    /// mappen i rätt format: transkribering, röstuppdelning, sammanfattning,
+    /// möte.json, uppgifter på tavlan och notisen. Finns ett tidigare
+    /// möte.json följer dess mikrofon, livespår och kallade med.
+    private func slutförInspelning(wav: URL, mapp: URL, längd: Double,
+                                   placering: Placering, titel: String, inledd: Date,
+                                   tidigare: Inspelning?, källfil: String?,
+                                   profiler: [Röstprofil], väntadeRöster: Int?,
+                                   språk: String?,
+                                   vidLäge: @Sendable @escaping (Läge) -> Void) async throws -> Inspelning {
         await MainActor.run {
             vidLäge(Läge(steg: "Transkriberar \(formateraLängd(längd))", andel: 0))
         }
@@ -192,18 +174,12 @@ actor Import {
         guard !rader.isEmpty else { throw Fel.ingetTal }
 
         let uppdelning = await röstanalys.delaUpp(
-            fil: wav, yttranden: rader, antal: nil, profiler: profiler,
+            fil: wav, yttranden: rader, antal: väntadeRöster, profiler: profiler,
             vidLäge: { steg in vidLäge(Läge(steg: steg, andel: nil)) })
-
-        // Titeln står i mappnamnet: "2026-08-31 1548 magnus 1on1".
-        let namn = mapp.lastPathComponent
-        let urMapp = namn.split(separator: " ").dropFirst(2).joined(separator: " ")
-        let titel = angiven ?? (urMapp.isEmpty ? namn : urMapp)
 
         await MainActor.run { vidLäge(Läge(steg: "Sammanfattar mötet", andel: nil)) }
         var inspelning = Inspelning(
-            titel: titel,
-            inledd: inledd, längd: längd,
+            titel: titel, inledd: inledd, längd: längd,
             kund: placering.kundnamn,
             projekt: { if case .projekt(let p) = placering { p.namn } else { nil } }(),
             mikrofon: tidigare?.mikrofon,
@@ -212,7 +188,7 @@ actor Import {
             röstnamn: uppdelning.namn,
             kallade: tidigare?.kallade ?? [],
             enspårig: tidigare?.enspårig ?? true,
-            källfil: tidigare?.källfil,
+            källfil: källfil,
             språk: språk)
 
         inspelning.sammanfattning = try? await Sammanfattare()
@@ -220,6 +196,8 @@ actor Import {
         let klar = inspelning
         try await MainActor.run {
             try Arkivet.shared.spara(klar, i: mapp)
+            // En importerad inspelning ska ge uppgifter på tavlan precis som
+            // ett möte som spelats in i appen.
             if let s = klar.sammanfattning {
                 Uppgiftssamling.frånMöte(s, inspelning: klar, mapp: mapp)
             }

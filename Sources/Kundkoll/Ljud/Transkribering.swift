@@ -237,18 +237,7 @@ enum MlxWhisper {
         p.standardOutput = rör
         p.standardError = FileHandle.nullDevice
         if let vidFramsteg {
-            let längd = totalLängd ?? 0
-            nonisolated(unsafe) var rest = ""
-            vidFramsteg(Whisper.Framsteg(andel: 0, senasteRad: ""))
-            rör.fileHandleForReading.readabilityHandler = { handtag in
-                guard let text = String(data: handtag.availableData, encoding: .utf8),
-                      !text.isEmpty else { return }
-                rest += text
-                while let träff = Whisper.nästaSegment(&rest) {
-                    let andel = längd > 0 ? min(1, träff.slut / längd) : 0
-                    vidFramsteg(Whisper.Framsteg(andel: andel, senasteRad: träff.text))
-                }
-            }
+            Whisper.läsFramsteg(ur: rör, längd: totalLängd ?? 0, vidFramsteg)
         }
 
         try p.run()

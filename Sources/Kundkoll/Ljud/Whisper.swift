@@ -227,20 +227,7 @@ actor Whisper {
         p.standardError = FileHandle.nullDevice
 
         if let vidFramsteg {
-            let längd = totalLängd ?? Self.längd(av: fil)
-            nonisolated(unsafe) var rest = ""
-            vidFramsteg(Framsteg(andel: 0, senasteRad: ""))
-            rör.fileHandleForReading.readabilityHandler = { handtag in
-                let bit = handtag.availableData
-                guard !bit.isEmpty, let text = String(data: bit, encoding: .utf8) else { return }
-                rest += text
-                // Whisper skriver utan radbrytning mellan segment ibland, så
-                // raderna plockas ut på hakparentesen i stället.
-                while let träff = Self.nästaSegment(&rest) {
-                    let andel = längd > 0 ? min(1, träff.slut / längd) : 0
-                    vidFramsteg(Framsteg(andel: andel, senasteRad: träff.text))
-                }
-            }
+            Self.läsFramsteg(ur: rör, längd: totalLängd ?? Self.längd(av: fil), vidFramsteg)
         }
 
         try p.run()
@@ -256,6 +243,27 @@ actor Whisper {
         defer { try? FileManager.default.removeItem(at: jsonfil) }
         guard let data = try? Data(contentsOf: jsonfil) else { throw Fel.ingenUtdata }
         return Self.tolka(data, röst: röst, förskjutning: förskjutning)
+    }
+
+    /// Läser segmentutskriften ur ett rör medan processen kör och räknar om
+    /// varje sluttid till en andel av ljudets längd. whisper-cli och
+    /// mlx_whisper skriver på samma form, så båda läses här. Den som anropar
+    /// nollställer `readabilityHandler` när processen är klar.
+    static func läsFramsteg(ur rör: Pipe, längd: Double,
+                            _ vidFramsteg: @escaping @Sendable (Framsteg) -> Void) {
+        nonisolated(unsafe) var rest = ""
+        vidFramsteg(Framsteg(andel: 0, senasteRad: ""))
+        rör.fileHandleForReading.readabilityHandler = { handtag in
+            let bit = handtag.availableData
+            guard !bit.isEmpty, let text = String(data: bit, encoding: .utf8) else { return }
+            rest += text
+            // Whisper skriver utan radbrytning mellan segment ibland, så
+            // raderna plockas ut på hakparentesen i stället.
+            while let träff = nästaSegment(&rest) {
+                let andel = längd > 0 ? min(1, träff.slut / längd) : 0
+                vidFramsteg(Framsteg(andel: andel, senasteRad: träff.text))
+            }
+        }
     }
 
     /// Plockar ut nästa `[00:01:23.000 --> 00:01:30.000] text` ur strömmen.
