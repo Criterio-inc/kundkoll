@@ -187,3 +187,21 @@ molnmotor.
 
 **Behörigheter försvinner efter varje bygge.** Signera med ett Developer
 ID via `KUNDKOLL_SIGNERING`, eller acceptera att bevilja om.
+
+**Datorn blir trög under möten.** Kör `pgrep -fl whisper-server` när appen
+inte är igång: listan ska vara tom. Är den inte det har gamla servrar blivit
+kvar; `pkill -f whisper-server` och starta om appen. Byt sedan insiktsmodell
+till `qwen3:4b` under ⌘, — den klarar samma facit som 8b och tar 3,8 GB i
+stället för 6,5 GB. Siffrorna står i `docs/VERIFIERAD-STACK.md`.
+
+**Skärminspelning står på, men appen frågar ändå.** macOS knyter posten
+till den signatur appen hade när den gavs. Byts signaturen (ad hoc → Developer
+ID, eller ett nytt ad hoc-bygge) matchar posten inte längre, fast reglaget
+ser påslaget ut. Nollställ posten och ge behörigheten igen:
+
+```bash
+tccutil reset ScreenCapture se.critero.kundkoll
+```
+
+Starta appen, tryck «Spela in», slå på Critero-kundkoll i dialogen som
+öppnas och starta om appen. Godkännandet gäller först efter omstart.

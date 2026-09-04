@@ -1,5 +1,6 @@
 import Foundation
 import ScreenCaptureKit
+import CoreGraphics
 import AVFoundation
 import CoreMedia
 
@@ -47,10 +48,19 @@ final class Ljudinfångning: NSObject {
 
     // MARK: - Behörigheter
 
-    /// Skärminspelning krävs för datorljudet. Anropet väcker systemdialogen
-    /// första gången och returnerar falskt tills användaren har godkänt.
-    static func harSkärmbehörighet() async -> Bool {
-        (try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)) != nil
+    /// Skärminspelning krävs för datorljudet. Frågar TCC tyst, utan dialog.
+    ///
+    /// Svaret gäller processen: ett godkännande som ges medan appen kör
+    /// syns först efter omstart, så vägledningen måste säga «starta om».
+    static func harSkärmbehörighet() -> Bool {
+        CGPreflightScreenCaptureAccess()
+    }
+
+    /// Väcker systemdialogen och skriver in appen i listan under
+    /// Skärminspelning. Returnerar sant bara om behörigheten redan fanns.
+    @discardableResult
+    static func begärSkärmbehörighet() -> Bool {
+        CGRequestScreenCaptureAccess()
     }
 
     static func begärMikrofon() async -> Bool {
@@ -60,7 +70,15 @@ final class Ljudinfångning: NSObject {
     // MARK: - Kör
 
     func starta(mikrofonID: String?) async throws {
-        let innehåll = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
+        let innehåll: SCShareableContent
+        do {
+            innehåll = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
+        } catch {
+            // Det här är stället där en behörighet som ser given ut ändå kan
+            // falla: posten i macOS pekar på ett annat bygge, eller appen har
+            // inte startats om sedan den gavs. Felet från macOS ska synas.
+            throw Fel.ingetInnehåll(error)
+        }
         guard let skärm = innehåll.displays.first else { throw Fel.ingenSkärm }
 
         let konf = SCStreamConfiguration()
@@ -96,9 +114,15 @@ final class Ljudinfångning: NSObject {
 
     enum Fel: LocalizedError {
         case ingenSkärm
+        case ingetInnehåll(Error)
         var errorDescription: String? {
             switch self {
             case .ingenSkärm: "Hittade ingen skärm att fånga ljudet ifrån."
+            case .ingetInnehåll(let fel):
+                "macOS släppte inte fram datorljudet (\(fel.localizedDescription)). "
+                + "Står Critero-kundkoll redan på under Skärminspelning: slå av och på "
+                + "reglaget, eller ta bort appen ur listan och ge behörigheten igen, "
+                + "och starta sedan om appen."
             }
         }
     }

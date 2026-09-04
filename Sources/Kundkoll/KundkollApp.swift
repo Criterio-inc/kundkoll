@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// `Kundkoll --test` kör provsviten i terminalen, annars startar appen.
 /// Testramverken följer inte med Command Line Tools, så testerna bor i appen.
@@ -191,6 +192,17 @@ struct Kundkoll: App {
     @StateObject private var session = Inspelningssession.delad
     @StateObject private var adressbok = Adressboken.shared
     @StateObject private var kalender = Kalendern.shared
+
+    init() {
+        // Whisper-servern hålls varm mellan inspelningar, men ska inte
+        // överleva appen. Vakten i Whisper.startaServer tar krascherna;
+        // det här tar den vanliga avslutningen utan att vänta på vakten.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification, object: nil, queue: .main
+        ) { _ in
+            Task { await Whisper.delad.avsluta() }
+        }
+    }
 
     var body: some Scene {
         WindowGroup {

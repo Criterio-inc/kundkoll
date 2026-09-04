@@ -302,6 +302,55 @@ Andra ledet: en `möte.json` som ändå blir oläslig — avbruten skrivning, tr
 disk — får inspelningen att listas som påbörjad i stället för att bara
 försvinna.
 
+## Vad ett samtal kostar datorn
+
+Uppmätt 2026-09-04 på en M4 med 16 GB, medan Teams låg igång. Mätskriptet
+`scripts/mat-belastning.sh <namn> <kommando>` samplar CPU och minne per process
+var halva sekund medan appens provlägen kör; råsamplen ligger i
+`docs/matningar/`. Ljudet var 64 s syntetiskt svenskt tal (`say -v Alva`), så
+siffrorna säger vad delarna kostar, inte hur bra de hör.
+
+| del | process | tid | minne | CPU topp |
+|---|---|---|---|---|
+| Live, kb_small via `whisper-server` | whisper-server | 3,0 s per 64 s ljud (21×) | 0,7 GB | 54 % |
+| Insikter + chatt, qwen3:8b | llama-server (Ollama) | median 2,0 s per granskning | **6,5 GB** | 48 % |
+| Insikter + chatt, qwen3:4b | llama-server (Ollama) | median 1,9 s | **3,8 GB** | 117 % |
+| Arkiv, kb_medium via `whisper-cli` | whisper-cli | 10,8 s per 64 s ljud | 2,0 GB | 71 % |
+| Röstanalys (pyannote/speechbrain) | python | 11,4 s per 64 s ljud | 1,0 GB | 153 % |
+
+Minnet för Ollama är `size_vram` ur `/api/ps` (modellen ligger i det delade
+GPU-minnet och syns som *wired*, inte som RSS). Ollamas modellprocess heter
+`llama-server`, inte `ollama` — ett filter på «ollama» ser bara en 40 MB
+tjänsteprocess och missar hela modellen. Uppmätt: första körningen gav
+«43 MB» för qwen3:8b.
+
+Under ett möte ligger alltså small-modellen (0,7 GB) och insiktsmodellen
+(6,5 eller 3,8 GB) i minnet samtidigt, plus Teams (0,5–0,8 GB). Efter mötet
+kommer medium (2 GB) och röstanalysen (1 GB), i tur och ordning. På 16 GB är
+det qwen3:8b som avgör om datorn börjar växla: när den laddades växte
+växlingsfilen med 2 GB (11,5 → 13,4 GB) på en maskin som redan var full.
+
+**qwen3:4b klarade insiktsfacit lika bra som 8b**: 13 av 13 rätt, noll falska
+larm, median 1,9 s mot 2,0 s. Tabellen i `Insikter.swift` mätte aldrig 4b
+(bara gemma3:4b, som gav ett falskt larm). På en 16 GB-maskin är 4b det
+rimliga valet för insikter och chatt under samtal; 8b kostar 2,7 GB extra
+för ingen uppmätt vinst.
+
+### ⚠️ Servrar som överlever appen
+
+Det som faktiskt gjorde datorn trög var inte modellen. `Whisper.avsluta()`
+anropades aldrig, så varje appstart (`värmUpp`) och varje provkörning lämnade
+en `whisper-server` efter sig. Uppmätt: **16 föräldralösa servrar**, upp till
+20 timmar gamla, som tillsammans höll 8 GB i växlingsfilen. Fritt RAM var
+60 MB innan något alls hade startat. Att döda dem frigjorde 2,9 GB RAM och
+6 GB växlingsfil på tre sekunder.
+
+Servern startas nu under en skalvakt (`Whisper.vakt`) som pollar appens pid
+och dödar barnet när appen försvinner — macOS saknar `PR_SET_PDEATHSIG`, så
+vakten är det som finns. Verifierat: `kill -9` på appen och vanlig avslutning
+tog båda servern med sig inom tre sekunder. Provkörningarna omfattas också.
+Kontroll: `pgrep -fl whisper-server` ska vara tomt när appen inte kör.
+
 ## Fyra arkivmotorer, uppmätta på samma inspelning
 
 Livetranskriberingen är alltid whisper.cpp — fönstren är sekunder långa och

@@ -72,15 +72,22 @@ actor Whisper {
             livemodell = sökvägar.livemodell
         }
         let p = Process()
-        p.executableURL = sökvägar.server
+        // Servern körs under en vakt som dödar den när appen försvinner —
+        // även vid krasch, kill -9 eller när ett provläge bara avslutar.
+        // Uppmätt 2026-09-04: sexton föräldralösa servrar från gårdagens
+        // starter och provkörningar hade fyllt 8 GB av växlingsfilen och
+        // gjorde hela datorn trög under ett Teamsmöte.
+        p.executableURL = URL(fileURLWithPath: "/bin/sh")
         p.currentDirectoryURL = sökvägar.rot
-        p.arguments = [
-            "-m", sökvägar.modell(livemodell).path,
-            "-l", "sv",
-            "--host", "127.0.0.1",
-            "--port", String(port),
-            "-nt",
-            "-t", String(max(4, ProcessInfo.processInfo.activeProcessorCount - 2)),
+        p.arguments = ["-c", Self.vakt(förälder: ProcessInfo.processInfo.processIdentifier),
+                       "kundkoll-whisper-vakt",
+                       sökvägar.server.path,
+                       "-m", sökvägar.modell(livemodell).path,
+                       "-l", "sv",
+                       "--host", "127.0.0.1",
+                       "--port", String(port),
+                       "-nt",
+                       "-t", String(max(4, ProcessInfo.processInfo.activeProcessorCount - 2)),
         ] + Self.vadflaggor(sökvägar)
         p.standardOutput = FileHandle.nullDevice
         p.standardError = FileHandle.nullDevice
@@ -95,6 +102,18 @@ actor Whisper {
             if !p.isRunning { throw Fel.serverDog }
         }
         throw Fel.startTimeout
+    }
+
+    /// Skalskript som startar servern som barn och håller den vid liv bara
+    /// så länge appen (`förälder`) finns. Dör appen dör servern inom en
+    /// sekund; `terminate()` på vakten skickar SIGTERM vidare till barnet.
+    static func vakt(förälder: Int32) -> String {
+        """
+        "$@" & barn=$!
+        trap 'kill $barn 2>/dev/null' EXIT TERM INT HUP
+        while kill -0 $barn 2>/dev/null && kill -0 \(förälder) 2>/dev/null; do sleep 1; done
+        kill $barn 2>/dev/null; wait $barn 2>/dev/null
+        """
     }
 
     /// Låter servern stå kvar. Den tar minne men sparar uppstarten nästa gång.

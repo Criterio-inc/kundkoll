@@ -83,8 +83,11 @@ final class Inspelningssession: ObservableObject {
             guard await Ljudinfångning.begärMikrofon() else {
                 throw Enkeltfel("Critero-kundkoll behöver tillgång till mikrofonen. Ge den i Systeminställningar → Integritet och säkerhet → Mikrofon.")
             }
-            guard await Ljudinfångning.harSkärmbehörighet() else {
-                throw Enkeltfel("Datorljudet kräver behörigheten Skärminspelning. Ge den i Systeminställningar → Integritet och säkerhet → Skärminspelning och starta om appen.")
+            if !Ljudinfångning.harSkärmbehörighet() {
+                // Dialogen skriver in appen i listan; själva godkännandet
+                // sker i Systeminställningar och gäller efter omstart.
+                Ljudinfångning.begärSkärmbehörighet()
+                throw Enkeltfel("Datorljudet kräver behörigheten Skärminspelning. Slå på Critero-kundkoll i Systeminställningar → Integritet och säkerhet → Skärm- och systemljudsinspelning och starta om appen. Står den redan på: slå av och på reglaget, så knyts den till det här bygget.")
             }
 
             Notiser.begär()
