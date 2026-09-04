@@ -204,6 +204,12 @@ extension Tester {
         }
 
         do {   // profiler sparas per kund
+            // Delningen är en inställning i appens UserDefaults; provet ska
+            // inte bero på vad Pär råkar ha valt (föll i dist-binären, som
+            // ser appens riktiga inställningar).
+            let delade = Inställningar.delaRöstprofiler
+            Inställningar.delaRöstprofiler = false
+            defer { Inställningar.delaRöstprofiler = delade }
             let rot = FileManager.default.temporaryDirectory
                 .appending(path: "kundkoll-test-\(UUID().uuidString)")
             defer { try? FileManager.default.removeItem(at: rot) }
