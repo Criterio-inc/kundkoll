@@ -11,6 +11,8 @@ struct Mötessammanfattning: Codable, Hashable {
     var åtaganden: [Åtagande]
     var öppet: [String]
     var skriven = Date()
+    /// Modellen som skrev den, som «Lokalt · qwen3:8b». Saknas i äldre filer.
+    var modell: String?
 
     struct Åtagande: Codable, Hashable, Identifiable {
         var id = UUID()
@@ -48,12 +50,13 @@ struct Mötessammanfattning: Codable, Hashable {
     var tom: Bool { beslut.isEmpty && åtaganden.isEmpty && öppet.isEmpty }
 
     init(kärna: String, beslut: [String], åtaganden: [Åtagande],
-         öppet: [String], skriven: Date = Date()) {
+         öppet: [String], skriven: Date = Date(), modell: String? = nil) {
         self.kärna = kärna
         self.beslut = beslut
         self.åtaganden = åtaganden
         self.öppet = öppet
         self.skriven = skriven
+        self.modell = modell
     }
 
     /// Ligger inne i möte.json. Faller den går hela inspelningen förlorad ur
@@ -65,6 +68,7 @@ struct Mötessammanfattning: Codable, Hashable {
         åtaganden = try c.decodeIfPresent([Åtagande].self, forKey: .åtaganden) ?? []
         öppet = try c.decodeIfPresent([String].self, forKey: .öppet) ?? []
         skriven = try c.decodeIfPresent(Date.self, forKey: .skriven) ?? Date()
+        modell = try c.decodeIfPresent(String.self, forKey: .modell)
     }
 }
 
@@ -80,7 +84,10 @@ actor Sammanfattare {
     /// tre timmar lång inspelning inte spränger fönstret.
     private let maxTecken = 60_000
 
-    func skriv(för inspelning: Inspelning, kund: String) async throws -> Mötessammanfattning {
+    /// `automatiskt` när ingen tryckte: efter ett möte och efter en import.
+    /// Då körs bara lokalt, se `Chatt.fråga`.
+    func skriv(för inspelning: Inspelning, kund: String,
+               automatiskt: Bool = false) async throws -> Mötessammanfattning {
         let rader = inspelning.yttranden.map { y in
             "[\(y.tidsstämpel)] \(y.etikett(inspelning.röstnamn, enspårig: inspelning.enspårig)): \(y.text)"
         }
@@ -123,8 +130,9 @@ actor Sammanfattare {
         """
 
         let svar = try await chatt.fråga(uppdrag, om: kund, projekt: inspelning.projekt,
-                                         träffar: [], historik: [])
-        guard let tolkad = Self.tolka(svar.text) else { throw Fel.otolkbart }
+                                         träffar: [], historik: [], automatiskt: automatiskt)
+        guard var tolkad = Self.tolka(svar.text) else { throw Fel.otolkbart }
+        tolkad.modell = chatt.etikett
         return tolkad
     }
 

@@ -178,6 +178,10 @@ struct Transkriptvy: View {
                             .textSelection(.enabled)
                             .fixedSize(horizontal: false, vertical: true)
                     }
+                    if let m = s.modell {
+                        Text("Sammanfattad av \(m)")
+                            .font(.caption).foregroundStyle(.tertiary)
+                    }
                     if !s.beslut.isEmpty { punktlista("Beslut", s.beslut) }
                     if !s.öppet.isEmpty { punktlista("Öppna frågor", s.öppet) }
                     if !s.beslut.isEmpty || !s.öppet.isEmpty || !uppgifter.isEmpty {

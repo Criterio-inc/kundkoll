@@ -264,7 +264,8 @@ final class Inspelningssession: ObservableObject {
 
             // Det man vill ha ur ett möte är sällan transkriptet utan vad det
             // landade i. Sammanfattningen skrivs sist, när talarna är kända.
-            if let s = try? await Sammanfattare().skriv(för: uppdaterad, kund: uppdaterad.kund) {
+            if let s = try? await Sammanfattare().skriv(för: uppdaterad, kund: uppdaterad.kund,
+                                                        automatiskt: true) {
                 uppdaterad.sammanfattning = s
                 let inspelning = uppdaterad
                 await MainActor.run {

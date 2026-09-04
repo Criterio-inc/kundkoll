@@ -117,6 +117,8 @@ actor Chatt {
 
     var färdig: Bool { val.färdig }
     var leverantör: Leverantör { val.leverantör }
+    nonisolated var etikett: String { val.etikett }
+    nonisolated var lämnarDatorn: Bool { val.lämnarDatorn }
 
     /// Ställer en fråga med utdrag ur kunskapsbanken som underlag.
     ///
@@ -129,7 +131,14 @@ actor Chatt {
                projekt: String?,
                träffar: [Kunskapsbank.Träff],
                historik: [Meddelande],
+               automatiskt: Bool = false,
                vidDelta: (@Sendable (String) -> Void)? = nil) async throws -> Svar {
+        // Det som sker av sig självt (letaren på nya mejl och anteckningar,
+        // sammanfattningen efter ett möte, lägesbilden, insikternas svar)
+        // får aldrig lämna datorn: att öppna en kund är inte ett val att
+        // skicka tio mejl till ett moln. Det Pär startar själv får gå dit,
+        // och då står det vid knappen.
+        if automatiskt && val.lämnarDatorn { throw Fel.kräverLokal(val.leverantör) }
         guard let url = val.url else { throw Fel.trasigAdress }
         let nyckel = Nyckelring.förLeverantör(val.leverantör)
         if val.leverantör.behöverNyckel && nyckel == nil { throw Fel.ingenNyckel(val.leverantör) }
@@ -359,8 +368,11 @@ actor Chatt {
     enum Fel: LocalizedError {
         case ingenNyckel(Leverantör), ingetSvar, tomtSvar, trasigAdress
         case nårInteLokal(String), frånTjänsten(Int, String)
+        case kräverLokal(Leverantör)
         var errorDescription: String? {
             switch self {
+            case .kräverLokal(let l):
+                "Det som sker av sig självt körs bara på datorn. Vald modell är \(l.namn): välj Lokal modell under Inställningar, eller starta jobbet själv."
             case .ingenNyckel(let l):
                 "Ingen API-nyckel för \(l.namn). Lägg in den under Critero-kundkoll → API-nyckel."
             case .ingetSvar: "Fick inget svar från modellen."

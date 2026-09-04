@@ -94,10 +94,16 @@ enum Uppgiftssamling {
         var nya = 0
         var genomgångna = 0
         var fel: String?
+        /// Modellen som gjorde jobbet, för beskedet och kvittot.
+        var modell = ""
     }
 
+    /// `val` styr vilken modell som används. Utan val tas appens: automatiken
+    /// (inte `alla`) tvingas då till datorn av `Chatt`, och en retroaktiv
+    /// runda får gå dit Pär pekat, till exempel «Kör via Anthropic».
     @discardableResult
     static func frånMejl(_ mejl: [Mailen.Mejl], kund: Kund, alla: Bool = false,
+                         val: Modellval? = nil,
                          framsteg: ((Int, Int) -> Void)? = nil) async -> Utfall {
         var rundor = rundor(kund)
         var utfall = Utfall()
@@ -106,7 +112,8 @@ enum Uppgiftssamling {
                               sedan: alla ? nil : Date().addingTimeInterval(-30 * 24 * 3600))
         guard !att.isEmpty else { return utfall }
 
-        let letare = Uppgiftsletare()
+        let letare = Uppgiftsletare(chatt: val.map { Chatt(val: $0) } ?? Chatt())
+        utfall.modell = letare.etikett
         for (i, m) in att.enumerated() {
             framsteg?(i + 1, att.count)
             let text = "Ämne: \(m.ämne)\nFrån: \(m.avsändarnamn)\n\n\(m.text)"
@@ -116,7 +123,8 @@ enum Uppgiftssamling {
                     i: text,
                     sammanhang: m.skickat ? "ett mejl jag skickat" : "ett mejl jag fått",
                     kund: kund.namn,
-                    datum: m.datum ?? Date())
+                    datum: m.datum ?? Date(),
+                    automatiskt: !alla)
             } catch {
                 utfall.fel = error.localizedDescription
                 return utfall
@@ -160,7 +168,7 @@ enum Uppgiftssamling {
 
         guard let u = try? await Uppgiftsletare().leta(
             i: text, sammanhang: "en anteckning jag skrivit",
-            kund: kund.namn, datum: anteckning.ändrad) else { return 0 }
+            kund: kund.namn, datum: anteckning.ändrad, automatiskt: true) else { return 0 }
         let uppgifter = u.map {
             Uppgift(vad: $0.vad, vem: $0.vem, när: $0.när, senast: $0.senast,
                     ursprung: .anteckning, källa: anteckning.fil.path,

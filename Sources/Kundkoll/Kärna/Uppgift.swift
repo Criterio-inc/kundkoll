@@ -134,7 +134,7 @@ actor Uppgiftsletare {
     /// Mötena behöver inte gå den här vägen: deras åtaganden står redan i
     /// sammanfattningen.
     func leta(i text: String, sammanhang: String, kund: String,
-              datum: Date = Date()) async throws -> [Uppgift] {
+              datum: Date = Date(), automatiskt: Bool = false) async throws -> [Uppgift] {
         guard text.count > 60 else { return [] }
 
         let dag: String = {
@@ -163,10 +163,13 @@ actor Uppgiftsletare {
         """
 
         let svar = try await chatt.fråga(uppdrag, om: kund, projekt: nil,
-                                         träffar: [], historik: [])
+                                         träffar: [], historik: [], automatiskt: automatiskt)
         senasteSvar = svar.text
         return Self.tolka(svar.text)
     }
+
+    /// Vilken modell letaren använder, för kvitton och besked.
+    nonisolated var etikett: String { chatt.etikett }
 
     /// Modellens råa svar från senaste letningen, för provläget: när
     /// tolkningen ger noll uppgifter vill man se vad som faktiskt kom.

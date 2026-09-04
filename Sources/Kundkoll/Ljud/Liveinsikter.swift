@@ -34,8 +34,10 @@ final class Liveinsikter: ObservableObject {
     /// Sätts när den lokala modellen inte går att nå.
     @Published private(set) var varning: String?
 
-    private let insiktsmodell = Insikter()
-    private let chatt = Chatt()
+    // Skapas om vid varje samtal, så att ett byte under ⌘, gäller nästa
+    // inspelning och inte först efter omstart.
+    private var insiktsmodell = Insikter()
+    private var chatt = Chatt()
     private var bank: Kunskapsbank?
     private var kund: Kund?
     private var projekt: Projekt?
@@ -68,6 +70,8 @@ final class Liveinsikter: ObservableObject {
         insikter = []
         obehandlade = []
         samladeSedan = Date()
+        insiktsmodell = Insikter()
+        chatt = Chatt()
         lyssnar = true
         varning = nil
         väckare?.invalidate()
@@ -137,7 +141,7 @@ final class Liveinsikter: ObservableObject {
         let träffar = await bank.bästaSök(projekt.map { "\(fråga) \($0.namn)" } ?? fråga)
         do {
             let svar = try await chatt.fråga(fråga, om: kund.namn, projekt: projekt?.namn,
-                                             träffar: träffar, historik: [])
+                                             träffar: träffar, historik: [], automatiskt: true)
             uppdatera(id) {
                 $0.svar = svar.text
                 $0.hänvisningar = svar.hänvisningar

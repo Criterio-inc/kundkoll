@@ -45,6 +45,7 @@ struct Ingång {
                             .map { Placering.projekt($0) }
                     } ?? .kund(kund)
                     let profiler = Arkivet.shared.röstprofiler(för: kund)
+                    print("Modell: \(Modellval.läs().etikett)")
                     let ny = try await Import().slutför(
                         mapp: mapp, placering: placering, profiler: profiler,
                         titel: gammal.titel, språk: språk,
@@ -74,6 +75,7 @@ struct Ingång {
                           let projekt = Arkivet.shared.projekt(för: kund)
                             .first(where: { $0.namn == a[i + 2] })
                     else { throw Enkeltfel("Hittar inte \(a[i + 1]) / \(a[i + 2])") }
+                    print("Modell: \(Modellval.läs().etikett)")
                     let bild = try await Läget.skriv(kund: kund, projekt: projekt)
                     print(bild.text)
                     Prov.svit("Lägesbilden skarpt")
@@ -263,7 +265,7 @@ struct Kundkoll: App {
                     .keyboardShortcut("k", modifiers: .command)
             }
             CommandGroup(after: .appSettings) {
-                Button("AI-modell och nyckel …") {
+                Button("Inställningar …") {
                     NotificationCenter.default.post(name: .visaNyckel, object: nil)
                 }
                 .keyboardShortcut(",", modifiers: .command)

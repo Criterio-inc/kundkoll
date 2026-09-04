@@ -57,7 +57,7 @@ enum Leverantör: String, Codable, CaseIterable, Identifiable {
         case .anthropic: "claude-sonnet-5"
         case .openai: "gpt-5"
         case .azure: ""          // distributionen står i adressen
-        case .lokal: "llama3.1:8b"
+        case .lokal: "qwen3:8b"
         }
     }
 
@@ -89,12 +89,14 @@ enum Leverantör: String, Codable, CaseIterable, Identifiable {
 
 /// Vald leverantör och dess inställningar.
 struct Modellval: Codable, Hashable {
-    var leverantör: Leverantör = .openrouter
-    var modell: String = Leverantör.openrouter.standardmodell
+    // Lokalt är standard: appen lovar att inget lämnar datorn utan ett val,
+    // och då kan inte ett moln vara det man får utan att välja.
+    var leverantör: Leverantör = .lokal
+    var modell: String = Leverantör.lokal.standardmodell
     /// Tom betyder leverantörens standardadress.
     var adress: String = ""
 
-    init(leverantör: Leverantör = .openrouter, modell: String? = nil, adress: String = "") {
+    init(leverantör: Leverantör = .lokal, modell: String? = nil, adress: String = "") {
         self.leverantör = leverantör
         self.modell = modell ?? leverantör.standardmodell
         self.adress = adress
@@ -103,13 +105,39 @@ struct Modellval: Codable, Hashable {
     /// Skriven för hand: se `Inspelning`.
     init(from avkodare: Decoder) throws {
         let c = try avkodare.container(keyedBy: CodingKeys.self)
-        leverantör = try c.decodeIfPresent(Leverantör.self, forKey: .leverantör) ?? .openrouter
+        leverantör = try c.decodeIfPresent(Leverantör.self, forKey: .leverantör) ?? .lokal
         modell = try c.decodeIfPresent(String.self, forKey: .modell) ?? leverantör.standardmodell
         adress = try c.decodeIfPresent(String.self, forKey: .adress) ?? ""
     }
 
     var url: URL? {
         URL(string: adress.isEmpty ? leverantör.standardadress : adress)
+    }
+
+    /// Sant bara när adressen pekar på den här datorn. «Lokal modell» med
+    /// en adress ute på nätet är ett moln, hur leverantören än heter.
+    var ärLokalAdress: Bool {
+        guard let u = url, let värd = URLComponents(url: u, resolvingAgainstBaseURL: false)?.host?.lowercased()
+        else { return false }
+        return ["127.0.0.1", "localhost", "::1", "0.0.0.0"].contains(värd)
+    }
+
+    /// Lämnar materialet datorn med det här valet?
+    var lämnarDatorn: Bool { !ärLokalAdress }
+
+    /// Att visa där valet får verkan: «Lokalt · qwen3:8b», «Anthropic · claude-sonnet-5».
+    var etikett: String {
+        let m = modell.isEmpty ? "distributionen i adressen" : modell
+        return leverantör == .lokal && ärLokalAdress ? "Lokalt · \(m)" : "\(leverantör.namn) · \(m)"
+    }
+
+    /// Molnleverantörer som redan har en nyckel i nyckelringen, för
+    /// «Kör via …» på jobb Pär startar själv. Azure kräver egen adress och
+    /// väljs bara via inställningarna.
+    static func molnAlternativ() -> [Modellval] {
+        Leverantör.allCases
+            .filter { $0 != .lokal && $0 != .azure && Nyckelring.förLeverantör($0) != nil }
+            .map { Modellval(leverantör: $0) }
     }
 
     var färdig: Bool {

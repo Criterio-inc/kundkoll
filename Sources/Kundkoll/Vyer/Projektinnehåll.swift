@@ -121,7 +121,7 @@ struct Projektinnehåll: View {
                lägesbild == nil
                || Läget.gammal(lägesbild!, kund: kund, projekt: projekt, arkiv: arkiv) {
                 harFörsöktSkriva = true
-                skrivLäget()
+                skrivLäget(automatiskt: true)
             }
         }
         .onChange(of: arkiv.sparningar) { läsIn() }
@@ -147,7 +147,8 @@ struct Projektinnehåll: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Markdowntext(text: lägesbild.text)
                     HStack(spacing: 8) {
-                        Text("Skriven \(DateFormatter.klocka.string(from: lägesbild.skriven))")
+                        Text("Skriven \(DateFormatter.klocka.string(from: lägesbild.skriven))"
+                             + (lägesbild.modell.map { " av \($0)" } ?? ""))
                             .font(.caption)
                             .foregroundStyle(.tertiary)
                         if Läget.gammal(lägesbild, kund: kund, projekt: projekt, arkiv: arkiv) {
@@ -200,13 +201,14 @@ struct Projektinnehåll: View {
         return delar.joined(separator: " · ")
     }
 
-    private func skrivLäget() {
+    private func skrivLäget(automatiskt: Bool = false) {
         guard !skriverLäget else { return }
         skriverLäget = true
         lägesfel = nil
         Task {
             do {
-                lägesbild = try await Läget.skriv(kund: kund, projekt: projekt, arkiv: arkiv)
+                lägesbild = try await Läget.skriv(kund: kund, projekt: projekt, arkiv: arkiv,
+                                                  automatiskt: automatiskt)
             } catch {
                 lägesfel = error.localizedDescription
             }

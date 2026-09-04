@@ -1,9 +1,11 @@
 import SwiftUI
 
-/// Väljer var chattens modell körs och lägger in nyckeln.
+/// Appens inställningar: var modellen körs, nycklar, transkribering, insikter.
 ///
-/// Bara chatten går ut på nätet. Transkribering och röstanalys körs alltid på
-/// datorn, oavsett vad som väljs här.
+/// Modellvalet styr allt som går till en modell: chatten, sammanfattningen
+/// efter möten, åtaganden ur mejl och anteckningar, lägesbilden och svaren
+/// på insikter. Det som sker av sig självt körs bara lokalt (Chatt.fråga).
+/// Livetranskriberingen och röstanalysen körs alltid på datorn.
 struct Modellvy: View {
     @Environment(\.dismiss) private var stäng
 
@@ -24,7 +26,7 @@ struct Modellvy: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("Modell för kundchatten").font(.headline)
+                Text("Inställningar").font(.headline)
                 Spacer()
             }
             .padding(16)
@@ -46,6 +48,15 @@ struct Modellvy: View {
                     Text(val.leverantör.beskrivning)
                         .font(.callout)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text("Valet gäller chatten, sammanfattningen efter möten, åtaganden ur mejl "
+                         + "och anteckningar, lägesbilden och svaren på insikter under samtal. "
+                         + "Det som sker av sig självt körs bara på datorn: med ett moln valt "
+                         + "stannar automatiken tills du byter tillbaka, och det du själv "
+                         + "startar går till molnet.")
+                        .font(.caption)
+                        .foregroundStyle(val.leverantör == .lokal ? Color.secondary : Color.orange)
                         .fixedSize(horizontal: false, vertical: true)
 
                     if val.leverantör != .azure {
@@ -105,11 +116,16 @@ struct Modellvy: View {
                                 }
                             }
                         }
-                    } else {
+                    } else if val.ärLokalAdress {
                         Label("Ingen nyckel behövs. Materialet lämnar aldrig datorn.",
                               systemImage: "lock")
                             .font(.callout)
                             .foregroundStyle(.green)
+                    } else {
+                        Label("Adressen pekar utanför den här datorn. Materialet lämnar den.",
+                              systemImage: "lock.open")
+                            .font(.callout)
+                            .foregroundStyle(.orange)
                     }
 
                     Divider().padding(.vertical, 4)
@@ -319,8 +335,10 @@ struct Modellvy: View {
 
     /// Ett riktigt anrop, för att felet ska visa sig här och inte mitt i en fråga.
     private func prova() {
+        // Nyckeln sparas: den skrevs in med flit. Valet sparas inte förrän
+        // «Spara», så ett prov följt av «Avbryt» byter inte modell för
+        // sammanfattningar och rundor.
         sparaNyckel()
-        val.spara()
         provar = true
         meddelande = nil
         Task {

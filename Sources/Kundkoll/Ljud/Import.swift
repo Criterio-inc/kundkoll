@@ -141,7 +141,7 @@ actor Import {
             språk: språk)
 
         inspelning.sammanfattning = try? await Sammanfattare()
-            .skriv(för: inspelning, kund: placering.kundnamn)
+            .skriv(för: inspelning, kund: placering.kundnamn, automatiskt: true)
         let klar = inspelning
         try await MainActor.run {
             try Arkivet.shared.spara(klar, i: mapp)
@@ -210,7 +210,7 @@ actor Import {
             språk: språk)
 
         inspelning.sammanfattning = try? await Sammanfattare()
-            .skriv(för: inspelning, kund: placering.kundnamn)
+            .skriv(för: inspelning, kund: placering.kundnamn, automatiskt: true)
         let klar = inspelning
         try await MainActor.run {
             try Arkivet.shared.spara(klar, i: mapp)

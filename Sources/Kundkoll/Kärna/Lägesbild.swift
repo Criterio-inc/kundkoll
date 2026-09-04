@@ -9,10 +9,13 @@ import Foundation
 struct Lägesbild: Codable {
     var text: String
     var skriven = Date()
+    /// Modellen som skrev den. Saknas i äldre filer.
+    var modell: String?
 
-    init(text: String, skriven: Date = Date()) {
+    init(text: String, skriven: Date = Date(), modell: String? = nil) {
         self.text = text
         self.skriven = skriven
+        self.modell = modell
     }
 
     /// Skriven för hand: se `Inspelning`.
@@ -20,6 +23,7 @@ struct Lägesbild: Codable {
         let c = try avkodare.container(keyedBy: CodingKeys.self)
         text = try c.decodeIfPresent(String.self, forKey: .text) ?? ""
         skriven = try c.decodeIfPresent(Date.self, forKey: .skriven) ?? Date()
+        modell = try c.decodeIfPresent(String.self, forKey: .modell)
     }
 }
 
@@ -63,8 +67,9 @@ enum Läget {
     }
 
     /// Skriver en ny lägesbild och sparar den.
+    /// `automatiskt` när vyn skriver den av sig själv; då bara lokalt.
     static func skriv(kund: Kund, projekt: Projekt,
-                      arkiv: Arkivet? = nil) async throws -> Lägesbild {
+                      arkiv: Arkivet? = nil, automatiskt: Bool = false) async throws -> Lägesbild {
         let arkiv = arkiv ?? .shared
         // Dokumenten ur kopplade mappar räknas som underlag. Ett projekt som
         // bara har ett dokumentarkiv och inga möten fick annars «inget
@@ -89,9 +94,10 @@ enum Läget {
         faktiskt säger något. Kort och konkret, på svenska, utan hänvisningar \
         i hakparentes och utan artigheter. Bygg enbart på underlaget.
         """
-        let svar = try await Chatt().fråga(uppdrag, om: kund.namn, projekt: projekt.namn,
-                                           träffar: träffar, historik: [])
-        let bild = Lägesbild(text: svar.text)
+        let chatt = Chatt()
+        let svar = try await chatt.fråga(uppdrag, om: kund.namn, projekt: projekt.namn,
+                                         träffar: träffar, historik: [], automatiskt: automatiskt)
+        let bild = Lägesbild(text: svar.text, modell: chatt.etikett)
 
         let data = try JSONEncoder.kundkoll.encode(bild)
         try FileManager.default.createDirectory(

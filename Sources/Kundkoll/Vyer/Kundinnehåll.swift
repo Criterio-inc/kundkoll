@@ -522,9 +522,19 @@ struct Kundinnehåll: View {
                     }
                     .kort(hörn: Stil.radhörn)
                     HStack(spacing: 8) {
-                        Button("Leta åtaganden i alla \(mejl.count) mejl", action: letaIAllaMejl)
-                            .buttonStyle(.link)
-                            .disabled(mejlrundaPågår)
+                        Menu("Leta åtaganden i alla \(mejl.count) mejl") {
+                            Button("Kör lokalt") { letaIAllaMejl(val: nil) }
+                            // Molnet bara på beställning, och antalet står i valet:
+                            // det är det som lämnar datorn.
+                            ForEach(Modellval.molnAlternativ(), id: \.leverantör) { m in
+                                Button("Kör via \(m.leverantör.namn) · \(mejl.filter { !$0.text.isEmpty }.count) mejl lämnar datorn") {
+                                    letaIAllaMejl(val: m)
+                                }
+                            }
+                        }
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
+                        .disabled(mejlrundaPågår)
                             .help("Går igenom allt som ligger sparat, även äldre mejl, och lägger det som ska göras på tavlan.")
                         if mejlrundaPågår { ProgressView().controlSize(.small) }
                         if let mejlrundaBesked {
@@ -842,14 +852,15 @@ struct Kundinnehåll: View {
 
     /// Går igenom allt som ligger sparat, äldst först. Ett modellanrop per
     /// mejl, så det tar en stund; framstegen visas i mejlavsnittet.
-    private func letaIAllaMejl() {
+    private func letaIAllaMejl(val: Modellval?) {
         guard !mejlrundaPågår else { return }
         mejlrundaPågår = true
         mejlrundaBesked = nil
         let mejlen = mejl
+        let var_ = val.map { " via \($0.leverantör.namn)" } ?? ""
         Task {
-            let u = await Uppgiftssamling.frånMejl(mejlen, kund: kund, alla: true) { i, n in
-                mejlrundaBesked = "Letar åtaganden i mejl \(i) av \(n) …"
+            let u = await Uppgiftssamling.frånMejl(mejlen, kund: kund, alla: true, val: val) { i, n in
+                mejlrundaBesked = "Letar åtaganden i mejl \(i) av \(n)\(var_) …"
             }
             mejlrundaPågår = false
             if let fel = u.fel {
@@ -857,9 +868,10 @@ struct Kundinnehåll: View {
             } else if u.genomgångna == 0 {
                 mejlrundaBesked = "Alla mejl med text är redan genomgångna."
             } else {
-                mejlrundaBesked = u.nya == 0
-                    ? "Inga nya åtaganden i \(u.genomgångna) mejl."
-                    : "\(u.nya) nya på tavlan under Att göra, ur \(u.genomgångna) mejl."
+                mejlrundaBesked = (u.nya == 0
+                    ? "Inga nya åtaganden i \(u.genomgångna) mejl"
+                    : "\(u.nya) nya på tavlan under Att göra, ur \(u.genomgångna) mejl")
+                    + " · \(u.modell)."
             }
         }
     }

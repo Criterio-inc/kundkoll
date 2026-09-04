@@ -281,7 +281,7 @@ struct Huvudvy: View {
                         }
                     }
                     Divider()
-                    Button("AI-modell och nyckel …") { visaNyckel = true }
+                    Button("Inställningar …") { visaNyckel = true }
                         .keyboardShortcut(",", modifiers: .command)
                 } label: {
                     Label("Mer", systemImage: "ellipsis.circle")

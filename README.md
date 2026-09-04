@@ -226,8 +226,16 @@ Sökningen är SQLite FTS5 med trunkerade sökord; svenskans böjningar gör att
 sökning bara träffar i ett fall av fyra. Mätningen står i
 `docs/KUNSKAPSBANK.md`.
 
-Modellen väljs med ⌘, och kan köras hos OpenRouter, Anthropic, OpenAI, Azure
-eller lokalt (Ollama, LM Studio, MLX). De lokala servrarna talar alla
+Modellen väljs under Inställningar (⌘,) och kan köras hos OpenRouter,
+Anthropic, OpenAI, Azure eller lokalt (Ollama, LM Studio, MLX). Valet gäller
+allt som går till en modell: chatten, sammanfattningen efter möten, åtaganden
+ur mejl och anteckningar, lägesbilden och svaren på insikter. Det som sker av
+sig självt körs bara på datorn; med ett moln valt stannar automatiken och
+säger varför. Det du själv startar får gå till molnet, och «Leta åtaganden i
+alla mejl» kan köras via en molnleverantör som har nyckel, med antalet mejl
+som lämnar datorn utskrivet i valet. Sammanfattningar och lägesbilder bär
+namnet på modellen som skrev dem. Kopplade kodmappar genomsöks av Claude
+Code bara när Anthropic är valt, och då står det i chattens statusrad. De lokala servrarna talar alla
 OpenAI-formatet; inställningarna har förvalsknappar som fyller i rätt port.
 MLX startas med `mlx_lm.server --model mlx-community/…` och är uppmätt genom
 hela provsviten — svar, hänvisningar, strömning och ärligt nej. Chatten är det enda i appen som går ut på nätet, och bara

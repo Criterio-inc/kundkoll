@@ -92,6 +92,15 @@ struct Chattpanel: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
+            // Var svaret kommer ifrån ska synas, inte bara finnas i ett
+            // verktygstips: det är det som avgör om kundmaterial lämnar datorn.
+            Label(chatt.lämnarDatorn ? "Svarar med \(chatt.etikett) — materialet lämnar datorn"
+                                     : "Svarar med \(chatt.etikett)",
+                  systemImage: chatt.lämnarDatorn ? "lock.open" : "lock")
+                .font(.caption)
+                .foregroundStyle(chatt.lämnarDatorn ? Color.orange : Color.secondary)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
             Divider()
 
             ScrollViewReader { rulle in
@@ -201,7 +210,7 @@ struct Chattpanel: View {
             Text(möte == nil ? "Fråga om det som sagts och skrivits" : "Fråga om mötet")
                 .font(.title3.weight(.semibold))
             Text(möte == nil
-                 ? "Svaren byggs på transkript, anteckningar, mejlämnen och kontakter hos \(kund.namn) — inget annat."
+                 ? "Svaren byggs på transkript, anteckningar, mejl med bilagor, dokument ur kopplade mappar, kontakter och tidigare samtal hos \(kund.namn)."
                  : "Hela samtalet ligger som underlag, tillsammans med det övriga materialet hos \(kund.namn).")
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -390,7 +399,11 @@ struct Chattpanel: View {
         // Agenten får bara kodmappar. Dokumentmappar ligger redan i
         // kunskapsbanken, och en agent som läste om dem vid varje fråga vore
         // både långsam och överflödig.
-        if möte != nil {
+        // Agenten är Claude Code och går till Anthropic vad som än är valt
+        // under Inställningar. Därför bara när Anthropic är valt, och då
+        // står det i statusraden. Uppmätt 2026-09-03: den hade redan läst
+        // Borås OneDrive-mapp med «Lokal modell» valt.
+        if möte != nil || Modellval.läs().leverantör != .anthropic {
             mappar = []
         } else if let projekt {
             mappar = arkiv.kopplade(för: projekt)
@@ -428,7 +441,9 @@ struct Chattpanel: View {
             }
             if !mappar.isEmpty {
                 rader += "\nSöker också i \(mappar.map(\.visatNamn).joined(separator: ", "))"
+                    + " — läses av Claude Code, lämnar datorn"
             }
+            rader += "\nSvarar med \(chatt.etikett)"
             status = rader
         } catch {
             status = "Kunde inte läsa materialet"
