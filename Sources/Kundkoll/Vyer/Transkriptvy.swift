@@ -21,6 +21,7 @@ struct Transkriptvy: View {
     @State private var redigerad: Uppgift?
     @State private var ny = ""
     @State private var sammanfattar = false
+    @State private var sammanfattningsjobb: Task<Void, Never>?
     @State private var fel: String?
     /// Sätts medan hela inspelningen görs om — transkribering, röster,
     /// sammanfattning.
@@ -204,11 +205,16 @@ struct Transkriptvy: View {
                     HStack(spacing: 16) {
                         Button("Skriv uppföljningsmejl") { uppföljningsmejl() }
                             .help("Öppnar ett utkast i Mail med beslut och åtaganden. Inget skickas.")
-                        Button(sammanfattar ? "Skriver om …" : "Skriv om sammanfattningen") {
-                            Task { await sammanfatta() }
+                        if sammanfattar {
+                            ProgressView().controlSize(.small)
+                            Text("Skriver om … kan ta en minut lokalt").font(.caption).foregroundStyle(.secondary)
+                            Button("Avbryt") { sammanfattningsjobb?.cancel() }.buttonStyle(.link)
+                        } else {
+                            Button("Skriv om sammanfattningen") {
+                                sammanfattningsjobb = Task { await sammanfatta() }
+                            }
+                            .buttonStyle(.link)
                         }
-                        .disabled(sammanfattar)
-                        .buttonStyle(.link)
                     }
                 } else {
                     saknasSammanfattning
@@ -272,10 +278,14 @@ struct Transkriptvy: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Button(sammanfattar ? "Sammanfattar …" : "Sammanfatta mötet") {
-                Task { await sammanfatta() }
+                sammanfattningsjobb = Task { await sammanfatta() }
             }
             .disabled(sammanfattar || inspelning.yttranden.isEmpty)
-            if sammanfattar { ProgressView().controlSize(.small) }
+            if sammanfattar {
+                ProgressView().controlSize(.small)
+                Text("Kan ta en minut med lokal modell").font(.caption).foregroundStyle(.secondary)
+                Button("Avbryt") { sammanfattningsjobb?.cancel() }.buttonStyle(.link)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
@@ -504,7 +514,8 @@ struct Transkriptvy: View {
             Uppgiftssamling.frånMöte(s, inspelning: inspelning, mapp: mapp)
             läsUppgifter()
         } catch {
-            fel = error.localizedDescription
+            // Avbrutet av dig: inget att säga. Andra fel visas.
+            if !Task.isCancelled { fel = error.localizedDescription }
         }
     }
 

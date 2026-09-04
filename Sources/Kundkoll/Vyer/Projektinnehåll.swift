@@ -21,6 +21,7 @@ struct Projektinnehåll: View {
     @State private var släpptFil: URL?
     @State private var lägesbild: Lägesbild?
     @State private var skriverLäget = false
+    @State private var lägesjobb: Task<Void, Never>?
     @State private var lägesfel: String?
     /// Ett skrivförsök per gång vyn visas — annars skulle ett projekt utan
     /// underlag försöka om vid varje omritning.
@@ -168,8 +169,9 @@ struct Projektinnehåll: View {
             } else if skriverLäget {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
-                    Text("Läser igenom projektet och skriver lägesbilden …")
+                    Text("Läser igenom projektet och skriver lägesbilden … kan ta en minut lokalt")
                         .foregroundStyle(.secondary)
+                    Button("Avbryt") { lägesjobb?.cancel() }.buttonStyle(.link)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(14)
@@ -208,15 +210,19 @@ struct Projektinnehåll: View {
         else { return }
         skriverLäget = true
         lägesfel = nil
-        Task {
+        lägesjobb = Task {
             do {
                 let bild = try await Läget.skriv(kund: kund, projekt: projekt, arkiv: arkiv,
                                                  automatiskt: automatiskt)
                 lägesbild = bild
                 jobb.klart("Lägesbilden skriven", modell: bild.modell)
             } catch {
-                lägesfel = error.localizedDescription
-                jobb.föll(error.localizedDescription)
+                if Task.isCancelled {
+                    jobb.klart("Avbrutet")
+                } else {
+                    lägesfel = error.localizedDescription
+                    jobb.föll(error.localizedDescription)
+                }
             }
             skriverLäget = false
         }

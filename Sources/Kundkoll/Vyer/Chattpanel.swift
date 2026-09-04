@@ -23,6 +23,9 @@ struct Chattpanel: View {
     @State private var tidigare: [Samtal] = []
     @State private var fråga = ""
     @State private var väntar = false
+    /// Svaret som väntas, så att det går att avbryta. Förut stod «Tänker …»
+    /// i upp till fem minuter när en lokal modell hängt sig.
+    @State private var svarJobb: Task<Void, Never>?
     @State private var fel: String?
     @State private var bank: Kunskapsbank?
     @State private var status = "Förbereder …"
@@ -116,7 +119,10 @@ struct Chattpanel: View {
                             $0.roll == .assistent && !$0.text.isEmpty } ?? false) {
                             HStack(spacing: 8) {
                                 ProgressView().controlSize(.small)
-                                Text("Tänker …").foregroundStyle(.secondary)
+                                Text(chatt.lämnarDatorn ? "Tänker …" : "Tänker … en lokal modell kan ta upp till en minut")
+                                    .foregroundStyle(.secondary)
+                                Button("Avbryt") { avbryt() }
+                                    .buttonStyle(.link).font(.caption)
                                 Spacer()
                             }
                             .padding(.leading, 14)
@@ -476,7 +482,7 @@ struct Chattpanel: View {
         // på under sekunden. Hänvisningarna sätts när texten är färdig.
         let plats = Chatt.Meddelande(roll: .assistent, text: "")
         samtal.meddelanden.append(plats)
-        Task {
+        svarJobb = Task {
             // Mötet först: frågan gäller det som sades där. Sökningen sker
             // här inne eftersom betydelsedelen behöver Ollama och är asynkron.
             let träffar = (mötesträff.map { [$0] } ?? []) + extraUnderlag
@@ -499,10 +505,24 @@ struct Chattpanel: View {
                 }
                 spara()
             } catch {
-                samtal.meddelanden.removeAll { $0.id == plats.id }
-                fel = error.localizedDescription
+                // URLSession kastar ett vanligt fel vid avbrott, inte
+                // CancellationError; uppgiftens flagga är det som gäller.
+                if Task.isCancelled {
+                    // Det som hann komma får stå kvar, märkt; ett tomt svar tas bort.
+                    if let i = samtal.meddelanden.firstIndex(where: { $0.id == plats.id }) {
+                        if samtal.meddelanden[i].text.isEmpty {
+                            samtal.meddelanden.remove(at: i)
+                        } else {
+                            samtal.meddelanden[i].text += "\n\n(avbrutet)"
+                        }
+                    }
+                } else {
+                    samtal.meddelanden.removeAll { $0.id == plats.id }
+                    fel = error.localizedDescription
+                }
             }
             väntar = false
+            svarJobb = nil
         }
 
         // Kopplade mappar genomsöks av en agent som läser filerna. Det tar
@@ -511,6 +531,10 @@ struct Chattpanel: View {
         for mapp in mappar {
             sökIMapp(mapp, fråga: text)
         }
+    }
+
+    private func avbryt() {
+        svarJobb?.cancel()
     }
 
     private func sökIMapp(_ mapp: Kopplad, fråga text: String) {
