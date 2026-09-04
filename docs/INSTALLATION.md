@@ -151,6 +151,16 @@ Skärminspelning är den som förvånar: den behövs för att en `SCStream` mås
 ha ett innehållsfilter, även när bara ljudet används. Appen fångar minsta
 möjliga yta och kastar videorutorna.
 
+### Röstprofiler är biometriska uppgifter
+
+Appen sparar ett röstavtryck per namngiven person i `Kontakter/röstprofiler.json`
+hos kunden, för att känna igen rösten nästa gång. Ett röstavtryck som används
+för att identifiera en person är en biometrisk uppgift enligt GDPR. Appen kan
+inte ge den rättsliga grunden; den kan bara se till att avtrycket tas bort
+när kontakten tas bort, vilket den gör. Resten är din rutin: informera
+deltagarna om att mötet spelas in och att rösten kan kännas igen, och ta bort
+kontakten när uppdraget är slut.
+
 ## 5. Första starten
 
 1. **⌘, → Modell för kundchatten.** Välj leverantör. Lokalt (Ollama, LM

@@ -600,8 +600,14 @@ final class Arkivet: ObservableObject {
         return utfall
     }
 
+    /// Tar bort kontakten, och med den personens röstprofil. Ett röstavtryck
+    /// knutet till ett namn är en biometrisk uppgift; den ska inte leva kvar
+    /// när personen tagits bort.
     func taBort(_ kontakt: Kontakt, hos kund: Kund) throws {
         try sparaKontakter(kontakter(för: kund).filter { $0.id != kontakt.id }, för: kund)
+        let profiler = röstprofiler(för: kund)
+        let kvar = profiler.filter { $0.namn.caseInsensitiveCompare(kontakt.namn) != .orderedSame }
+        if kvar.count != profiler.count { try sparaRöstprofiler(kvar, för: kund) }
     }
 
     /// En not per kontakt, så att Obsidian kan länka till personen från

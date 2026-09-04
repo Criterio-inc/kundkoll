@@ -26,7 +26,7 @@ on run argv
 				try
 					set lada to mailbox (ladnamn as string) of konto
 					if (ladnamn as string) is "INBOX" then
-						set traffar to (every message of lada whose sender contains adress)
+						set traffar to (every message of lada whose (sender contains ("<" & adress & ">") or sender is adress))
 					else
 						set traffar to (every message of lada whose (address of every to recipient) contains adress)
 					end if
@@ -43,7 +43,10 @@ on run argv
 									-- bort har och inte forst i Swift, annars
 									-- raknas de mot kvoten.
 									if stl < 26214400 and my varAttSpara(namn) then
-										set malfil to malmapp & "/" & namn
+										-- Mejlets id först i filnamnet: två «Offert.pdf» från
+										-- olika mejl skrev annars over varandra. Snedstreck i
+										-- namnet blir bindestreck, sa filen hamnar i mappen.
+										set malfil to malmapp & "/" & (id of m as string) & "-" & my rentNamn(namn)
 										save b in POSIX file malfil
 										set raknare to raknare + 1
 										set ut to ut & (subject of m) & d & namn & d & malfil & d & (stl as string) & linefeed
@@ -58,6 +61,17 @@ on run argv
 	end tell
 	return ut
 end run
+
+on rentNamn(namn)
+	set gamla to AppleScript's text item delimiters
+	set AppleScript's text item delimiters to {"/", ":"}
+	set delar to text items of namn
+	set AppleScript's text item delimiters to "-"
+	set rent to delar as string
+	set AppleScript's text item delimiters to gamla
+	if rent starts with "." then set rent to "_" & rent
+	return rent
+end rentNamn
 
 -- Samma bedomning som i Swift, men gjord har sa att skrapet inte tar plats
 -- i kvoten.

@@ -37,7 +37,7 @@ tid,fritt_mb,swap_mb,pid,cpu,rss_mb,namn
 0.6,120,13266,91305,0.0,0,/Applications/Microsoft
 0.6,120,13266,91318,0.0,0,/Applications/Microsoft
 0.6,120,13266,97652,0.7,12,dist/Critero-kundkoll.app/Contents/MacOS/Kundkoll
-0.6,120,13266,97664,48.8,426,/Users/parlevander/Projekt/whisper.cpp/build/bin/whisper-cli
+0.6,120,13266,97664,48.8,426,~/Projekt/whisper.cpp/build/bin/whisper-cli
 1.1,131,13323,1760,0.0,0,/Applications/Microsoft
 1.1,131,13323,2289,0.0,9,/Applications/Ollama.app/Contents/Resources/ollama
 1.1,131,13323,91257,1.0,23,/Applications/Microsoft
@@ -57,7 +57,7 @@ tid,fritt_mb,swap_mb,pid,cpu,rss_mb,namn
 1.1,131,13323,91305,0.0,0,/Applications/Microsoft
 1.1,131,13323,91318,0.0,0,/Applications/Microsoft
 1.1,131,13323,97652,0.0,11,dist/Critero-kundkoll.app/Contents/MacOS/Kundkoll
-1.1,131,13323,97664,70.7,1586,/Users/parlevander/Projekt/whisper.cpp/build/bin/whisper-cli
+1.1,131,13323,97664,70.7,1586,~/Projekt/whisper.cpp/build/bin/whisper-cli
 1.7,163,13504,1760,0.0,0,/Applications/Microsoft
 1.7,163,13504,2289,0.0,9,/Applications/Ollama.app/Contents/Resources/ollama
 1.7,163,13504,91257,0.4,18,/Applications/Microsoft
@@ -77,7 +77,7 @@ tid,fritt_mb,swap_mb,pid,cpu,rss_mb,namn
 1.7,163,13504,91305,0.0,0,/Applications/Microsoft
 1.7,163,13504,91318,0.0,0,/Applications/Microsoft
 1.7,163,13504,97652,0.0,7,dist/Critero-kundkoll.app/Contents/MacOS/Kundkoll
-1.7,163,13504,97664,48.6,1702,/Users/parlevander/Projekt/whisper.cpp/build/bin/whisper-cli
+1.7,163,13504,97664,48.6,1702,~/Projekt/whisper.cpp/build/bin/whisper-cli
 2.3,165,13504,1760,0.0,0,/Applications/Microsoft
 2.3,165,13504,2289,0.0,9,/Applications/Ollama.app/Contents/Resources/ollama
 2.3,165,13504,91257,1.2,15,/Applications/Microsoft
@@ -97,7 +97,7 @@ tid,fritt_mb,swap_mb,pid,cpu,rss_mb,namn
 2.3,165,13504,91305,0.0,0,/Applications/Microsoft
 2.3,165,13504,91318,0.0,0,/Applications/Microsoft
 2.3,165,13504,97652,0.0,7,dist/Critero-kundkoll.app/Contents/MacOS/Kundkoll
-2.3,165,13504,97664,8.5,1691,/Users/parlevander/Projekt/whisper.cpp/build/bin/whisper-cli
+2.3,165,13504,97664,8.5,1691,~/Projekt/whisper.cpp/build/bin/whisper-cli
 2.8,231,13647,1760,0.0,0,/Applications/Microsoft
 2.8,231,13647,2289,0.0,7,/Applications/Ollama.app/Contents/Resources/ollama
 2.8,231,13647,91257,0.7,18,/Applications/Microsoft
@@ -117,7 +117,7 @@ tid,fritt_mb,swap_mb,pid,cpu,rss_mb,namn
 2.8,231,13647,91305,0.0,0,/Applications/Microsoft
 2.8,231,13647,91318,0.0,0,/Applications/Microsoft
 2.8,231,13647,97652,0.0,6,dist/Critero-kundkoll.app/Contents/MacOS/Kundkoll
-2.8,231,13647,97664,16.3,1979,/Users/parlevander/Projekt/whisper.cpp/build/bin/whisper-cli
+2.8,231,13647,97664,16.3,1979,~/Projekt/whisper.cpp/build/bin/whisper-cli
 3.3,160,13647,1760,0.0,0,/Applications/Microsoft
 3.3,160,13647,2289,0.0,7,/Applications/Ollama.app/Contents/Resources/ollama
 3.3,160,13647,91257,0.9,20,/Applications/Microsoft
@@ -137,7 +137,7 @@ tid,fritt_mb,swap_mb,pid,cpu,rss_mb,namn
 3.3,160,13647,91305,0.0,0,/Applications/Microsoft
 3.3,160,13647,91318,0.0,0,/Applications/Microsoft
 3.3,160,13647,97652,0.0,6,dist/Critero-kundkoll.app/Contents/MacOS/Kundkoll
-3.3,160,13647,97664,14.7,1995,/Users/parlevander/Projekt/whisper.cpp/build/bin/whisper-cli
+3.3,160,13647,97664,14.7,1995,~/Projekt/whisper.cpp/build/bin/whisper-cli
 3.9,160,13647,1760,0.0,0,/Applications/Microsoft
 3.9,160,13647,2289,0.0,7,/Applications/Ollama.app/Contents/Resources/ollama
 3.9,160,13647,91257,0.7,19,/Applications/Microsoft
@@ -157,7 +157,7 @@ tid,fritt_mb,swap_mb,pid,cpu,rss_mb,namn
 3.9,160,13647,91305,0.0,0,/Applications/Microsoft
 3.9,160,13647,91318,0.0,0,/Applications/Microsoft
 3.9,160,13647,97652,0.0,6,dist/Critero-kundkoll.app/Contents/MacOS/Kundkoll
-3.9,160,13647,97664,13.5,1987,/Users/parlevander/Projekt/whisper.cpp/build/bin/whisper-cli
+3.9,160,13647,97664,13.5,1987,~/Projekt/whisper.cpp/build/bin/whisper-cli
 4.5,116,13647,1760,0.0,0,/Applications/Microsoft
 4.5,116,13647,2289,0.0,7,/Applications/Ollama.app/Contents/Resources/ollama
 4.5,116,13647,91257,0.5,19,/Applications/Microsoft
@@ -177,7 +177,7 @@ tid,fritt_mb,swap_mb,pid,cpu,rss_mb,namn
 4.5,116,13647,91305,0.0,0,/Applications/Microsoft
 4.5,116,13647,91318,0.0,0,/Applications/Microsoft
 4.5,116,13647,97652,0.0,6,dist/Critero-kundkoll.app/Contents/MacOS/Kundkoll
-4.5,116,13647,97664,14.6,1987,/Users/parlevander/Projekt/whisper.cpp/build/bin/whisper-cli
+4.5,116,13647,97664,14.6,1987,~/Projekt/whisper.cpp/build/bin/whisper-cli
 5.0,145,13647,1760,0.0,0,/Applications/Microsoft
 5.0,145,13647,2289,0.0,7,/Applications/Ollama.app/Contents/Resources/ollama
 5.0,145,13647,91257,0.5,20,/Applications/Microsoft
@@ -197,7 +197,7 @@ tid,fritt_mb,swap_mb,pid,cpu,rss_mb,namn
 5.0,145,13647,91305,0.0,0,/Applications/Microsoft
 5.0,145,13647,91318,0.0,0,/Applications/Microsoft
 5.0,145,13647,97652,0.0,6,dist/Critero-kundkoll.app/Contents/MacOS/Kundkoll
-5.0,145,13647,97664,17.2,1988,/Users/parlevander/Projekt/whisper.cpp/build/bin/whisper-cli
+5.0,145,13647,97664,17.2,1988,~/Projekt/whisper.cpp/build/bin/whisper-cli
 5.6,137,13647,1760,0.0,0,/Applications/Microsoft
 5.6,137,13647,2289,0.0,7,/Applications/Ollama.app/Contents/Resources/ollama
 5.6,137,13647,91257,0.4,19,/Applications/Microsoft
@@ -217,7 +217,7 @@ tid,fritt_mb,swap_mb,pid,cpu,rss_mb,namn
 5.6,137,13647,91305,0.0,0,/Applications/Microsoft
 5.6,137,13647,91318,0.0,0,/Applications/Microsoft
 5.6,137,13647,97652,0.0,6,dist/Critero-kundkoll.app/Contents/MacOS/Kundkoll
-5.6,137,13647,97664,12.3,1988,/Users/parlevander/Projekt/whisper.cpp/build/bin/whisper-cli
+5.6,137,13647,97664,12.3,1988,~/Projekt/whisper.cpp/build/bin/whisper-cli
 6.1,151,13647,1760,0.0,0,/Applications/Microsoft
 6.1,151,13647,2289,0.0,7,/Applications/Ollama.app/Contents/Resources/ollama
 6.1,151,13647,91257,0.8,18,/Applications/Microsoft
@@ -237,7 +237,7 @@ tid,fritt_mb,swap_mb,pid,cpu,rss_mb,namn
 6.1,151,13647,91305,0.0,0,/Applications/Microsoft
 6.1,151,13647,91318,0.0,0,/Applications/Microsoft
 6.1,151,13647,97652,0.1,8,dist/Critero-kundkoll.app/Contents/MacOS/Kundkoll
-6.1,151,13647,97664,2.4,1993,/Users/parlevander/Projekt/whisper.cpp/build/bin/whisper-cli
+6.1,151,13647,97664,2.4,1993,~/Projekt/whisper.cpp/build/bin/whisper-cli
 6.7,163,13647,1760,0.0,0,/Applications/Microsoft
 6.7,163,13647,2289,0.0,7,/Applications/Ollama.app/Contents/Resources/ollama
 6.7,163,13647,91257,1.4,19,/Applications/Microsoft
@@ -257,7 +257,7 @@ tid,fritt_mb,swap_mb,pid,cpu,rss_mb,namn
 6.7,163,13647,91305,0.0,0,/Applications/Microsoft
 6.7,163,13647,91318,0.0,0,/Applications/Microsoft
 6.7,163,13647,97652,0.0,8,dist/Critero-kundkoll.app/Contents/MacOS/Kundkoll
-6.7,163,13647,97664,11.2,2024,/Users/parlevander/Projekt/whisper.cpp/build/bin/whisper-cli
+6.7,163,13647,97664,11.2,2024,~/Projekt/whisper.cpp/build/bin/whisper-cli
 7.3,147,13639,1760,0.0,0,/Applications/Microsoft
 7.3,147,13639,2289,0.6,10,/Applications/Ollama.app/Contents/Resources/ollama
 7.3,147,13639,91257,0.6,18,/Applications/Microsoft
@@ -277,7 +277,7 @@ tid,fritt_mb,swap_mb,pid,cpu,rss_mb,namn
 7.3,147,13639,91305,0.0,0,/Applications/Microsoft
 7.3,147,13639,91318,0.0,0,/Applications/Microsoft
 7.3,147,13639,97652,0.0,8,dist/Critero-kundkoll.app/Contents/MacOS/Kundkoll
-7.3,147,13639,97664,11.6,2025,/Users/parlevander/Projekt/whisper.cpp/build/bin/whisper-cli
+7.3,147,13639,97664,11.6,2025,~/Projekt/whisper.cpp/build/bin/whisper-cli
 7.8,433,13639,1760,0.0,0,/Applications/Microsoft
 7.8,433,13639,2289,0.0,10,/Applications/Ollama.app/Contents/Resources/ollama
 7.8,433,13639,91257,0.9,19,/Applications/Microsoft
@@ -297,7 +297,7 @@ tid,fritt_mb,swap_mb,pid,cpu,rss_mb,namn
 7.8,433,13639,91305,0.0,0,/Applications/Microsoft
 7.8,433,13639,91318,0.0,0,/Applications/Microsoft
 7.8,433,13639,97652,0.0,8,dist/Critero-kundkoll.app/Contents/MacOS/Kundkoll
-7.8,433,13639,97664,12.4,2025,/Users/parlevander/Projekt/whisper.cpp/build/bin/whisper-cli
+7.8,433,13639,97664,12.4,2025,~/Projekt/whisper.cpp/build/bin/whisper-cli
 8.4,308,13639,1760,0.0,0,/Applications/Microsoft
 8.4,308,13639,2289,0.0,10,/Applications/Ollama.app/Contents/Resources/ollama
 8.4,308,13639,91257,1.6,23,/Applications/Microsoft
@@ -317,7 +317,7 @@ tid,fritt_mb,swap_mb,pid,cpu,rss_mb,namn
 8.4,308,13639,91305,0.0,0,/Applications/Microsoft
 8.4,308,13639,91318,0.0,0,/Applications/Microsoft
 8.4,308,13639,97652,0.0,8,dist/Critero-kundkoll.app/Contents/MacOS/Kundkoll
-8.4,308,13639,97664,16.8,2026,/Users/parlevander/Projekt/whisper.cpp/build/bin/whisper-cli
+8.4,308,13639,97664,16.8,2026,~/Projekt/whisper.cpp/build/bin/whisper-cli
 8.9,181,13639,1760,0.0,0,/Applications/Microsoft
 8.9,181,13639,2289,0.0,10,/Applications/Ollama.app/Contents/Resources/ollama
 8.9,181,13639,91257,1.9,23,/Applications/Microsoft
@@ -337,7 +337,7 @@ tid,fritt_mb,swap_mb,pid,cpu,rss_mb,namn
 8.9,181,13639,91305,0.0,0,/Applications/Microsoft
 8.9,181,13639,91318,0.0,0,/Applications/Microsoft
 8.9,181,13639,97652,0.0,8,dist/Critero-kundkoll.app/Contents/MacOS/Kundkoll
-8.9,181,13639,97664,16.9,2027,/Users/parlevander/Projekt/whisper.cpp/build/bin/whisper-cli
+8.9,181,13639,97664,16.9,2027,~/Projekt/whisper.cpp/build/bin/whisper-cli
 9.5,150,13615,1760,0.0,0,/Applications/Microsoft
 9.5,150,13615,2289,0.0,10,/Applications/Ollama.app/Contents/Resources/ollama
 9.5,150,13615,91257,4.2,21,/Applications/Microsoft
@@ -357,7 +357,7 @@ tid,fritt_mb,swap_mb,pid,cpu,rss_mb,namn
 9.5,150,13615,91305,0.0,0,/Applications/Microsoft
 9.5,150,13615,91318,0.0,0,/Applications/Microsoft
 9.5,150,13615,97652,0.0,7,dist/Critero-kundkoll.app/Contents/MacOS/Kundkoll
-9.5,150,13615,97664,13.2,2019,/Users/parlevander/Projekt/whisper.cpp/build/bin/whisper-cli
+9.5,150,13615,97664,13.2,2019,~/Projekt/whisper.cpp/build/bin/whisper-cli
 10.0,187,13591,1760,0.0,0,/Applications/Microsoft
 10.0,187,13591,2289,0.0,10,/Applications/Ollama.app/Contents/Resources/ollama
 10.0,187,13591,91257,4.3,23,/Applications/Microsoft
@@ -377,7 +377,7 @@ tid,fritt_mb,swap_mb,pid,cpu,rss_mb,namn
 10.0,187,13591,91305,0.0,0,/Applications/Microsoft
 10.0,187,13591,91318,0.0,0,/Applications/Microsoft
 10.0,187,13591,97652,0.0,8,dist/Critero-kundkoll.app/Contents/MacOS/Kundkoll
-10.0,187,13591,97664,3.6,1994,/Users/parlevander/Projekt/whisper.cpp/build/bin/whisper-cli
+10.0,187,13591,97664,3.6,1994,~/Projekt/whisper.cpp/build/bin/whisper-cli
 10.6,181,13575,1760,0.0,0,/Applications/Microsoft
 10.6,181,13575,2289,0.0,8,/Applications/Ollama.app/Contents/Resources/ollama
 10.6,181,13575,91257,1.9,23,/Applications/Microsoft
@@ -397,4 +397,4 @@ tid,fritt_mb,swap_mb,pid,cpu,rss_mb,namn
 10.6,181,13575,91305,0.0,3,/Applications/Microsoft
 10.6,181,13575,91318,0.0,0,/Applications/Microsoft
 10.6,181,13575,97652,0.0,8,dist/Critero-kundkoll.app/Contents/MacOS/Kundkoll
-10.6,181,13575,97664,12.8,1996,/Users/parlevander/Projekt/whisper.cpp/build/bin/whisper-cli
+10.6,181,13575,97664,12.8,1996,~/Projekt/whisper.cpp/build/bin/whisper-cli

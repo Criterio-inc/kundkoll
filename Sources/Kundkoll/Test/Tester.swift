@@ -413,16 +413,16 @@ enum Tester {
 
         do {   // adresserna mejlen söks på
             let kontakter = [
-                Kontakt(namn: "Anna", epost: ["Anna@Boras.se", "anna@boras.se"]),
-                Kontakt(namn: "Bo", epost: ["bo@boras.se"]),
+                Kontakt(namn: "Anna", epost: ["Anna@Boras.example", "anna@boras.example"]),
+                Kontakt(namn: "Bo", epost: ["bo@boras.example"]),
                 Kontakt(namn: "Utan adress", epost: []),
                 Kontakt(namn: "Trasig", epost: ["inte en adress"]),
-                Kontakt(namn: "Cecilia", epost: ["cecilia@boras.se"]),
+                Kontakt(namn: "Cecilia", epost: ["cecilia@boras.example"]),
             ]
             let a = Mailen.adresser(ur: kontakter)
-            Prov.lika(a, ["anna@boras.se", "bo@boras.se", "cecilia@boras.se"],
+            Prov.lika(a, ["anna@boras.example", "bo@boras.example", "cecilia@boras.example"],
                       "kontakternas ordning behålls, skiftläge normaliseras, dubbletter bort")
-            Prov.lika(Mailen.adresser(ur: kontakter, max: 2), ["anna@boras.se", "bo@boras.se"],
+            Prov.lika(Mailen.adresser(ur: kontakter, max: 2), ["anna@boras.example", "bo@boras.example"],
                       "gränsen tar de första, inte ett slumpat urval")
             Prov.lika(Mailen.adresser(ur: []), [], "utan kontakter finns inget att söka på")
         }
@@ -522,10 +522,10 @@ enum Tester {
 
         do {   // «Hör inte till» måste vinna över domänregeln
             let kund = Kund(namn: "Borås stad", mapp: URL(fileURLWithPath: "/tmp/x"))
-            let kontakter = [Kontakt(namn: "Philip", epost: ["philip@boras.se"])]
+            let kontakter = [Kontakt(namn: "Philip", epost: ["philip@boras.example"])]
             let m = Kalendern.Möte(
                 id: "m1", titel: "Curago Puls", start: Date(), slut: Date(),
-                deltagare: [Kalendern.Deltagare(namn: "Helena", epost: "helena@boras.se", ärJag: false)],
+                deltagare: [Kalendern.Deltagare(namn: "Helena", epost: "helena@boras.example", ärJag: false)],
                 plats: nil, möteslänk: nil)
             Prov.kolla(Kalendern.hör(m, till: kund, kontakter: kontakter), "domänregeln tar mötet")
             Prov.kolla(Kalendern.hörTill(m, kund: kund, kontakter: kontakter, kopplingar: [:]),
@@ -1198,7 +1198,7 @@ enum Tester {
             FN:Anna Svensson
             ORG:Borås Stad
             TITLE:Enhetschef
-            EMAIL;type=INTERNET;type=WORK;type=pref:Anna.Svensson@boras.se
+            EMAIL;type=INTERNET;type=WORK;type=pref:Anna.Svensson@boras.example
             TEL;type=CELL;type=VOICE:+46 70 123 45 67
             END:VCARD
             BEGIN:VCARD
@@ -1211,38 +1211,38 @@ enum Tester {
             VERSION:3.0
             N:Ek;Bo;;;
             FN:Bo Ek
-            EMAIL:bo@boras.se
+            EMAIL:bo@boras.example
             END:VCARD
             """
             let k = try! Kontaktimport.urVCard(Data(vcf.utf8))
             Prov.lika(k.map(\.namn), ["Anna Svensson", "Bara ett bolag", "Bo Ek"],
                       "tre poster i filens ordning: en organisation utan person får organisationens namn")
             Prov.lika(k[0].roll, "Enhetschef", "befattningen följer med")
-            Prov.lika(k[0].epost, ["Anna.Svensson@boras.se"], "e-posten följer med")
+            Prov.lika(k[0].epost, ["Anna.Svensson@boras.example"], "e-posten följer med")
             Prov.lika(k[0].telefon, ["+46 70 123 45 67"], "telefonen följer med")
         }
 
         do {   // CSV på engelska med komma, som Outlook på webben exporterar
             let csv = "\u{FEFF}First Name,Last Name,Title,Job Title,E-mail Address,E-mail 2 Address,Business Phone,Mobile Phone,Business Fax,Company\r\n"
-                + "Anna,Svensson,Ms,Enhetschef,anna@boras.se,,033-35 70 00,070-123 45 67,033-1,Borås Stad\r\n"
-                + "\"Ek, Bo\",,,,bo@boras.se,,,,,\r\n"
+                + "Anna,Svensson,Ms,Enhetschef,anna@boras.example,,033-35 70 00,070-123 45 67,033-1,Borås Stad\r\n"
+                + "\"Ek, Bo\",,,,bo@boras.example,,,,,\r\n"
                 + ",,,,,,,,,\r\n"
             let k = Kontaktimport.urCSV(Kontaktimport.text(ur: Data(csv.utf8)))
             Prov.lika(k.map(\.namn), ["Anna Svensson", "Ek, Bo"], "byteordningsmärket och den tomma raden stör inte")
             Prov.lika(k[0].roll, "Enhetschef", "«Job Title» är befattningen, «Title» är tilltalet")
-            Prov.lika(k[0].epost, ["anna@boras.se"], "tomma e-postkolumner hoppas över")
+            Prov.lika(k[0].epost, ["anna@boras.example"], "tomma e-postkolumner hoppas över")
             Prov.lika(k[0].telefon, ["033-35 70 00", "070-123 45 67"], "telefon och mobil, men inte fax")
             Prov.lika(k[1].namn, "Ek, Bo", "citerat komma i namnet klyver inte fältet")
         }
 
         do {   // CSV på svenska med semikolon, som Outlook för Windows exporterar
             let csv = "Förnamn;Efternamn;Titel;Befattning;E-postadress;Telefon, arbete;Mobiltelefon\n"
-                + "Cecilia;Lund;Fru;Projektledare;cecilia@boras.se;;0701\n"
-                + "Cecilia;Lund;;;Cecilia@Boras.se;0331;\n"
+                + "Cecilia;Lund;Fru;Projektledare;cecilia@boras.example;;0701\n"
+                + "Cecilia;Lund;;;Cecilia@Boras.example;0331;\n"
             let k = Kontaktimport.urCSV(csv)
             Prov.lika(k.count, 1, "samma person två gånger i filen blir en")
             Prov.lika(k[0].roll, "Projektledare", "svenska rubriker känns igen")
-            Prov.lika(k[0].epost, ["cecilia@boras.se"], "samma adress med annat skiftläge dubbleras inte")
+            Prov.lika(k[0].epost, ["cecilia@boras.example"], "samma adress med annat skiftläge dubbleras inte")
             Prov.lika(k[0].telefon, ["0701", "0331"], "telefonnumren läggs samman")
         }
 
@@ -1252,10 +1252,10 @@ enum Tester {
             defer { try? FileManager.default.removeItem(at: rot) }
             let arkiv = Arkivet(rot: rot)
             let kund = try! arkiv.skapaKund(namn: "Borås stad")
-            try! arkiv.läggTill(Kontakt(namn: "Anna Svensson", epost: ["anna@boras.se"]), hos: kund)
+            try! arkiv.läggTill(Kontakt(namn: "Anna Svensson", epost: ["anna@boras.example"]), hos: kund)
             let utfall = try! arkiv.läggTill([
-                Kontakt(namn: "A. Svensson", roll: "Enhetschef", epost: ["ANNA@boras.se"]),
-                Kontakt(namn: "Bo Ek", epost: ["bo@boras.se"]),
+                Kontakt(namn: "A. Svensson", roll: "Enhetschef", epost: ["ANNA@boras.example"]),
+                Kontakt(namn: "Bo Ek", epost: ["bo@boras.example"]),
                 Kontakt(namn: "Bo Ek", telefon: ["0701"]),
             ], hos: kund)
             Prov.lika(utfall.nya, 1, "en ny person")
@@ -1277,6 +1277,25 @@ enum Tester {
             Prov.kolla((try? Kontaktimport.läs(xlsx)) == nil, "xlsx avvisas")
             let tom = mapp.appending(path: "k.csv"); try! Data("Namn,E-post\n".utf8).write(to: tom)
             Prov.kolla((try? Kontaktimport.läs(tom)) == nil, "en fil utan kontakter är ett fel, inte noll nya")
+        }
+
+        Prov.svit("Kontakt och röstprofil")
+
+        do {
+            let rot = FileManager.default.temporaryDirectory
+                .appending(path: "kundkoll-test-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: rot) }
+            let arkiv = Arkivet(rot: rot)
+            let kund = try! arkiv.skapaKund(namn: "Acme")
+            try! arkiv.läggTill(Kontakt(namn: "Anna Svensson"), hos: kund)
+            try! arkiv.sparaRöstprofiler([
+                Röstprofil(namn: "Anna Svensson", avtryck: []),
+                Röstprofil(namn: "Bo Ek", avtryck: []),
+            ], för: kund)
+            let anna = arkiv.kontakter(för: kund).first!
+            try! arkiv.taBort(anna, hos: kund)
+            Prov.lika(arkiv.röstprofiler(för: kund).map(\.namn), ["Bo Ek"],
+                      "röstprofilen följer med när kontakten tas bort")
         }
 
         Prov.svit("Tavlan räknar rätt")

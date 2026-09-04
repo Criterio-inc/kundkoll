@@ -26,7 +26,7 @@ on run argv
 			-- Inkorgen: mejl från personen
 			set raknare to 0
 			try
-				set traffar to (every message of mailbox "INBOX" of konto whose sender contains adress)
+				set traffar to (every message of mailbox "INBOX" of konto whose (sender contains ("<" & adress & ">") or sender is adress))
 				repeat with m in traffar
 					if raknare >= grans then exit repeat
 					set raknare to raknare + 1

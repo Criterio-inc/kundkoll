@@ -25,7 +25,7 @@ START=$(date +%s.%N)
     t=$(printf '%.1f' "$(echo "$(date +%s.%N) - $START" | bc)")
     f=$(fritt_mb); s=$(swap_mb)
     ps -axo pid,pcpu,rss,comm | grep -E "$MONSTER" | grep -v grep | \
-      awk -v t="$t" -v f="$f" -v s="$s" '{printf "%s,%s,%s,%s,%s,%d,%s\n", t, f, s, $1, $2, $3/1024, $4}' >> "$CSV"
+      awk -v t="$t" -v f="$f" -v s="$s" '{printf "%s,%s,%s,%s,%s,%d,%s\n", t, f, s, $1, $2, $3/1024, $4}' | sed "s|$HOME|~|g" >> "$CSV"
     sleep 0.5
   done
 ) &
