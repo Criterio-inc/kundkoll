@@ -19,6 +19,10 @@ struct Briefing {
     /// Sådant jag väntar på från någon annan, som passerat sitt datum utan
     /// att något mejl kommit från den personen sedan dess.
     var väntarUtanSvar: [Uppgift] = []
+    /// Projektet mötet hör till: kopplat för hand i kalendern, annars det
+    /// förra mötet i serien ligger i. Med projektets lägesbild, om den finns.
+    var projekt: Projekt?
+    var lägesbild: Lägesbild?
 
     var tom: Bool {
         senaste == nil && öppnaUppgifter.isEmpty && mejlSedanSist.isEmpty
@@ -87,10 +91,18 @@ struct Briefing {
     static func bygg(för kund: Kund, möte: Kalendern.Möte?,
                      arkiv: Arkivet? = nil) -> Briefing {
         let arkiv = arkiv ?? .shared
-        return bygg(kund: kund.namn,
-             möte: möte,
-             inspelningar: arkiv.inspelningar(för: kund),
-             uppgifter: arkiv.uppgifter(för: kund),
-             mejl: arkiv.mailcache(för: kund)?.mejl ?? [])
+        var b = bygg(kund: kund.namn,
+                     möte: möte,
+                     inspelningar: arkiv.inspelningar(för: kund),
+                     uppgifter: arkiv.uppgifter(för: kund),
+                     mejl: arkiv.mailcache(för: kund)?.mejl ?? [])
+        // Lägesbilden och briefen läste förut aldrig varandra: sidan inför
+        // mötet sa vad som sades sist men inte var projektet står.
+        let projekt = arkiv.projekt(för: kund)
+        b.projekt = möte.flatMap { m in
+            arkiv.möteskopplingar(för: kund)[m.id].flatMap { id in projekt.first { $0.id == id } }
+        } ?? b.senaste.flatMap { arkiv.projekt(innehållande: $0.mapp, hos: kund) }
+        b.lägesbild = b.projekt.flatMap { Läget.läs(kund: kund, projekt: $0) }
+        return b
     }
 }

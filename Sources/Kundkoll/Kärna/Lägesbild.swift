@@ -74,6 +74,26 @@ enum Läget {
         return bild.skriven < senaste
     }
 
+    /// Skriver om lägesbilden vid sidan av, när underlaget ändrats av något
+    /// som hänt: ett möte i projektet har sammanfattats. Förut skrevs den
+    /// bara om när projektfliken råkade öppnas. Spärren i Arbeten gör att
+    /// två skrivningar för samma kund inte går samtidigt.
+    static func skrivOmIBakgrunden(kund: Kund, projekt: Projekt, arkiv: Arkivet? = nil) {
+        guard Modellval.läs().färdig,
+              let jobb = Arbeten.delad.starta(.lägesbild, kund: kund,
+                                              titel: "Skriver om lägesbilden för \(projekt.namn)",
+                                              beställt: false)
+        else { return }
+        Task {
+            do {
+                let bild = try await skriv(kund: kund, projekt: projekt, arkiv: arkiv, automatiskt: true)
+                jobb.klart("Lägesbilden skriven efter mötet", modell: bild.modell)
+            } catch {
+                jobb.föll(error.localizedDescription)
+            }
+        }
+    }
+
     /// Skriver en ny lägesbild och sparar den.
     /// `automatiskt` när vyn skriver den av sig själv; då bara lokalt.
     static func skriv(kund: Kund, projekt: Projekt,

@@ -100,6 +100,32 @@ extension Tester {
                        "det första mötet i serien har inget förra")
         }
 
+        do {   // briefen läser projektets lägesbild
+            let (arkiv, rot) = tillfälligt()
+            defer { try? FileManager.default.removeItem(at: rot) }
+            let kund = try! arkiv.skapaKund(namn: "Acme")
+            let projekt = try! arkiv.skapaProjekt(namn: "Nytt lager", hos: kund)
+            try! FileManager.default.createDirectory(at: kund.mapp.appending(path: ".kundkoll"), withIntermediateDirectories: true)
+            try! JSONEncoder.kundkoll.encode(Lägesbild(text: "Bygget går bra", skriven: Date(), modell: nil))
+                .write(to: kund.mapp.appending(path: ".kundkoll/läget-\(projekt.id).json"))
+            let kalendermöte = Kalendern.Möte(id: "k1", titel: "Byggmöte", start: Date(), slut: Date().addingTimeInterval(3600),
+                                              deltagare: [], plats: nil, möteslänk: nil)
+            Prov.kolla(Briefing.bygg(för: kund, möte: kalendermöte, arkiv: arkiv).projekt == nil,
+                       "ett okopplat möte utan tidigare möten har inget projekt")
+            try! arkiv.kopplaMöte("k1", till: projekt, för: kund)
+            let b = Briefing.bygg(för: kund, möte: kalendermöte, arkiv: arkiv)
+            Prov.lika(b.projekt?.id, projekt.id, "kopplingen i kalendern ger briefen sitt projekt")
+            Prov.lika(b.lägesbild?.text, "Bygget går bra", "och projektets lägesbild följer med")
+
+            // Utan koppling: projektet det förra mötet i serien ligger i.
+            let mapp = projekt.inspelningsmapp.appending(path: "2026-09-01 0900 Byggmöte")
+            try! FileManager.default.createDirectory(at: mapp, withIntermediateDirectories: true)
+            var i = möte("Byggmöte", "2026-09-01").inspelning; i.kund = "Acme"
+            try! JSONEncoder.kundkoll.encode(i).write(to: mapp.appending(path: "möte.json"))
+            let b2 = Briefing.bygg(för: kund, möte: nil, arkiv: arkiv)
+            Prov.lika(b2.projekt?.id, projekt.id, "utan koppling tas projektet där förra mötet ligger")
+        }
+
         do {   // tidsposter ur mötena
             let idag = Uppgift.dag("2026-09-10")!
             let nyligen = möte("Byggmöte", "2026-09-08")

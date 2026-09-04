@@ -321,9 +321,8 @@ struct Kundinnehåll: View {
                                     Task { await hämtaMöten() }
                                 }
                             } label: {
-                                Label({ let p = möteskopplingar[m.id]
-                                        return (p?.isEmpty == false) ? p! : "Projekt" }(),
-                                      systemImage: "folder")
+                                // Kopplingen bär projektets id; det som visas är namnet.
+                                Label(kopplatProjekt(m)?.namn ?? "Projekt", systemImage: "folder")
                                     .font(.caption)
                             }
                             .menuStyle(.borderlessButton)

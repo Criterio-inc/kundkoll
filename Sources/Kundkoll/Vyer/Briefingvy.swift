@@ -27,6 +27,7 @@ struct Briefingvy: View {
                                  + "inga öppna åtaganden och inga nya mejl.")
                                 .foregroundStyle(.secondary)
                         }
+                        if let p = brief.projekt, let bild = brief.lägesbild { läget(p, bild) }
                         if let m = brief.senaste { senast(m) }
                         if !brief.väntarUtanSvar.isEmpty { väntarPå(brief.väntarUtanSvar) }
                         if !brief.öppnaUppgifter.isEmpty { åtaganden(brief.öppnaUppgifter) }
@@ -83,6 +84,25 @@ struct Briefingvy: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
+    }
+
+    /// Var projektet står, ur lägesbilden som redan finns. Ingen modell körs
+    /// här; saknas bilden visas inget, briefen ska aldrig vänta.
+    private func läget(_ projekt: Projekt, _ bild: Lägesbild) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Läget i \(projekt.namn)")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Text("skriven \(DateFormatter.kortdag.string(from: bild.skriven))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Markdowntext(text: bild.text)
+                .font(.callout)
+        }
+        .padding(12)
+        .kort()
     }
 
     private func senast(_ m: Möte) -> some View {
@@ -154,8 +174,12 @@ struct Briefingvy: View {
         .kort()
     }
 
-    private func åtaganden(_ uppgifter: [Uppgift]) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+    private func åtaganden(_ alla: [Uppgift]) -> some View {
+        // Projektets egna kort först, och märkta, när briefen gäller ett projekt.
+        let projektID = brief?.projekt?.id
+        let uppgifter = projektID == nil ? alla
+            : alla.filter { $0.projektID == projektID } + alla.filter { $0.projektID != projektID }
+        return VStack(alignment: .leading, spacing: 6) {
             Text("Öppet på tavlan · \(uppgifter.count)")
                 .font(.subheadline.weight(.semibold))
             ForEach(uppgifter.prefix(8)) { u in
@@ -166,6 +190,9 @@ struct Briefingvy: View {
                     Text(u.vad)
                         .font(.callout)
                         .fixedSize(horizontal: false, vertical: true)
+                    if let projektID, u.projektID == projektID, let namn = u.projekt {
+                        Märke(text: namn, ikon: "folder")
+                    }
                     Spacer()
                     if let senast = u.senast {
                         Text(DateFormatter.kortdag.string(from: senast))

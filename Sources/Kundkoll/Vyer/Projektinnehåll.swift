@@ -8,6 +8,7 @@ struct Projektinnehåll: View {
 
     @EnvironmentObject private var arkiv: Arkivet
     @EnvironmentObject private var session: Inspelningssession
+    @ObservedObject private var arbeten = Arbeten.delad
 
     @State private var flik: Flik = .översikt
     @State private var inspelningar: [Möte] = []
@@ -102,6 +103,12 @@ struct Projektinnehåll: View {
             }
         }
         .onChange(of: arkiv.sparningar) { läsIn() }
+        // Skrevs lägesbilden om vid sidan av, efter ett möte, ska den synas
+        // här utan att fliken lämnas och öppnas igen.
+        .onChange(of: arbeten.senaste) {
+            if !skriverLäget, let ny = Läget.läs(kund: kund, projekt: projekt),
+               ny.skriven != lägesbild?.skriven { lägesbild = ny }
+        }
     }
 
     /// Var projektet står just nu, skrivet av modellen ur uppgifter, möten,

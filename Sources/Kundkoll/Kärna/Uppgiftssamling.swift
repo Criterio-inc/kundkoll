@@ -36,6 +36,8 @@ enum Uppgiftssamling {
             _ = try? Arkivet.shared.läggTill(nya, för: kund)
         }
         föreslåKlart(sammanfattning.verkarKlara, enligt: inspelning, för: kund)
+        // Ett sammanfattat möte är just den händelse som gör lägesbilden gammal.
+        if let projekt { Läget.skrivOmIBakgrunden(kund: kund, projekt: projekt, arkiv: arkiv) }
     }
 
     /// Kort som mötet säger verkar gjorda får ett förslag, inte en stängning.
