@@ -49,6 +49,9 @@ struct Minveckavy: View {
         }
         .background(Stil.botten)
         .onAppear(perform: läsOm)
+        // Ett kort som bockats av i mötesvyn, eller kommit ur en mejlrunda,
+        // ska synas här utan att man klickar bort och tillbaka.
+        .onChange(of: arkiv.sparningar) { läsOm() }
         .sheet(item: $redigerad) { v in
             Uppgiftsredigering(uppgift: v.uppgift, kund: v.kund,
                                projekt: arkiv.projekt(för: v.kund),

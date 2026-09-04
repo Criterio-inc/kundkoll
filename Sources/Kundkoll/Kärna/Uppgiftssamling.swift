@@ -158,17 +158,30 @@ enum Uppgiftssamling {
 
     /// Letar åtaganden i en anteckning, om den ändrats sedan sist.
     /// Anropas när man slutat skriva och när anteckningen stängs.
+    /// Utfall: `genomgångna` är 0 när texten var oförändrad eller för kort,
+    /// annars 1. `fel` när modellen inte svarade; då bokförs inget, så
+    /// anteckningen provas igen nästa gång.
     @discardableResult
-    static func frånAnteckning(_ anteckning: Anteckning, kund: Kund) async -> Int {
+    static func frånAnteckning(_ anteckning: Anteckning, kund: Kund) async -> Utfall {
+        var utfall = Utfall()
         let text = anteckning.text
-        guard text.count > 60 else { return 0 }
+        guard text.count > 60 else { return utfall }
         var rundor = rundor(kund)
         let avtryck = avtryck(text)
-        guard rundor.anteckningar[anteckning.fil.path] != avtryck else { return 0 }
+        guard rundor.anteckningar[anteckning.fil.path] != avtryck else { return utfall }
 
-        guard let u = try? await Uppgiftsletare().leta(
-            i: text, sammanhang: "en anteckning jag skrivit",
-            kund: kund.namn, datum: anteckning.ändrad, automatiskt: true) else { return 0 }
+        let letare = Uppgiftsletare()
+        utfall.modell = letare.etikett
+        let u: [Uppgift]
+        do {
+            u = try await letare.leta(
+                i: text, sammanhang: "en anteckning jag skrivit",
+                kund: kund.namn, datum: anteckning.ändrad, automatiskt: true)
+        } catch {
+            utfall.fel = error.localizedDescription
+            return utfall
+        }
+        utfall.genomgångna = 1
         let uppgifter = u.map {
             Uppgift(vad: $0.vad, vem: $0.vem, när: $0.när, senast: $0.senast,
                     ursprung: .anteckning, källa: anteckning.fil.path,
@@ -178,6 +191,7 @@ enum Uppgiftssamling {
         let efter = (try? Arkivet.shared.läggTill(uppgifter, för: kund))?.count ?? före
         rundor.anteckningar[anteckning.fil.path] = avtryck
         spara(rundor, kund)
-        return efter - före
+        utfall.nya = efter - före
+        return utfall
     }
 }

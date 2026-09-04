@@ -47,6 +47,22 @@ cp Resources/mail-sok.applescript "$APP/Contents/Resources/mail-sok.applescript"
 cp Resources/mail-bilagor.applescript "$APP/Contents/Resources/mail-bilagor.applescript"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
+# Provsviten går på varje bygge. Den var förut ett löfte i README utan
+# mekanism; en ändring som fäller ett prov ska inte bli en app i dist.
+# KUNDKOLL_UTAN_PROV=1 hoppar över, för snabba ombyggen under felsökning.
+if [ -z "${KUNDKOLL_UTAN_PROV:-}" ]; then
+    echo "→ provsviten"
+    PROVLOGG="$(mktemp -t kundkoll-prov)"
+    if "$APP/Contents/MacOS/Kundkoll" --test > "$PROVLOGG" 2>&1; then
+        tail -1 "$PROVLOGG" | sed 's/^/  /'
+    else
+        echo "  provsviten föll — appen paketeras inte. Sista raderna:"
+        grep -v '✓' "$PROVLOGG" | tail -25 | sed 's/^/  /'
+        rm -rf "$APP"
+        exit 1
+    fi
+fi
+
 echo "→ signerar"
 # En stabil signatur gör att macOS kommer ihåg beviljade behörigheter
 # mellan ombyggen i stället för att fråga om mikrofon och skärminspelning varje gång.

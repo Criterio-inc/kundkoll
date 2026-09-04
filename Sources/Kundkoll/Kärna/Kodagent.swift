@@ -56,11 +56,11 @@ actor Kodagent {
         """
 
         let p = Process()
-        p.executableURL = körbar
         p.currentDirectoryURL = mapp
         // Enbart läsande verktyg: agenten ska svara på frågor om mappen,
         // aldrig ändra i den.
-        p.arguments = ["-p", uppdrag, "--allowedTools", "Read Grep Glob"]
+        (p.executableURL, p.arguments) = Whisper.underVakt(
+            körbar, ["-p", uppdrag, "--allowedTools", "Read Grep Glob"])
         var miljö = ProcessInfo.processInfo.environment
         miljö["PATH"] = (miljö["PATH"] ?? "") + ":/opt/homebrew/bin:/usr/local/bin"
         p.environment = miljö

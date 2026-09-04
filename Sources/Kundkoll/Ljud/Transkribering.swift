@@ -229,7 +229,7 @@ enum MlxWhisper {
                         "--hallucination-silence-threshold", "2"]
         // Utan språk får modellen avgöra själv — uppmätt hittar den rätt.
         if let språk { argument += ["--language", språk] }
-        p.arguments = argument
+        (p.executableURL, p.arguments) = Whisper.underVakt(körbar, argument)
 
         // mlx_whisper skriver segmenten till stdout medan den arbetar, på
         // samma form som whisper-cli — framstegen läses därifrån.

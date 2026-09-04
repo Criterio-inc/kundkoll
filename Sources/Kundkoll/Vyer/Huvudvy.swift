@@ -9,6 +9,7 @@ import AppKit
 /// medan man läser gamla transkript eller frågar chatten — det var hela
 /// poängen med att lämna bladen.
 struct Huvudvy: View {
+    @ObservedObject private var arbeten = Arbeten.delad
     @EnvironmentObject private var arkiv: Arkivet
     @EnvironmentObject private var session: Inspelningssession
     @EnvironmentObject private var kalender: Kalendern
@@ -77,6 +78,7 @@ struct Huvudvy: View {
                     Inspelningsrad()
                 }
                 Importrad()
+                Arbetsrad()
                 Tidursrad()
             }
         }
@@ -149,6 +151,11 @@ struct Huvudvy: View {
         HStack(spacing: 8) {
             Sigill(namn: kund.namn, sida: 22)
             Text(kund.namn)
+            // Något pågår hos kunden, även när man står hos en annan.
+            if arbeten.pågår(hos: kund) {
+                Spacer()
+                ProgressView().controlSize(.mini)
+            }
         }
         .padding(.vertical, 2)
     }

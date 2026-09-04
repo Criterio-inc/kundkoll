@@ -24,9 +24,9 @@ struct Kundinnehåll: View {
     @State private var mejl: [Mailen.Mejl] = []
     @State private var bilagor: [Bilagor.Bilaga] = []
     @State private var mejlLäge: Mejlläge = .ejHämtat
-    /// Den retroaktiva genomgången av alla mejl: pågår den, och vad gav den.
-    @State private var mejlrundaPågår = false
-    @State private var mejlrundaBesked: String?
+    /// Något gick fel i bilagehämtningen utan att mejlen förlorades.
+    @State private var mejlvarning: String?
+    @ObservedObject private var arbeten = Arbeten.delad
 
     @State private var visaNyttProjekt = false
     @State private var nyttProjektnamn = ""
@@ -180,13 +180,16 @@ struct Kundinnehåll: View {
             for: NSApplication.didBecomeActiveNotification)) { _ in
             Task {
                 await hämtaMöten()
-                await visaMejl(äldreÄn: 5 * 60)
+                // Uppmätt: en hämtning tar en dryg minut med tolv adresser
+                // och bilagor, inte sekunder. Var femte minut gömde knapparna
+                // större delen av dagen. En timme räcker; «Uppdatera» finns.
+                await visaMejl(äldreÄn: 60 * 60)
             }
         }
         // Mail säger inte till när något kommer in, så det får kollas med
-        // jämna mellanrum. Sökningen tar sekunder, därför inte oftare.
+        // jämna mellanrum. Sökningen tar en minut, därför inte oftare.
         .onReceive(Timer.publish(every: 300, on: .main, in: .common).autoconnect()) { _ in
-            Task { await visaMejl(äldreÄn: 15 * 60) }
+            Task { await visaMejl(äldreÄn: 60 * 60) }
         }
     }
 
@@ -472,6 +475,8 @@ struct Kundinnehåll: View {
     }
 
     private func görKlart(_ mapp: URL) {
+        guard let jobb = arbeten.starta(.görKlart, kund: kund, titel: mapp.lastPathComponent, beställt: true)
+        else { return }
         slutför = mapp
         slutförsteg = "Förbereder"
         slutförfel[mapp] = nil
@@ -479,12 +484,17 @@ struct Kundinnehåll: View {
         Task {
             let importör = Import()
             do {
-                _ = try await importör.slutför(
+                let klar = try await importör.slutför(
                     mapp: mapp, placering: .kund(kund), profiler: profiler,
-                    vidLäge: { l in Task { @MainActor in slutförsteg = l.steg } })
+                    vidLäge: { l in
+                        jobb.steg(l.steg, andel: l.andel)
+                        Task { @MainActor in slutförsteg = l.steg }
+                    })
+                jobb.klart("Klar, \(klar.sammanfattning?.åtaganden.count ?? 0) åtaganden")
             } catch {
                 // Förut försvann raden bara; nu står det varför.
                 slutförfel[mapp] = error.localizedDescription
+                jobb.föll(error.localizedDescription)
             }
             slutför = nil
             läsOm()
@@ -506,7 +516,10 @@ struct Kundinnehåll: View {
     }
 
     private var mejlavsnitt: some View {
-        avsnitt("Mail", knapp: mejlknapp) {
+        avsnitt("Mail", knapp: mejlknapp, knappInaktiv: arbeten.pågår(.mejlhämtning, kund: kund)) {
+            // Vad som söks och när, oavsett läge: den som undrar varför en
+            // persons mejl saknas har annars ingenstans att titta.
+            mejlstatus
             switch mejlLäge {
             case .ejHämtat:
                 Text(kontakter.flatMap(\.epost).isEmpty
@@ -550,7 +563,7 @@ struct Kundinnehåll: View {
                     }
                     .kort(hörn: Stil.radhörn)
                     HStack(spacing: 8) {
-                        Menu("Leta åtaganden i alla \(mejl.count) mejl") {
+                        Menu("Leta åtaganden i alla \(mejl.filter { !$0.text.isEmpty }.count) mejl") {
                             Button("Kör lokalt") { letaIAllaMejl(val: nil) }
                             // Molnet bara på beställning, och antalet står i valet:
                             // det är det som lämnar datorn.
@@ -562,11 +575,18 @@ struct Kundinnehåll: View {
                         }
                         .menuStyle(.borderlessButton)
                         .fixedSize()
-                        .disabled(mejlrundaPågår)
-                            .help("Går igenom allt som ligger sparat, även äldre mejl, och lägger det som ska göras på tavlan.")
-                        if mejlrundaPågår { ProgressView().controlSize(.small) }
-                        if let mejlrundaBesked {
-                            Text(mejlrundaBesked).font(.caption).foregroundStyle(.secondary)
+                        .disabled(arbeten.pågår(.uppgiftsrunda, kund: kund))
+                        .help("Går igenom allt som ligger sparat, även äldre mejl, och lägger det som ska göras på tavlan.")
+                        // Jobbet och kvittot står på samma rad som knappen, och
+                        // överlever flikbyte: de bor i Arbeten, inte i vyn.
+                        if let a = arbeten.arbete(.uppgiftsrunda, kund: kund) {
+                            ProgressView().controlSize(.small)
+                            Text("\(a.titel)\(a.steg.isEmpty ? "" : " — \(a.steg)")")
+                                .font(.caption).foregroundStyle(.secondary)
+                        } else if let k = arbeten.senasteKvitto(.uppgiftsrunda, kund: kund) {
+                            Text(k.rad).font(.caption)
+                                .foregroundStyle(k.föll ? Color.orange : Color.secondary)
+                                .lineLimit(2)
                         }
                     }
                 }
@@ -621,20 +641,48 @@ struct Kundinnehåll: View {
 
     private var mejlknapp: (String, () -> Void)? {
         guard !kontakter.flatMap(\.epost).isEmpty else { return nil }
-        if case .hämtar = mejlLäge { return nil }
+        if arbeten.pågår(.mejlhämtning, kund: kund) { return ("Uppdaterar …", {}) }
         return (mejl.isEmpty ? "Hämta" : "Uppdatera", { Task { await hämtaMejl() } })
+    }
+
+    /// «Söker på 12 av 22 adresser · senast hämtat 10:37 · söker nu: 4 av 12»
+    private var mejlstatus: some View {
+        let alla = kontakter.flatMap(\.epost).filter { $0.contains("@") }.count
+        let sökta = min(alla, Mailen.maxAdresser)
+        var delar: [String] = []
+        if alla > 0 { delar.append(sökta < alla ? "Söker på \(sökta) av \(alla) adresser" : "Söker på \(alla) adresser") }
+        if let h = arkiv.mailcache(för: kund)?.hämtad {
+            delar.append("senast hämtat \(DateFormatter.klocka.string(from: h))")
+        }
+        if let a = arbeten.arbete(.mejlhämtning, kund: kund), !a.steg.isEmpty {
+            delar.append("nu: \(a.steg)")
+        }
+        if let v = mejlvarning { delar.append(v) }
+        return Group {
+            if !delar.isEmpty {
+                Text(delar.joined(separator: " · "))
+                    .font(.caption)
+                    .foregroundStyle(mejlvarning == nil ? Color.secondary : Color.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     // MARK: - Stomme
 
     private func avsnitt<I: View>(_ rubrik: String,
                                   knapp: (String, () -> Void)? = nil,
+                                  knappInaktiv: Bool = false,
                                   @ViewBuilder _ innehåll: () -> I) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Avsnittsrubrik(rubrik)
                 Spacer()
-                if let knapp { Button(knapp.0, action: knapp.1).buttonStyle(.link) }
+                // Knappen står kvar när något pågår, grå, i stället för att
+                // försvinna: en knapp som kommer och går ser ut som en bugg.
+                if let knapp {
+                    Button(knapp.0, action: knapp.1).buttonStyle(.link).disabled(knappInaktiv)
+                }
             }
             innehåll()
         }
@@ -852,67 +900,84 @@ struct Kundinnehåll: View {
     private func hämtaMejl() async {
         let adresser = Mailen.adresser(ur: arkiv.kontakter(för: kund))
         guard !adresser.isEmpty else { return }
-        mejlLäge = .hämtar("Söker i Mail …")
+        // Spärren: en hämtning i taget per kund. Återkomst till appen och
+        // «Uppdatera» startade förut en andra ovanpå den första.
+        guard let jobb = arbeten.starta(.mejlhämtning, kund: kund) else { return }
+        // Listan som visas byts inte ut medan det hämtas; bara utan cache
+        // visas snurran i stället för mejl.
+        if mejl.isEmpty { mejlLäge = .hämtar("Söker i Mail …") }
+        mejlvarning = nil
         let mailen = Mailen()
         var samlat: [Mailen.Mejl] = []
         do {
             for (i, a) in adresser.enumerated() {
-                mejlLäge = .hämtar("Söker i Mail: \(a) (\(i + 1) av \(adresser.count))")
+                jobb.steg("\(i + 1) av \(adresser.count) adresser", andel: Double(i) / Double(adresser.count))
+                if mejl.isEmpty { mejlLäge = .hämtar("Söker i Mail: \(a) (\(i + 1) av \(adresser.count))") }
                 samlat += try await mailen.sök(adress: a, max: 20)
             }
         } catch {
-            mejlLäge = .fel(error.localizedDescription)
+            jobb.föll(error.localizedDescription)
+            if mejl.isEmpty { mejlLäge = .fel(error.localizedDescription) } else { mejlvarning = error.localizedDescription }
             return
         }
         var sedda = Set<String>()
         mejl = samlat.filter { sedda.insert($0.id).inserted }
             .sorted { ($0.datum ?? .distantPast) > ($1.datum ?? .distantPast) }
         try? arkiv.sparaMail(mejl, bilagor: bilagor, för: kund)
+        mejlLäge = .klar
         // Nya mejl kan bära åtaganden. I bakgrunden, och oberoende av
         // bilagorna: tidigare låg anropet sist i bilagehämtningen, bakom en
         // spärr som avbröt när inga bilagor fanns, så rundan uteblev oftast.
         let mejlen = mejl
-        Task { await Uppgiftssamling.frånMejl(mejlen, kund: kund) }
+        Task { await uppgiftsrunda(mejlen, alla: false, val: nil) }
 
+        jobb.steg("hämtar bilagor")
         await hämtaBilagor(adresser)
         mejlLäge = .klar
+        jobb.klart("\(mejl.count) mejl, \(bilagor.count) bilagor")
+    }
+
+    /// Letar åtaganden i mejl, automatiskt efter en hämtning eller på
+    /// beställning för alla. Utfallet blir ett kvitto som syns vid knappen
+    /// och i raden längst ned, oavsett vilken flik man står i.
+    private func uppgiftsrunda(_ mejlen: [Mailen.Mejl], alla: Bool, val: Modellval?) async {
+        guard let jobb = arbeten.starta(
+            .uppgiftsrunda, kund: kund,
+            titel: alla ? "Letar åtaganden i alla mejl" : "Letar åtaganden i nya mejl",
+            beställt: alla, lämnarDatorn: val?.lämnarDatorn ?? false)
+        else { return }
+        let u = await Uppgiftssamling.frånMejl(mejlen, kund: kund, alla: alla, val: val) { i, n in
+            jobb.steg("mejl \(i) av \(n)", andel: Double(i) / Double(n))
+        }
+        if let fel = u.fel {
+            jobb.föll("stannade efter \(u.genomgångna) mejl: \(fel)")
+        } else if u.genomgångna == 0 {
+            jobb.klart(alla ? "Alla mejl med text är redan genomgångna" : "Inga nya mejl att gå igenom",
+                       modell: u.modell.isEmpty ? nil : u.modell)
+        } else {
+            jobb.klart(u.nya == 0
+                       ? "Inga nya åtaganden i \(u.genomgångna) mejl"
+                       : "\(u.nya) nya på tavlan ur \(u.genomgångna) mejl",
+                       modell: u.modell)
+        }
     }
 
     /// Går igenom allt som ligger sparat, äldst först. Ett modellanrop per
     /// mejl, så det tar en stund; framstegen visas i mejlavsnittet.
     private func letaIAllaMejl(val: Modellval?) {
-        guard !mejlrundaPågår else { return }
-        mejlrundaPågår = true
-        mejlrundaBesked = nil
         let mejlen = mejl
-        let var_ = val.map { " via \($0.leverantör.namn)" } ?? ""
-        Task {
-            let u = await Uppgiftssamling.frånMejl(mejlen, kund: kund, alla: true, val: val) { i, n in
-                mejlrundaBesked = "Letar åtaganden i mejl \(i) av \(n)\(var_) …"
-            }
-            mejlrundaPågår = false
-            if let fel = u.fel {
-                mejlrundaBesked = "Stannade efter \(u.genomgångna) mejl: \(fel)"
-            } else if u.genomgångna == 0 {
-                mejlrundaBesked = "Alla mejl med text är redan genomgångna."
-            } else {
-                mejlrundaBesked = (u.nya == 0
-                    ? "Inga nya åtaganden i \(u.genomgångna) mejl"
-                    : "\(u.nya) nya på tavlan under Att göra, ur \(u.genomgångna) mejl")
-                    + " · \(u.modell)."
-            }
-        }
+        Task { await uppgiftsrunda(mejlen, alla: true, val: val) }
     }
 
     private func hämtaBilagor(_ adresser: [String]) async {
         let skript = URL(fileURLWithPath: Bundle.main.bundlePath)
             .appending(path: "Contents/Resources/mail-bilagor.applescript")
         guard FileManager.default.fileExists(atPath: skript.path) else {
-            mejlLäge = .fel("Skriptet som hämtar bilagor saknas i appen.")
+            mejlvarning = "Skriptet som hämtar bilagor saknas i appen."
             return
         }
 
-        mejlLäge = .hämtar("Hämtar bilagor …")
+        if mejl.isEmpty { mejlLäge = .hämtar("Hämtar bilagor …") }
         let mapp = kund.mailmapp.appending(path: "Bilagor")
         var hittade: [Bilagor.Bilaga] = []
         for a in adresser {
@@ -920,8 +985,10 @@ struct Kundinnehåll: View {
                 hittade += try await Bilagor.hämta(adress: a, till: mapp, skript: skript)
             } catch {
                 // Ett tyst misslyckande här var orsaken till att bilagorna
-                // aldrig dök upp: felet syntes ingenstans.
-                mejlLäge = .fel("Bilagorna kunde inte hämtas: \(error.localizedDescription)")
+                // aldrig dök upp: felet syntes ingenstans. Mejlen står kvar;
+                // varningen står ovanför listan.
+                mejlvarning = "Bilagorna kunde inte hämtas: \(error.localizedDescription)"
+                Logg.fel("Bilagor hos \(kund.namn): \(error.localizedDescription)", i: "Kundinnehåll")
                 return
             }
         }
@@ -930,7 +997,7 @@ struct Kundinnehåll: View {
         guard !hittade.isEmpty else { return }
 
         for (i, b) in hittade.enumerated() {
-            mejlLäge = .hämtar("Läser bilaga \(i + 1) av \(hittade.count) — \(b.namn)")
+            if mejl.isEmpty { mejlLäge = .hämtar("Läser bilaga \(i + 1) av \(hittade.count) — \(b.namn)") }
             hittade[i].text = await Bilagor.text(ur: b)
         }
         bilagor = hittade

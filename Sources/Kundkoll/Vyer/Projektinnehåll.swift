@@ -202,15 +202,21 @@ struct Projektinnehåll: View {
     }
 
     private func skrivLäget(automatiskt: Bool = false) {
-        guard !skriverLäget else { return }
+        guard !skriverLäget,
+              let jobb = Arbeten.delad.starta(.lägesbild, kund: kund, titel: "Skriver lägesbild för \(projekt.namn)",
+                                              beställt: !automatiskt)
+        else { return }
         skriverLäget = true
         lägesfel = nil
         Task {
             do {
-                lägesbild = try await Läget.skriv(kund: kund, projekt: projekt, arkiv: arkiv,
-                                                  automatiskt: automatiskt)
+                let bild = try await Läget.skriv(kund: kund, projekt: projekt, arkiv: arkiv,
+                                                 automatiskt: automatiskt)
+                lägesbild = bild
+                jobb.klart("Lägesbilden skriven", modell: bild.modell)
             } catch {
                 lägesfel = error.localizedDescription
+                jobb.föll(error.localizedDescription)
             }
             skriverLäget = false
         }

@@ -108,12 +108,25 @@ actor Whisper {
     /// så länge appen (`förälder`) finns. Dör appen dör servern inom en
     /// sekund; `terminate()` på vakten skickar SIGTERM vidare till barnet.
     static func vakt(förälder: Int32) -> String {
+        // Ett bakgrundsjobb i sh får /dev/null som stdin om inget sägs;
+        // röstanalysen skriver sin förfrågan på stdin, så den lämnas vidare.
         """
-        "$@" & barn=$!
+        exec 3<&0
+        "$@" <&3 & barn=$!
         trap 'kill $barn 2>/dev/null' EXIT TERM INT HUP
         while kill -0 $barn 2>/dev/null && kill -0 \(förälder) 2>/dev/null; do sleep 1; done
         kill $barn 2>/dev/null; wait $barn 2>/dev/null
         """
+    }
+
+    /// Ett program under vakten: dör appen dör programmet. Samma sak som
+    /// servern fick i går, nu för whisper-cli, röstanalysen, MLX och
+    /// kodagenten — de kunde annars arbeta vidare i minuter efter ⌘Q med
+    /// resultat som ingen tog emot.
+    static func underVakt(_ program: URL, _ argument: [String]) -> (URL, [String]) {
+        (URL(fileURLWithPath: "/bin/sh"),
+         ["-c", vakt(förälder: ProcessInfo.processInfo.processIdentifier),
+          "kundkoll-vakt", program.path] + argument)
     }
 
     /// Låter servern stå kvar. Den tar minne men sparar uppstarten nästa gång.
@@ -199,16 +212,15 @@ actor Whisper {
         }
 
         let p = Process()
-        p.executableURL = sökvägar.cli
-        p.currentDirectoryURL = sökvägar.rot
-        p.arguments = [
+        (p.executableURL, p.arguments) = Self.underVakt(sökvägar.cli, [
             "-m", sökvägar.modell(vald).path,
             "-l", språk ?? "auto",
             "-f", fil.path,
             "-oj",                       // JSON bredvid, med tider
             "-of", ut.path,
             "-np",
-        ] + Self.vadflaggor(sökvägar)
+        ] + Self.vadflaggor(sökvägar))
+        p.currentDirectoryURL = sökvägar.rot
 
         let rör = Pipe()
         p.standardOutput = vidFramsteg == nil ? FileHandle.nullDevice : rör

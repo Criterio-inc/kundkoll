@@ -57,6 +57,14 @@ final class Arkivet: ObservableObject {
             .sorted { $0.0.inledd > $1.0.inledd }
     }
 
+    /// En inspelning ur sin mapp, som den ligger på disk just nu. Mötesvyn
+    /// läser om med den när något sparats i bakgrunden, så att den inte
+    /// skriver tillbaka en gammal kopia över arkivtranskriptet.
+    func inspelning(i mapp: URL) -> Inspelning? {
+        guard let data = try? Data(contentsOf: mapp.appending(path: "möte.json")) else { return nil }
+        return try? JSONDecoder.kundkoll.decode(Inspelning.self, from: data)
+    }
+
     /// Inspelningsmappar vars metadata saknas eller inte går att läsa.
     ///
     /// De uppstår om appen stängs eller importen faller mitt i. Ljudet finns

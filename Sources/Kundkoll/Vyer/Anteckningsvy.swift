@@ -225,7 +225,21 @@ struct Anteckningsvy: View {
         let a = anteckning
         guard let kund = arkiv.kunder.first(where: { a.fil.path.hasPrefix($0.mapp.path + "/") })
         else { return }
-        Task { await Uppgiftssamling.frånAnteckning(a, kund: kund) }
+        guard let jobb = Arbeten.delad.starta(.anteckningsrunda, kund: kund, titel: "Letar åtaganden i «\(a.titel)»")
+        else { return }
+        Task {
+            let u = await Uppgiftssamling.frånAnteckning(a, kund: kund)
+            if let fel = u.fel {
+                jobb.föll(fel)
+                meddelande = "Kunde inte leta åtaganden: \(fel)"
+            } else if u.genomgångna == 0 {
+                jobb.klart("Oförändrad sedan sist", modell: u.modell)
+            } else {
+                let text = u.nya == 0 ? "Inga åtaganden i anteckningen" : "\(u.nya) åtaganden lades på tavlan"
+                jobb.klart(text, modell: u.modell)
+                meddelande = text
+            }
+        }
     }
 
     private func byNamn() {

@@ -238,30 +238,43 @@ final class Inspelningssession: ObservableObject {
         let kund = Arkivet.shared.kunder.first { $0.namn == i.kund }
         efterbearbetar = true
         bearbetadMapp = mapp
+        let jobb = kund.flatMap { Arbeten.delad.starta(.efterbearbetning, kund: $0, titel: i.titel) }
         Task { [weak self] in
             guard let self else { return }
             var rader: [Yttrande] = []
+            var transkriptfel: String?
             let spår = [(Röst.jag, "jag.wav"), (Röst.motpart, "motpart.wav")]
             for (n, (röst, fil)) in spår.enumerated() {
                 let url = mapp.appending(path: fil)
                 guard FileManager.default.fileExists(atPath: url.path) else { continue }
                 // Två spår, så varje spår är halva arbetet.
                 let bas = Double(n) / Double(spår.count)
-                if let r = try? await Arkivtranskribering.kör(
-                    fil: url, röst: röst, språk: i.språk ?? "sv", totalLängd: i.längd,
-                    vidFramsteg: { f in
-                        Task { @MainActor in
-                            self.efterbearbetningsandel = bas + f.andel / Double(spår.count)
-                            if !f.senasteRad.isEmpty { self.senasteArkivrad = f.senasteRad }
-                        }
-                    }) {
-                    rader += r
+                do {
+                    rader += try await Arkivtranskribering.kör(
+                        fil: url, röst: röst, språk: i.språk ?? "sv", totalLängd: i.längd,
+                        vidFramsteg: { f in
+                            jobb?.steg("skriver rent", andel: bas + f.andel / Double(spår.count))
+                            Task { @MainActor in
+                                self.efterbearbetningsandel = bas + f.andel / Double(spår.count)
+                                if !f.senasteRad.isEmpty { self.senasteArkivrad = f.senasteRad }
+                            }
+                        })
+                } catch {
+                    // Felet fångades förut med try? och mötet stod kvar som
+                    // «live» utan ett ord. Nu står orsaken i kvittot och notisen.
+                    transkriptfel = error.localizedDescription
                 }
             }
             guard !rader.isEmpty else {
+                let orsak = transkriptfel ?? "renskrivningen hittade inget tal"
+                Logg.fel("Efterbearbetning av «\(i.titel)»: \(orsak)", i: "Inspelningssession")
                 await MainActor.run {
                     self.efterbearbetar = false
                     self.bearbetadMapp = nil
+                    self.varning = "Renskrivningen misslyckades: \(orsak) Livetranskriptet är sparat."
+                    jobb?.föll(orsak)
+                    Notiser.skicka(titel: i.titel, text: "Renskrivningen misslyckades: \(orsak)",
+                                   kund: i.kund, mapp: mapp)
                 }
                 return
             }
@@ -289,8 +302,10 @@ final class Inspelningssession: ObservableObject {
 
             // Det man vill ha ur ett möte är sällan transkriptet utan vad det
             // landade i. Sammanfattningen skrivs sist, när talarna är kända.
-            if let s = try? await Sammanfattare().skriv(för: uppdaterad, kund: uppdaterad.kund,
-                                                        automatiskt: true) {
+            var sammanfattningsfel: String?
+            do {
+                let s = try await Sammanfattare().skriv(för: uppdaterad, kund: uppdaterad.kund,
+                                                        automatiskt: true)
                 uppdaterad.sammanfattning = s
                 let inspelning = uppdaterad
                 await MainActor.run {
@@ -300,12 +315,27 @@ final class Inspelningssession: ObservableObject {
                     // behövs här.
                     Uppgiftssamling.frånMöte(s, inspelning: inspelning, mapp: mapp)
                 }
+            } catch {
+                sammanfattningsfel = error.localizedDescription
+                Logg.fel("Sammanfattning av «\(i.titel)»: \(error.localizedDescription)", i: "Inspelningssession")
             }
+            let klar = uppdaterad
+            let fel = sammanfattningsfel
             await MainActor.run {
                 self.sammanfattar = false
                 self.efterbearbetar = false
                 self.bearbetadMapp = nil
-                Notiser.mötetKlart(uppdaterad, mapp: mapp)
+                if let fel {
+                    self.varning = "Transkriptet är klart, men sammanfattningen misslyckades: \(fel)"
+                    jobb?.föll("sammanfattningen misslyckades: \(fel)")
+                    Notiser.skicka(titel: klar.titel,
+                                   text: "Transkriptet är klart, men sammanfattningen misslyckades: \(fel)",
+                                   kund: klar.kund, mapp: mapp)
+                } else {
+                    let antal = klar.sammanfattning?.åtaganden.count ?? 0
+                    jobb?.klart("Sammanfattad, \(antal) åtaganden", modell: klar.sammanfattning?.modell)
+                    Notiser.mötetKlart(klar, mapp: mapp)
+                }
             }
         }
     }

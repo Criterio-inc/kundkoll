@@ -92,6 +92,13 @@ struct Transkriptvy: View {
         }
         .frame(height: 660)
         .onAppear(perform: läsUppgifter)
+        // Efterbearbetningen skriver möte.json tre gånger i bakgrunden. Vyn
+        // höll förut sin kopia från klicket och skrev tillbaka den över
+        // arkivtranskriptet vid nästa sparning. Nu läser den om från disk.
+        .onChange(of: arkiv.sparningar) {
+            läsUppgifter()
+            if !sammanfattar, !visaRöster, let ny = arkiv.inspelning(i: mapp) { inspelning = ny }
+        }
         .onDisappear { spelare.sluta() }
         .sheet(isPresented: $visaRöster) {
             Röstvy(kund: kund, mapp: mapp, inspelning: inspelning) { inspelning = $0 }

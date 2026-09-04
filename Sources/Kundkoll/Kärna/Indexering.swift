@@ -299,6 +299,7 @@ enum Indexering {
     static func dokumentIBakgrunden(för kund: Kund) {
         guard !dokumentPågår.contains(kund.id) else { return }
         dokumentPågår.insert(kund.id)
+        let jobb = Arbeten.delad.starta(.indexering, kund: kund)
         // Task, inte Task.detached: allt här är huvudaktörsbundet ändå, och
         // varje await släpper aktören så att gränssnittet svarar under tiden.
         Task {
@@ -306,10 +307,18 @@ enum Indexering {
                 dokumentPågår.remove(kund.id)
                 NotificationCenter.default.post(name: .dokumentIndexerade, object: nil)
             }
-            guard let bank = try? Kunskapsbank(kund: kund) else { return }
+            guard let bank = try? Kunskapsbank(kund: kund) else {
+                jobb?.föll("Kunskapsbanken gick inte att öppna"); return
+            }
             _ = try? kör(för: kund, bank: bank)
-            if let r = try? await indexeraDokument(för: kund, bank: bank) {
+            do {
+                let r = try await indexeraDokument(för: kund, bank: bank)
                 senasteUtfall[kund.id] = r
+                jobb?.klart(r.indexerade == 0
+                            ? "Inget nytt bland dokumenten"
+                            : "\(r.indexerade) dokument inlästa" + (r.fällda > 0 ? ", \(r.fällda) gick inte" : ""))
+            } catch {
+                jobb?.föll(error.localizedDescription)
             }
             // Inbäddningen sist: den skriver till samma databas, och att köra
             // den samtidigt var det som knäckte genomgången.

@@ -114,8 +114,7 @@ actor Röstanalys {
         let indata = try JSONEncoder().encode(förfrågan)
 
         let p = Process()
-        p.executableURL = sökvägar.python
-        p.arguments = [sökvägar.skript.path]
+        (p.executableURL, p.arguments) = Whisper.underVakt(sökvägar.python, [sökvägar.skript.path])
         let in_ = Pipe(), ut = Pipe()
         p.standardInput = in_
         p.standardOutput = ut
