@@ -25,7 +25,7 @@ struct Provläge {
 
 enum Provlägen {
     static let alla: [Provläge] = [
-        Provläge("--test", vad: "provsviten, alla enhetsprov") { _ in Tester.kör() },
+        Provläge("--test", vad: "provsviten, alla enhetsprov") { _ in Logg.tyst = true; return Tester.kör() },
         Provläge("--prov-datum", vad: "relativa tidsuttryck → riktiga datum") { _ in
             await Datumprov.kör()
         },
@@ -91,7 +91,8 @@ enum Provlägen {
             rader.append("  \(vänster)\(l.vad)")
         }
         rader.append("")
-        rader.append("Koden är 0 när provet gick, 1 när det föll och 2 vid fel argument.")
+        rader.append("Koden är 0 när provet gick, 1 när det föll, 2 vid fel argument och 124 när")
+        rader.append("provet inte blev klart inom KUNDKOLL_PROVTID sekunder (annars 1800).")
         return rader.joined(separator: "\n")
     }
 

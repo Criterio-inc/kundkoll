@@ -87,6 +87,25 @@ extension Tester {
                       omdöpt.id, "en anteckning i mappen hör till projektet")
         }
 
+        do {   // ett kort som flyttats till ett annat projekt behåller sitt möte
+            let annat = try! arkiv.skapaProjekt(namn: "Annat", hos: kund)
+            var flyttat = arkiv.uppgifter(för: kund).first!
+            flyttat.projektID = annat.id; flyttat.projekt = annat.namn
+            try! arkiv.uppdatera(flyttat, för: kund)
+            let igen = arkiv.uppgifter(för: kund).first { $0.id == flyttat.id }!
+            Prov.lika(igen.källa, "Projekt/Lagret i Viared/Inspelningar/2026-09-01 0900 Byggmöte",
+                      "källan pekar kvar på mötets mapp när kortet bytt projekt för hand")
+        }
+
+        do {   // en mapp som inte går att skriva i får ett stabilt id ur sökvägen
+            let låst = kund.projektmapp.appending(path: "Låst")
+            try! fm.createDirectory(at: låst, withIntermediateDirectories: true)
+            try! fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: låst.path)
+            defer { try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: låst.path) }
+            let a = Projekt.läsID(i: låst), b = Projekt.läsID(i: låst)
+            Prov.kolla(a == b && a.hasPrefix("väg-"), "samma id vid varje läsning fast filen inte kan skrivas")
+        }
+
         do {   // ett kort utan projekt, och ett vars projekt inte finns, rörs inte
             let lösa = [Uppgift(vad: "Ring Bo"), Uppgift(vad: "Gammalt", projekt: "Nedlagt")]
             try! arkiv.sparaUppgifter(lösa, för: kund)

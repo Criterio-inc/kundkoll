@@ -237,7 +237,7 @@ struct Kundinnehåll: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    let kvitton = Arbeten.logg(i: kund.mapp).suffix(2).reversed()
+                    let kvitton = Arbeten.senasteKvitton(i: kund.mapp)
                     ForEach(Array(kvitton)) { k in
                         HStack(spacing: 8) {
                             Image(systemName: k.föll ? "exclamationmark.triangle" : "gearshape.2")

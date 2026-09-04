@@ -165,6 +165,22 @@ final class Arbeten: ObservableObject {
         return k
     }
 
+    /// De senaste kvittona att visa i «Sedan sist», utan upprepningar: två
+    /// dokumentgenomgångar i rad som båda sa «inget nytt» är ett besked, inte
+    /// två. Samma slag med samma utfall räknas en gång, det senaste.
+    static func senasteKvitton(i kundmapp: URL, antal: Int = 2) -> [Kvitto] {
+        var sedda: Set<String> = []
+        var ut: [Kvitto] = []
+        for k in logg(i: kundmapp).reversed() {
+            let nyckel = "\(k.slag.rawValue)|\(k.resultat ?? "")|\(k.fel ?? "")"
+            guard !sedda.contains(nyckel) else { continue }
+            sedda.insert(nyckel)
+            ut.append(k)
+            if ut.count == antal { break }
+        }
+        return ut
+    }
+
     private func skriv(_ k: Kvitto, till kundmapp: URL) {
         var alla = Self.logg(i: kundmapp)
         alla.append(k)

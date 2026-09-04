@@ -4,6 +4,46 @@ extension Tester {
     static func whisper() {
         Prov.svit("Whisper")
 
+        do {   // vakten: barnet dör med föräldern, och lever annars
+            // Ett prov utan whisper: «föräldern» är en sleep som dör efter en
+            // sekund, barnet en sleep som annars skulle leva i en minut.
+            func kör(_ förälder: Int32) -> Process {
+                let p = Process()
+                p.executableURL = URL(fileURLWithPath: "/bin/sh")
+                p.arguments = ["-c", Whisper.vakt(förälder: förälder), "kundkoll-vakt", "/bin/sleep", "60"]
+                p.standardOutput = FileHandle.nullDevice; p.standardError = FileHandle.nullDevice
+                try! p.run()
+                return p
+            }
+            func barnLever(_ vakt: Process) -> Bool {
+                let ps = Process()
+                ps.executableURL = URL(fileURLWithPath: "/bin/ps")
+                ps.arguments = ["-o", "pid=,command=", "-g", "\(vakt.processIdentifier)"]
+                let rör = Pipe(); ps.standardOutput = rör
+                try! ps.run(); ps.waitUntilExit()
+                let ut = String(data: rör.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+                return ut.contains("sleep 60")
+            }
+            let kortlivad = Process()
+            kortlivad.executableURL = URL(fileURLWithPath: "/bin/sleep"); kortlivad.arguments = ["1"]
+            try! kortlivad.run()
+            let vakt = kör(kortlivad.processIdentifier)
+            Thread.sleep(forTimeInterval: 0.4)
+            Prov.kolla(barnLever(vakt), "barnet startar under vakten")
+            kortlivad.waitUntilExit()
+            Thread.sleep(forTimeInterval: 2.5)
+            Prov.kolla(!vakt.isRunning, "vakten avslutar sig när föräldern dött")
+            Prov.kolla(!barnLever(vakt), "och tar barnet med sig, i stället för sexton föräldralösa servrar")
+
+            // Med en levande förälder lever barnet, tills vakten får SIGTERM.
+            let egen = kör(ProcessInfo.processInfo.processIdentifier)
+            Thread.sleep(forTimeInterval: 1.5)
+            Prov.kolla(egen.isRunning && barnLever(egen), "med levande förälder lever barnet vidare")
+            egen.terminate()
+            Thread.sleep(forTimeInterval: 1.0)
+            Prov.kolla(!barnLever(egen), "terminate på vakten dödar barnet")
+        }
+
         do {   // tolkning
             let json = """
             {"transcription":[

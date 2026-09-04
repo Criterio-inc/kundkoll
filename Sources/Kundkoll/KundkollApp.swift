@@ -36,8 +36,17 @@ struct Ingång {
                 kod = 1
             }
         }
+        // Ett prov som hänger, på en server som aldrig svarar, får inte
+        // hänga bygget för evigt: efter taket (KUNDKOLL_PROVTID sekunder,
+        // annars en halvtimme) slutar det med kod 124, som timeout gör.
+        let tak = Double(ProcessInfo.processInfo.environment["KUNDKOLL_PROVTID"] ?? "") ?? 1800
+        let slut = Date().addingTimeInterval(tak)
         while kod == nil {
             RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.1))
+            if Date() > slut {
+                print("\n\(läge.flagga) blev inte klart på \(Int(tak)) sekunder och avbryts.")
+                exit(124)
+            }
         }
         exit(kod ?? 1)
     }

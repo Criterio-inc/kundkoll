@@ -118,11 +118,13 @@ final class Arkivet: ObservableObject {
     }
 
     /// En relativ källa «Projekt/<gammalt namn>/…» följer med när projektet
-    /// bytt namn, så att mötesvyn fortfarande hittar sina kort.
-    private func följMed(källa: String?, till p: Projekt?) -> String? {
+    /// bytt namn, så att mötesvyn fortfarande hittar sina kort. Bara när
+    /// det gamla namnet inte längre finns: ett kort som flyttats för hand
+    /// till ett annat projekt har kvar sitt möte där det ligger.
+    private func följMed(källa: String?, till p: Projekt?, bland projekt: [Projekt]) -> String? {
         guard let källa, let p, källa.hasPrefix("Projekt/"), !källa.hasPrefix("Projekt/\(p.namn)/") else { return nil }
         let delar = källa.split(separator: "/", omittingEmptySubsequences: false)
-        guard delar.count > 2 else { return nil }
+        guard delar.count > 2, !projekt.contains(where: { $0.namn == delar[1] }) else { return nil }
         return (["Projekt", p.namn] + delar.dropFirst(2).map(String.init)).joined(separator: "/")
     }
 
@@ -394,7 +396,7 @@ final class Arkivet: ObservableObject {
                 ändrat = true
             }
             if let r = relativ(u[i].källa, i: kund) { u[i].källa = r; ändrat = true }
-            if let r = följMed(källa: u[i].källa, till: projekt.first { $0.id == u[i].projektID }) {
+            if let r = följMed(källa: u[i].källa, till: projekt.first { $0.id == u[i].projektID }, bland: projekt) {
                 u[i].källa = r
                 ändrat = true
             }

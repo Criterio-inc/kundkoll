@@ -41,6 +41,16 @@ extension Tester {
             arbeten.stängFel(arbeten.fel[0].id)
             Prov.lika(arbeten.fel.count, 0, "och går att stänga")
             Prov.lika(Arbeten.logg(i: kund.mapp).count, 2, "båda kvittona i loggen")
+
+            // «Sedan sist» visar inte samma besked två gånger.
+            for _ in 0..<3 {
+                let h = arbeten.starta(.indexering, kund: kund, titel: "Läser in dokument")!
+                arbeten.avsluta(h.id, resultat: "Inget nytt bland dokumenten", fel: nil, modell: nil)
+            }
+            let senaste = Arbeten.senasteKvitton(i: kund.mapp)
+            Prov.lika(senaste.count, 2, "två kvitton visas")
+            Prov.lika(senaste.filter { $0.slag == .indexering }.count, 1,
+                      "tre likadana dokumentgenomgångar i rad blir ett kvitto")
         }
     }
 }

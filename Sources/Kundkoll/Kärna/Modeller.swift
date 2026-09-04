@@ -44,10 +44,17 @@ struct Projekt: Identifiable, Hashable {
         let nytt = UUID().uuidString
         try? FileManager.default.createDirectory(at: fil.deletingLastPathComponent(),
                                                  withIntermediateDirectories: true)
-        if let data = try? JSONEncoder().encode(Post(id: nytt)) {
-            try? data.write(to: fil, options: .atomic)
+        if let data = try? JSONEncoder().encode(Post(id: nytt)),
+           (try? data.write(to: fil, options: .atomic)) != nil {
+            return nytt
         }
-        return nytt
+        // Går filen inte att skriva (skrivskyddad mapp, en molnmapp som inte
+        // hämtats hem) vore ett nytt slumpat id per läsning värre än inget:
+        // varje länk skulle lossna vid nästa omläsning. Då härleds id:t ur
+        // sökvägen i stället, stabilt tills mappen byter namn.
+        var h: UInt64 = 14_695_981_039_346_656_037
+        for b in mapp.standardizedFileURL.path.utf8 { h = (h ^ UInt64(b)) &* 1_099_511_628_211 }
+        return "väg-" + String(h, radix: 16)
     }
 
     /// Om en mapp (ett möte, en anteckning) ligger i projektet.

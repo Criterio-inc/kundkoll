@@ -9,6 +9,10 @@ enum Logg {
     static let fil = FileManager.default.homeDirectoryForCurrentUser
         .appending(path: "Library/Logs/Kundkoll.log")
 
+    /// Provsviten avslutar jobb med påhittade fel («når inte Mail» hos Acme).
+    /// De ska inte hamna i den riktiga loggen bland Pärs egna kunder.
+    nonisolated(unsafe) static var tyst = false
+
     private static let kö = DispatchQueue(label: "kundkoll.logg")
     private static let stämpel: DateFormatter = {
         let f = DateFormatter()
@@ -18,6 +22,7 @@ enum Logg {
     }()
 
     static func fel(_ text: String, i var_: String) {
+        guard !tyst else { return }
         let rad = "\(stämpel.string(from: Date())) [\(var_)] \(text)\n"
         kö.async {
             guard let data = rad.data(using: .utf8) else { return }
