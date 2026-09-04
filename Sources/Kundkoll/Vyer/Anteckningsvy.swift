@@ -22,6 +22,9 @@ struct Anteckningsvy: View {
     /// Letar åtaganden en stund efter att man slutat skriva.
     @State private var letaJobb: Task<Void, Never>?
     @State private var meddelande: String?
+    /// Filens ändringstid när den lästes in. Skiljer sig den på disk har
+    /// någon annan skrivit filen under tiden.
+    @State private var lästÄndrad = Date.distantPast
 
     var body: some View {
         VStack(spacing: 0) {
@@ -79,7 +82,7 @@ struct Anteckningsvy: View {
                     Text(m).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button("Klar") { spara(); stäng() }
+                Button("Klar") { avsluta(); stäng() }
                     .keyboardShortcut(.defaultAction)
             }
             .padding(16)
@@ -88,8 +91,15 @@ struct Anteckningsvy: View {
         .onAppear {
             titel = anteckning.titel
             text = anteckning.text
+            lästÄndrad = anteckning.ändrad
         }
-        .onDisappear { spara(); leta() }
+        // Tillbaka från Obsidian: har filen ändrats där och inget skrivits
+        // här, läses den nya versionen in.
+        .onReceive(NotificationCenter.default.publisher(
+            for: NSApplication.didBecomeActiveNotification)) { _ in
+            läsOmUtifrån()
+        }
+        .onDisappear { avsluta(); leta() }
     }
 
     private var miniatyrer: some View {
@@ -200,11 +210,37 @@ struct Anteckningsvy: View {
 
     private func spara() {
         guard text != anteckning.text else { return }
-        anteckning.text = text
-        anteckning.ändrad = Date()
-        try? arkiv.spara(anteckning)
+        guard let utfall = try? arkiv.spara(anteckning, text: text, lästÄndrad: lästÄndrad) else { return }
+        switch utfall {
+        case .sparad(let ny), .redanSparad(let ny):
+            anteckning = ny
+            lästÄndrad = ny.ändrad
+        case .ändradUtanför(let påDisk, let kopia):
+            anteckning = påDisk
+            text = påDisk.text
+            lästÄndrad = påDisk.ändrad
+            meddelande = "Ändrad i Obsidian medan den var öppen. Din text ligger i «\(kopia.titel)»."
+        }
         vidÄndring()
         schemaläggLetning()
+    }
+
+    /// Texten och rubriken. Rubriken sparades förut bara med Enter i fältet;
+    /// den som skrev om rubriken och tryckte «Klar» tappade den.
+    private func avsluta() {
+        spara()
+        byNamn()
+    }
+
+    private func läsOmUtifrån() {
+        guard text == anteckning.text,
+              let yttre = arkiv.anteckning(vid: anteckning.fil),
+              yttre.ändrad.timeIntervalSince(lästÄndrad) > 0.5,
+              yttre.text != text else { return }
+        anteckning = yttre
+        text = yttre.text
+        lästÄndrad = yttre.ändrad
+        vidÄndring()
     }
 
     // MARK: - Åtaganden ur anteckningen

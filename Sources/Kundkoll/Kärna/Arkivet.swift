@@ -526,6 +526,54 @@ final class Arkivet: ObservableObject {
         try anteckning.text.write(to: anteckning.fil, atomically: true, encoding: .utf8)
     }
 
+    /// Anteckningen som den ligger på disk just nu.
+    func anteckning(vid url: URL) -> Anteckning? {
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+        return Anteckning(titel: url.deletingPathExtension().lastPathComponent,
+                          text: text, ändrad: Self.ändringstid(url), fil: url)
+    }
+
+    /// Filens ändringstid, läst färskt. `URL.resourceValues` cachar inom ett
+    /// varv i körslingan, och då såg en fil som just skrivits om utifrån
+    /// oförändrad ut.
+    static func ändringstid(_ url: URL) -> Date {
+        (try? FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date) ?? .distantPast
+    }
+
+    enum Sparutfall {
+        /// Skrevs. Bär anteckningen med ny ändringstid.
+        case sparad(Anteckning)
+        /// Filen hade ändrats utanför appen (Obsidian) med annat innehåll.
+        /// Filen lämnades i fred; den egna texten ligger i `kopia`.
+        case ändradUtanför(påDisk: Anteckning, kopia: Anteckning)
+        /// Filen hade ändrats utanför appen till exakt den här texten.
+        case redanSparad(Anteckning)
+    }
+
+    /// Sparar bara om ingen annan skrivit filen sedan den lästes. En
+    /// anteckning är samma fil i appen och i Obsidian; förut skrev appen
+    /// sin kopia tillbaka vid nästa tangenttryck och Obsidians ändring
+    /// försvann. Nu förlorar ingen: vid kollision sparas den egna texten
+    /// bredvid och filens version läses in.
+    func spara(_ anteckning: Anteckning, text: String, lästÄndrad: Date) throws -> Sparutfall {
+        let påDisk = Self.ändringstid(anteckning.fil)
+        if påDisk.timeIntervalSince(lästÄndrad) > 0.5, let yttre = self.anteckning(vid: anteckning.fil) {
+            if yttre.text == text { return .redanSparad(yttre) }
+            if yttre.text != anteckning.text {
+                var kopia = try nyAnteckning(i: anteckning.fil.deletingLastPathComponent(),
+                                             titel: "\(anteckning.titel) (min version)")
+                kopia.text = text
+                try spara(kopia)
+                return .ändradUtanför(påDisk: yttre, kopia: kopia)
+            }
+        }
+        var ny = anteckning
+        ny.text = text
+        try spara(ny)
+        ny.ändrad = Self.ändringstid(ny.fil)
+        return .sparad(ny)
+    }
+
     func taBort(_ anteckning: Anteckning) throws {
         try fm.removeItem(at: anteckning.fil)
     }
