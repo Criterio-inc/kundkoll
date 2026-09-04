@@ -86,39 +86,55 @@ enum Uppgiftssamling {
     /// genomgånget bara om modellen svarade; nådde vi ingen modell provas det
     /// igen nästa gång.
     ///
-    /// Returnerar hur många nya uppgifter som hamnade på tavlan.
+    /// Vad en runda gav: nya kort, hur många mejl som gicks igenom, och
+    /// felet som stoppade den, om något. Ett fel avbryter: når vi inte
+    /// modellen för ett mejl når vi den inte för nästa heller, och ett tyst
+    /// «inga nya» efter åttiofem misslyckade anrop är värre än ett fel.
+    struct Utfall {
+        var nya = 0
+        var genomgångna = 0
+        var fel: String?
+    }
+
     @discardableResult
     static func frånMejl(_ mejl: [Mailen.Mejl], kund: Kund, alla: Bool = false,
-                         framsteg: ((Int, Int) -> Void)? = nil) async -> Int {
+                         framsteg: ((Int, Int) -> Void)? = nil) async -> Utfall {
         var rundor = rundor(kund)
+        var utfall = Utfall()
         let att = attGåIgenom(mejl, redan: rundor.mejl,
                               tak: alla ? nil : 10,
                               sedan: alla ? nil : Date().addingTimeInterval(-30 * 24 * 3600))
-        guard !att.isEmpty else { return 0 }
+        guard !att.isEmpty else { return utfall }
 
         let letare = Uppgiftsletare()
-        var nya = 0
         for (i, m) in att.enumerated() {
             framsteg?(i + 1, att.count)
             let text = "Ämne: \(m.ämne)\nFrån: \(m.avsändarnamn)\n\n\(m.text)"
-            guard let u = try? await letare.leta(
-                i: text,
-                sammanhang: m.skickat ? "ett mejl jag skickat" : "ett mejl jag fått",
-                kund: kund.namn,
-                datum: m.datum ?? Date()) else { continue }
+            let u: [Uppgift]
+            do {
+                u = try await letare.leta(
+                    i: text,
+                    sammanhang: m.skickat ? "ett mejl jag skickat" : "ett mejl jag fått",
+                    kund: kund.namn,
+                    datum: m.datum ?? Date())
+            } catch {
+                utfall.fel = error.localizedDescription
+                return utfall
+            }
+            utfall.genomgångna += 1
             let uppgifter = u.map {
                 Uppgift(vad: $0.vad, vem: $0.vem, när: $0.när, senast: $0.senast,
                         ursprung: .mejl, källtitel: m.ämne, skapad: m.datum ?? Date())
             }
             let före = Arkivet.shared.uppgifter(för: kund).count
             let efter = (try? Arkivet.shared.läggTill(uppgifter, för: kund))?.count ?? före
-            nya += efter - före
+            utfall.nya += efter - före
             rundor.mejl.insert(m.id)
             // Sparas efter varje mejl: en lång runda som avbryts ska inte
             // börja om från början.
             spara(rundor, kund)
         }
-        return nya
+        return utfall
     }
 
     // MARK: - Anteckningar

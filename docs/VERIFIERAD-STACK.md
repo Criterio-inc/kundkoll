@@ -351,6 +351,24 @@ vakten är det som finns. Verifierat: `kill -9` på appen och vanlig avslutning
 tog båda servern med sig inom tre sekunder. Provkörningarna omfattas också.
 Kontroll: `pgrep -fl whisper-server` ska vara tomt när appen inte kör.
 
+## ⚠️ qwen3 tänker högt via Ollamas OpenAI-väg
+
+Uppmätt 2026-09-04 på ett riktigt mejl (643 tecken) genom uppgiftsletaren,
+qwen3:8b via `/v1/chat/completions`:
+
+| kropp | tid | resultat |
+|---|---|---|
+| som förut | 97 s | tomt — tänkandet åt upp `max_tokens`, inga uppgifter |
+| `"think": false` | 43 s | tänkte ändå (`reasoning` i svaret), men svarade |
+| `"reasoning_effort": "none"` | 11,5 s | svar direkt, två uppgifter |
+
+Insikterna under samtal går via `/api/chat` med `"think": false` och har
+aldrig haft problemet; det är OpenAI-vägen som inte lyder `think`. Chatten
+skickar därför `reasoning_effort: none` till lokala modeller. Det var
+anledningen till att den retroaktiva mejlrundan gav noll kort: varje mejl
+tog en och en halv minut och svaret var tomt, och `try?` gömde det.
+Rundan visar nu felet och stannar vid det första i stället för att tiga.
+
 ## Fyra arkivmotorer, uppmätta på samma inspelning
 
 Livetranskriberingen är alltid whisper.cpp — fönstren är sekunder långa och

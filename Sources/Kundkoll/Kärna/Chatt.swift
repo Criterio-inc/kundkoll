@@ -280,6 +280,15 @@ actor Chatt {
             // på att tänka och svara med tomt innehåll.
             kropp["reasoning"] = ["enabled": false]
         }
+        if val.leverantör == .lokal {
+            // qwen3 tänker högt som standard även via Ollamas OpenAI-väg, och
+            // tänkandet åt upp hela max_tokens: ett mejl genom uppgiftsletaren
+            // tog 97 s och gav tomt innehåll. Uppmätt 2026-09-04 på samma mejl:
+            // «think: false» hjälpte inte här (43 s, tänkte ändå), men
+            // «reasoning_effort: none» gav svaret på 11,5 s. Servrar som inte
+            // känner fältet (LM Studio, llama.cpp) bortser från det.
+            kropp["reasoning_effort"] = "none"
+        }
         return try JSONSerialization.data(withJSONObject: kropp)
     }
 

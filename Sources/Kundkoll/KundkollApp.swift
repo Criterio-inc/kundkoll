@@ -89,6 +89,32 @@ struct Ingång {
             }
             exit(kod ?? 1)
         }
+        if let i = CommandLine.arguments.firstIndex(of: "--prov-uppgifter"),
+           i + 1 < CommandLine.arguments.count {
+            // Kör uppgiftsletaren på en textfil och skriver ut vad modellen
+            // svarade, eller felet — det som rundan i appen annars döljer.
+            let fil = CommandLine.arguments[i + 1]
+            nonisolated(unsafe) var kod: Int32? = nil
+            Task { @MainActor in
+                do {
+                    let text = try String(contentsOfFile: fil, encoding: .utf8)
+                    print("Modell: \(Modellval.läs().leverantör.namn) · \(Modellval.läs().modell)")
+                    let t0 = Date()
+                    let letare = Uppgiftsletare()
+                    let u = try await letare.leta(i: text, sammanhang: "ett mejl jag fått",
+                                                  kund: "Provkunden")
+                    print(String(format: "%d uppgifter på %.1f s", u.count, Date().timeIntervalSince(t0)))
+                    for x in u { print("  · \(x.vad)\(x.vem.map { " — \($0)" } ?? "")\(x.när.map { " (\($0))" } ?? "")") }
+                    if u.isEmpty { print("Råsvar:\n\(await letare.senasteSvar)") }
+                    kod = 0
+                } catch {
+                    print("Gick inte: \(error.localizedDescription)")
+                    kod = 1
+                }
+            }
+            while kod == nil { RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.1)) }
+            exit(kod ?? 1)
+        }
         if CommandLine.arguments.contains("--prov-datum") {
             let sem = DispatchSemaphore(value: 0)
             nonisolated(unsafe) var kod: Int32 = 1

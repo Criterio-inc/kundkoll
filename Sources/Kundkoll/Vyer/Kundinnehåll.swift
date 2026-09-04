@@ -848,13 +848,19 @@ struct Kundinnehåll: View {
         mejlrundaBesked = nil
         let mejlen = mejl
         Task {
-            let nya = await Uppgiftssamling.frånMejl(mejlen, kund: kund, alla: true) { i, n in
+            let u = await Uppgiftssamling.frånMejl(mejlen, kund: kund, alla: true) { i, n in
                 mejlrundaBesked = "Letar åtaganden i mejl \(i) av \(n) …"
             }
             mejlrundaPågår = false
-            mejlrundaBesked = nya == 0
-                ? "Inga nya åtaganden i mejlen."
-                : "\(nya) nya på tavlan under Att göra."
+            if let fel = u.fel {
+                mejlrundaBesked = "Stannade efter \(u.genomgångna) mejl: \(fel)"
+            } else if u.genomgångna == 0 {
+                mejlrundaBesked = "Alla mejl med text är redan genomgångna."
+            } else {
+                mejlrundaBesked = u.nya == 0
+                    ? "Inga nya åtaganden i \(u.genomgångna) mejl."
+                    : "\(u.nya) nya på tavlan under Att göra, ur \(u.genomgångna) mejl."
+            }
         }
     }
 

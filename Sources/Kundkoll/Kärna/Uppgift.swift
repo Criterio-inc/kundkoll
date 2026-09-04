@@ -164,8 +164,13 @@ actor Uppgiftsletare {
 
         let svar = try await chatt.fråga(uppdrag, om: kund, projekt: nil,
                                          träffar: [], historik: [])
+        senasteSvar = svar.text
         return Self.tolka(svar.text)
     }
+
+    /// Modellens råa svar från senaste letningen, för provläget: när
+    /// tolkningen ger noll uppgifter vill man se vad som faktiskt kom.
+    private(set) var senasteSvar = ""
 
     static func tolka(_ text: String) -> [Uppgift] {
         var rent = text.trimmingCharacters(in: .whitespacesAndNewlines)
