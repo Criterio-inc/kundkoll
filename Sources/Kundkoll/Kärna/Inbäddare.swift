@@ -15,7 +15,8 @@ actor Inbäddare {
     static let delad = Inbäddare()
     static let modell = "bge-m3"
 
-    private let bas = URL(string: "http://127.0.0.1:11434")!
+    /// Samma server som «Lokal modell» pekar på; standardporten om valet är ett moln.
+    private var bas: URL { Modellval.läs().lokalBas ?? URL(string: "http://127.0.0.1:11434")! }
     private let session: URLSession
     /// Svaret på "finns modellen?", en liten stund. Utan cache skulle varje
     /// fråga börja med ett extra anrop.

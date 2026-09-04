@@ -1544,6 +1544,9 @@ enum Tester {
             Prov.lika(ute.etikett, "Lokal modell · x", "och etiketten döljer det inte")
             let moln = Modellval(leverantör: .anthropic)
             Prov.kolla(moln.lämnarDatorn, "Anthropic lämnar datorn")
+            Prov.lika(moln.lokalBas, nil, "ett moln har ingen lokal server")
+            Prov.lika(Modellval(leverantör: .lokal, adress: "http://192.168.1.5:11434/v1/chat/completions").lokalBas?.absoluteString,
+                      "http://192.168.1.5:11434", "insikter och inbäddning följer adressen under Lokal modell")
             Prov.lika(moln.etikett, "Anthropic · claude-sonnet-5", "molnets etikett")
 
             // En sparad inställning utan leverantör (äldre fil) ska bli lokal.

@@ -22,6 +22,13 @@ PYTHON_VERSION="${KUNDKOLL_PYTHON:-3.12}"
 # Stämmer inte filnamnet längre: öppna sidan och rätta här.
 KB_SMALL="https://huggingface.co/KBLab/kb-whisper-small/resolve/main/ggml-model.bin"
 KB_MEDIUM="https://huggingface.co/KBLab/kb-whisper-medium/resolve/main/ggml-model.bin"
+# Kontrollsummor för filerna som appen är uppmätt med (2026-09-04). En fil
+# som inte stämmer kastas: den koden körs sedan på varje mötes ljud.
+SHA_KB_SMALL="de6911330cbdc131362f7a955682b65c8a5a2394caba73e7ea821a9822efb8c6"
+SHA_KB_MEDIUM="1b7842bc1c3f79fb3bf043a0a3590961d625a49ef3ccbdceb00e738c5dd8b015"
+SHA_SILERO="29940d98d42b91fbd05ce489f3ecf7c72f0a42f027e4875919a28fb4c04ea2cf"
+# whisper.cpp låses till en tagg; nyare finns, men den här är uppmätt.
+WHISPER_TAGG="v1.9.3"
 
 MED_OLLAMA=0
 BARA_KONTROLL=0
@@ -137,8 +144,10 @@ steg "whisper.cpp"
 mkdir -p "$(dirname "$WHISPER")"
 if [ ! -d "$WHISPER/.git" ]; then
     git clone https://github.com/ggml-org/whisper.cpp "$WHISPER"
+    (cd "$WHISPER" && git checkout --quiet "$WHISPER_TAGG")
+    ok "whisper.cpp $WHISPER_TAGG"
 else
-    ok "redan klonat"
+    ok "redan klonat ($(cd "$WHISPER" && git describe --tags --always))"
 fi
 if [ -x "$WHISPER/build/bin/whisper-cli" ] && [ -x "$WHISPER/build/bin/whisper-server" ]; then
     ok "redan byggt"
@@ -149,8 +158,8 @@ else
     ok "whisper-cli och whisper-server byggda"
 fi
 
-hamta() {  # hamta <url> <fil>
-    local url="$1" fil="$2"
+hamta() {  # hamta <url> <fil> <sha256>
+    local url="$1" fil="$2" sha="$3"
     if [ -s "$fil" ]; then ok "$(basename "$fil") finns"; return; fi
     echo "  hämtar $(basename "$fil") …"
     if ! curl -L --fail --progress-bar -o "$fil.del" "$url"; then
@@ -159,11 +168,19 @@ hamta() {  # hamta <url> <fil>
         echo "  Öppna modellsidan i webbläsaren, se vad ggml-filen heter, och rätta adressen överst i $0." >&2
         return 1
     fi
+    local fick
+    fick="$(shasum -a 256 "$fil.del" | cut -c1-64)"
+    if [ -n "$sha" ] && [ "$fick" != "$sha" ]; then
+        rm -f "$fil.del"
+        echo "  $(basename "$fil") har fel kontrollsumma ($fick). Filen kastades." >&2
+        echo "  Har KBLab lagt upp en ny version: rätta summan överst i $0 efter att ha kontrollerat den." >&2
+        return 1
+    fi
     mv "$fil.del" "$fil"
 }
 mkdir -p "$WHISPER/models"
-hamta "$KB_SMALL"  "$WHISPER/models/kb_whisper_ggml_small.bin"
-hamta "$KB_MEDIUM" "$WHISPER/models/kb_whisper_ggml_medium.bin"
+hamta "$KB_SMALL"  "$WHISPER/models/kb_whisper_ggml_small.bin"  "$SHA_KB_SMALL"
+hamta "$KB_MEDIUM" "$WHISPER/models/kb_whisper_ggml_medium.bin" "$SHA_KB_MEDIUM"
 if [ -s "$WHISPER/models/ggml-silero-v5.1.2.bin" ]; then
     ok "ggml-silero-v5.1.2.bin finns"
 else
@@ -186,16 +203,18 @@ fi
 echo "  installerar torch, speechbrain, pyannote (tar en stund första gången)"
 # pyannote 3.x och 4.x fungerar båda med speaker-diarization-3.1, som appen
 # använder. speechbrain 1.0.3 + nyare huggingface_hub hanteras i rostanalys.py.
+# Versionerna är de appen är uppmätt med (2026-09-04). Ett paket som byts ut
+# på vägen får läsa alla ljudfiler; låsta versioner gör bytet synligt.
 "$VENV/bin/pip" install --quiet \
-    torch torchaudio numpy huggingface_hub \
-    "speechbrain>=1.0" "pyannote.audio>=3.3,<5"
+    torch==2.14.0 torchaudio==2.11.0 numpy==2.5.2 huggingface_hub==1.30.0 \
+    speechbrain==1.1.1 pyannote.audio==4.0.7
 ok "röstanalysens paket"
 
 # MLX-whisper behövs bara för engelska möten (KB-Whisper översätter dem till
 # svenska). Går installationen fel stannar det här inte allt annat.
 if [ -x "$VENV/bin/mlx_whisper" ]; then
     ok "mlx_whisper finns"
-elif "$VENV/bin/pip" install --quiet mlx-whisper; then
+elif "$VENV/bin/pip" install --quiet mlx-whisper==0.4.3; then
     ok "mlx_whisper (engelska möten)"
 else
     brist "mlx-whisper gick inte att installera — engelska möten får gå via en molnmotor. Se docs/INSTALLATION.md."

@@ -77,7 +77,10 @@ else
     else
         echo "  (inget certifikat angivet i KUNDKOLL_SIGNERING — signerar ad hoc, behörigheter kan behöva ges om vid varje bygge)"
     fi
-    codesign --force --deep --sign - \
+    # Hardened runtime fungerar även ad hoc och kostar inget: utan den kan
+    # ett annat program på datorn ladda kod i appen och ärva dess tillstånd
+    # till mikrofon, Mail och kalender.
+    codesign --force --deep --options runtime --sign - \
         --entitlements Resources/Kundkoll.entitlements "$APP"
 fi
 

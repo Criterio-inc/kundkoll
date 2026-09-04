@@ -36,8 +36,13 @@ actor Insikter {
     private let adress: URL
     private let session: URLSession
 
+    /// Ollamas adress ur modellvalet när det är lokalt, annars standardporten.
+    static var bas: URL {
+        Modellval.läs().lokalBas ?? URL(string: "http://127.0.0.1:11434")!
+    }
+
     init(modell: String = Inställningar.insiktsmodell,
-         adress: URL = URL(string: "http://127.0.0.1:11434/api/chat")!) {
+         adress: URL = Insikter.bas.appending(path: "api/chat")) {
         self.modell = modell
         self.adress = adress
         let k = URLSessionConfiguration.ephemeral
@@ -73,7 +78,7 @@ actor Insikter {
 
     var tillgänglig: Bool {
         get async {
-            var r = URLRequest(url: URL(string: "http://127.0.0.1:11434/api/tags")!)
+            var r = URLRequest(url: adress.deletingLastPathComponent().appending(path: "tags"))
             r.timeoutInterval = 2
             return (try? await session.data(for: r)) != nil
         }

@@ -125,6 +125,16 @@ struct Modellval: Codable, Hashable {
     /// Lämnar materialet datorn med det här valet?
     var lämnarDatorn: Bool { !ärLokalAdress }
 
+    /// Servern bakom «Lokal modell», utan sökväg: det insikterna och
+    /// inbäddningen frågar via Ollamas eget API. Stod förut inskrivet som
+    /// 127.0.0.1:11434 på fem ställen, så adressfältet gällde bara chatten.
+    var lokalBas: URL? {
+        guard leverantör == .lokal, let u = url,
+              var d = URLComponents(url: u, resolvingAgainstBaseURL: false) else { return nil }
+        d.path = ""; d.query = nil
+        return d.url
+    }
+
     /// Att visa där valet får verkan: «Lokalt · qwen3:8b», «Anthropic · claude-sonnet-5».
     var etikett: String {
         let m = modell.isEmpty ? "distributionen i adressen" : modell
