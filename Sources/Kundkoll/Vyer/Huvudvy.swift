@@ -306,7 +306,7 @@ struct Huvudvy: View {
     }
 
     private func starta(kund: Kund) {
-        Inspelningsfönster.öppna(kund: kund, projekt: val?.projekt, möte: nil)
+        Inspelningsfönster.öppna(kund: kund, projekt: val?.projekt ?? arkiv.standardprojekt(för: kund), möte: nil)
     }
 
     // MARK: - Ny kund

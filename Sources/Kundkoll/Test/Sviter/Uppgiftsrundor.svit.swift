@@ -99,12 +99,37 @@ extension Tester {
         let knutna = Uppgiftssamling.knyt(tolkade, till: arkiv.projekt(för: kund))
         Prov.lika(knutna[0].projektID, lager.id, "ett namn som matchar, oavsett versaler, ger kortet projektets id")
         Prov.lika(knutna[0].projekt, "Nytt lager", "och projektets riktiga stavning")
-        Prov.kolla(knutna[1].projekt == nil && knutna[1].projektID == nil, "ett påhittat projekt tas bort")
-        Prov.kolla(knutna[2].projektID == nil, "utan projekt förblir kortet kundens")
+        Prov.lika(knutna[1].projekt, "Nytt lager", "ett påhittat projektnamn byts mot det riktiga")
+        Prov.lika(knutna[2].projektID, lager.id, "med ett enda projekt landar även ett kort utan angivet projekt där")
+        Prov.lika(knutna[1].projektID, lager.id, "och det med påhittat namn likaså")
+
+        // Med två projekt får modellen välja, och det oplacerade stannar hos kunden.
+        try! arkiv.skapaProjekt(namn: "Föreläsningsserie", hos: kund)
+        let två = Uppgiftssamling.knyt(tolkade, till: arkiv.projekt(för: kund))
+        Prov.lika(två[0].projektID, lager.id, "namnet avgör när det finns flera")
+        Prov.kolla(två[1].projektID == nil && två[2].projektID == nil, "det utan träff förblir kundens")
+        Prov.kolla(arkiv.standardprojekt(för: kund) == nil, "med två projekt finns inget standardprojekt")
 
         Prov.lika(Mailen.förhandsrad("Hej Pär,\n\nKan du skicka offerten?\n\nMvh"), "Kan du skicka offerten?",
                   "förhandsraden hoppar över hälsningen")
         Prov.lika(Mailen.förhandsrad("> citerat\n"), nil, "citat räknas inte")
         Prov.kolla(Mailen.förhandsrad(String(repeating: "x", count: 200))!.hasSuffix("…"), "långa rader kapas")
+    }
+
+    static func ensamtProjekt() {
+        Prov.svit("Ett enda uppdrag är standard")
+        let (arkiv, rot) = tillfälligt()
+        defer { try? FileManager.default.removeItem(at: rot) }
+        let kund = try! arkiv.skapaKund(namn: "Borås")
+        try! Data(#"[{"vad":"Svara på frågan om lådor"},{"vad":"Gammalt","projekt":"Nedlagt"}]"#.utf8)
+            .write(to: kund.mapp.appending(path: "uppgifter.json"))
+        Prov.kolla(arkiv.uppgifter(för: kund).allSatisfy { $0.projektID == nil }, "utan projekt är korten kundens")
+
+        let uppdrag = try! arkiv.skapaProjekt(namn: "Informationshantering i M365", hos: kund)
+        Prov.lika(arkiv.standardprojekt(för: kund)?.id, uppdrag.id, "det enda projektet är standard")
+        let kort = arkiv.uppgifter(för: kund)
+        Prov.lika(kort[0].projektID, uppdrag.id, "ett löst kort landar i uppdraget vid nästa läsning")
+        Prov.lika(kort[0].projekt, "Informationshantering i M365", "med namnet som etikett")
+        Prov.kolla(kort[1].projektID == nil && kort[1].projekt == "Nedlagt", "ett kort med ett okänt projektnamn rörs inte")
     }
 }

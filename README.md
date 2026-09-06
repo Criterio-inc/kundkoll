@@ -307,6 +307,13 @@ kalenderkopplingar och lägesbild pekar på id:t, så mappen kan byta namn i
 Finder utan att något lossnar. Möten och anteckningar hör till det projekt de
 ligger i. Namnen i filerna är etiketter som appen fräschar upp vid läsning.
 
+Kund är relationen, projekt är ett betalt uppdrag. Har kunden ett enda
+projekt är det standard: kort ur mejl och anteckningar, nya kort på kundens
+tavla, inspelningar och importer landar där utan att du väljer. Kundens
+tavla och anteckningar visar ändå allt. Den dag ett andra projekt skapas
+får modellen välja projekt per kort bland kundens riktiga projektnamn, och
+det den inte kan placera stannar hos kunden tills du drar det.
+
 ## Krav
 
 Steg för steg i `docs/INSTALLATION.md`; `scripts/installera.sh` sätter upp

@@ -111,7 +111,8 @@ struct Kundinnehåll: View {
         .sheet(isPresented: $visaNyttProjekt) { nyttProjektBlad }
         .sheet(isPresented: $visaKontakter) { Kontaktvy(kund: kund).onDisappear(perform: läsOm) }
         .sheet(isPresented: $visaImport) {
-            Importvy(kund: kund, projekt: projekt, förvald: släpptFil, vidKlar: läsOm)
+            Importvy(kund: kund, projekt: projekt, förvald: släpptFil,
+                     förvaltProjekt: arkiv.standardprojekt(för: kund), vidKlar: läsOm)
         }
         .sheet(item: $öppnad) { v in
             Transkriptvy(kund: kund, inspelning: v.inspelning, mapp: v.mapp)
@@ -348,7 +349,7 @@ struct Kundinnehåll: View {
                             // Mötet bär titel, deltagare och sitt valda
                             // projekt. Mikrofonen är den som användes sist.
                             Inspelningsfönster.öppna(kund: kund,
-                                                     projekt: kopplatProjekt(m),
+                                                     projekt: kopplatProjekt(m) ?? arkiv.standardprojekt(för: kund),
                                                      möte: m)
                         }
                         .buttonStyle(.borderless)

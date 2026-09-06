@@ -42,7 +42,7 @@ struct Briefingvy: View {
                 if let möte {
                     Button {
                         stäng()
-                        Inspelningsfönster.öppna(kund: kund, projekt: nil, möte: möte)
+                        Inspelningsfönster.öppna(kund: kund, projekt: brief?.projekt ?? arkiv.standardprojekt(för: kund), möte: möte)
                     } label: {
                         Label("Spela in mötet", systemImage: "record.circle")
                     }

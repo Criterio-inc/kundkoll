@@ -77,6 +77,15 @@ final class Arkivet: ObservableObject {
 
     // MARK: - Namn är etiketter, id och läge är nycklar
 
+    /// Kundens enda projekt, när det bara finns ett. Kund är relationen,
+    /// projekt är ett betalt uppdrag; med ett enda uppdrag finns inget att
+    /// välja mellan, så det som kommer in landar där av sig självt. Den dag
+    /// ett andra projekt skapas upphör det, och modellen får välja per kort.
+    func standardprojekt(för kund: Kund) -> Projekt? {
+        let alla = projekt(för: kund)
+        return alla.count == 1 ? alla[0] : nil
+    }
+
     /// Kunden en mapp ligger hos.
     func kund(innehållande url: URL) -> Kund? {
         let väg = Self.väg(url)
@@ -389,10 +398,16 @@ final class Arkivet: ObservableObject {
         // och en gammal absolut källa blir relativ. Skrivs tillbaka utan att
         // räknaren rör sig: det här är läsning, inte en ändring att lyssna på.
         let projekt = projekt(för: kund)
+        let ensamt = projekt.count == 1 ? projekt[0] : nil
         var ändrat = false
         for i in u.indices {
             if let nytt = knyt(namn: u[i].projekt, id: u[i].projektID, bland: projekt) {
                 (u[i].projekt, u[i].projektID) = nytt
+                ändrat = true
+            }
+            // Med ett enda projekt hör kundens lösa kort dit.
+            if u[i].projektID == nil, u[i].projekt == nil, let p = ensamt {
+                (u[i].projekt, u[i].projektID) = (p.namn, p.id)
                 ändrat = true
             }
             if let r = relativ(u[i].källa, i: kund) { u[i].källa = r; ändrat = true }

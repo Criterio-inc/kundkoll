@@ -15,6 +15,7 @@ enum Tester {
         betydelse()
         briefing()
         diagnos()
+        ensamtProjekt()
         förslag()
         indexetFöljerFilerna()
         inspelningensFelvägar()

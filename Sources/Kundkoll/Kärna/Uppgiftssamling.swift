@@ -227,10 +227,14 @@ enum Uppgiftssamling {
     /// som inte är något av kundens projekt tas bort, så ett påhittat
     /// projekt inte fastnar på kortet.
     static func knyt(_ uppgifter: [Uppgift], till projekt: [Projekt]) -> [Uppgift] {
-        uppgifter.map { u in
+        let ensamt = projekt.count == 1 ? projekt[0] : nil
+        return uppgifter.map { u in
             var k = u
             if let namn = u.projekt,
                let p = projekt.first(where: { $0.namn.compare(namn, options: .caseInsensitive) == .orderedSame }) {
+                k.projekt = p.namn; k.projektID = p.id
+            } else if let p = ensamt {
+                // Ett enda uppdrag: dit, utan att modellen behöver säga det.
                 k.projekt = p.namn; k.projektID = p.id
             } else {
                 k.projekt = nil; k.projektID = nil
