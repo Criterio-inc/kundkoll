@@ -43,7 +43,7 @@ struct Minveckavy: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(Stil.botten)
-        .onAppear(perform: läsOm)
+        .onAppear { läsOm(); Komigång.markera("minVecka") }
         // Ett kort som bockats av i mötesvyn, eller kommit ur en mejlrunda,
         // ska synas här utan att man klickar bort och tillbaka.
         .onChange(of: arkiv.sparningar) { läsOm() }

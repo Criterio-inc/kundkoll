@@ -20,7 +20,8 @@ actor Mailen {
     /// Första meningen i brödtexten, för listan: ämnesraden säger sällan
     /// vad som stod. Hälsningsfraser hoppas över.
     static func förhandsrad(_ text: String) -> String? {
-        let rader = text.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+        // Mail levererar radbrytningar som \r lika gärna som \n.
+        let rader = text.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty && !$0.hasPrefix(">") }
         let hälsning = ["hej", "hallå", "god morgon", "goddag", "tjena"]
         guard let rad = rader.first(where: { r in

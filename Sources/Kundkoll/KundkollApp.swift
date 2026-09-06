@@ -133,6 +133,11 @@ struct Kundkoll: App {
                 }
                 .keyboardShortcut(",", modifiers: .command)
             }
+            CommandGroup(replacing: .help) {
+                Button("Kom igång med Kundkoll") {
+                    NotificationCenter.default.post(name: .komIgång, object: nil)
+                }
+            }
         }
     }
 }
@@ -145,4 +150,8 @@ extension Notification.Name {
     /// Skickas när ett notisklick vill öppna en kund; objektet är kundnamnet
     /// och userInfo kan bära mötets id för en briefing.
     static let öppnaKund = Notification.Name("kundkoll.öppnaKund")
+    /// Sidan «Kom igång», från Hjälp-menyn.
+    static let komIgång = Notification.Name("kundkoll.komIgång")
+    /// Byter flik i kundvyn; objektet är flikens råvärde («mail», «attGöra»).
+    static let visaFlik = Notification.Name("kundkoll.visaFlik")
 }

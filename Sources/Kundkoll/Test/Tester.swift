@@ -18,6 +18,7 @@ enum Tester {
         ensamtProjekt()
         förslag()
         indexetFöljerFilerna()
+        komIgång()
         inspelningensFelvägar()
         kontaktOchRöstprofil()
         kontaktbilder()

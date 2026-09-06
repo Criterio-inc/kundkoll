@@ -144,6 +144,9 @@ struct Kundinnehåll: View {
         .task(id: kund.id) { await visaMejl() }
         // Ett nyinbokat eller flyttat möte ska synas direkt.
         .onChange(of: kalender.ändringar) { Task { await hämtaMöten() } }
+        .onReceive(NotificationCenter.default.publisher(for: .visaFlik)) { n in
+            if let råvärde = n.object as? String, let f = Flik(rawValue: råvärde) { flik = f }
+        }
         // Och när man kommer tillbaka till appen efter att ha varit någon
         // annanstans är det troligt att något hänt.
         .onReceive(NotificationCenter.default.publisher(

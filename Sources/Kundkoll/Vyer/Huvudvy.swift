@@ -15,6 +15,8 @@ struct Huvudvy: View {
     @EnvironmentObject private var kalender: Kalendern
 
     @State private var val: Val?
+    /// Bottenradens höjd, som rullningsytorna i kolumnerna får som marginal.
+    @State private var bottenhöjd: CGFloat = 0
     @State private var visaChatt = false
     @State private var visaNyKund = false
     @State private var nyttKundnamn = ""
@@ -43,6 +45,7 @@ struct Huvudvy: View {
 
     /// Vad som är valt i sidopanelen.
     enum Val: Hashable {
+        case komIgång
         case minVecka
         case kund(Kund)
         case projekt(Projekt)
@@ -63,6 +66,7 @@ struct Huvudvy: View {
         } detail: {
             HStack(spacing: 0) {
                 innehåll
+                    .contentMargins(.bottom, bottenhöjd, for: .scrollContent)
                 if visaChatt, let kund = valdKund {
                     Divider()
                     Chattpanel(kund: kund, projekt: val?.projekt)
@@ -81,6 +85,10 @@ struct Huvudvy: View {
                 Arbetsrad()
                 Tidursrad()
             }
+            // Insatsen når inte in i kolumnerna på macOS: raden lade sig
+            // över slutet av kundens sida («Bilagor» stod halvt bakom den).
+            // Höjden mäts och ges som marginal till rullningsytorna nedan.
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { bottenhöjd = $0 }
         }
         .sheet(isPresented: $visaSök) {
             Sökvy { kund in val = .kund(kund) }
@@ -108,6 +116,14 @@ struct Huvudvy: View {
                                projekt: arkiv.projekt(för: v.kund), vidSparat: {})
         }
         .onReceive(NotificationCenter.default.publisher(for: .palett)) { _ in visaPalett = true }
+        .onReceive(NotificationCenter.default.publisher(for: .komIgång)) { _ in
+            Komigång.dold = false
+            val = .komIgång
+        }
+        // Första gången, och tills stegen är gjorda, öppnar appen på «Kom igång».
+        .onAppear {
+            if val == nil, Komigång.visasISidopanelen(arkiv: arkiv) { val = .komIgång }
+        }
         .sheet(item: $briefing) { v in
             Briefingvy(kund: v.kund, möte: v.möte) { m in
                 palettMöte = Palettmöte(kund: v.kund, möte: m)
@@ -182,7 +198,7 @@ struct Huvudvy: View {
         switch val {
         case .kund(let k): k
         case .projekt(let p): arkiv.kunder.first { $0.namn == p.kundnamn }
-        case .minVecka, nil: nil
+        case .minVecka, .komIgång, nil: nil
         }
     }
 
@@ -190,6 +206,17 @@ struct Huvudvy: View {
 
     private var sidopanel: some View {
         List(selection: $val) {
+            if Komigång.visasISidopanelen(arkiv: arkiv) {
+                let steg = Komigång.steg(arkiv: arkiv)
+                HStack {
+                    Label("Kom igång", systemImage: "flag")
+                    Spacer()
+                    Text("\(steg.filter(\.klar).count) av \(steg.count)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                .tag(Val.komIgång)
+            }
             Label("Min vecka", systemImage: "calendar.badge.checkmark")
                 .tag(Val.minVecka)
             ForEach(arkiv.kunder) { kund in
@@ -256,6 +283,8 @@ struct Huvudvy: View {
             }
         case .minVecka:
             Minveckavy()
+        case .komIgång:
+            Komigångvy(visa: visa)
         case nil:
             ContentUnavailableView("Välj en kund", systemImage: "person.2")
         }
@@ -302,6 +331,28 @@ struct Huvudvy: View {
                     Label("Mer", systemImage: "ellipsis.circle")
                 }
             }
+        }
+    }
+
+    /// «Visa mig» på Kom igång-sidan: dit det händer.
+    private func visa(_ mål: Komigång.Mål) {
+        switch mål {
+        case .nyKund:
+            visaNyKund = true
+        case .kund(let kund, let flik):
+            val = .kund(kund)
+            if let flik {
+                // Kundvyn hinner inte lyssna förrän den finns; en tick senare.
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(name: .visaFlik, object: flik)
+                }
+            }
+        case .spelaIn(let kund):
+            starta(kund: kund)
+        case .minVecka:
+            val = .minVecka
+        case .inställningar:
+            visaNyckel = true
         }
     }
 
