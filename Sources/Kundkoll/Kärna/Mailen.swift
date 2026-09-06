@@ -17,6 +17,19 @@ actor Mailen {
     /// tidigare sparade filer slutar gå att läsa, och felet syns bara som att
     /// ingenting händer. Det inträffade när brödtexten lades till: hela
     /// mejlcachen blev oläsbar och bilagorna hämtades aldrig.
+    /// Första meningen i brödtexten, för listan: ämnesraden säger sällan
+    /// vad som stod. Hälsningsfraser hoppas över.
+    static func förhandsrad(_ text: String) -> String? {
+        let rader = text.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && !$0.hasPrefix(">") }
+        let hälsning = ["hej", "hallå", "god morgon", "goddag", "tjena"]
+        guard let rad = rader.first(where: { r in
+            let l = r.lowercased()
+            return !hälsning.contains { l.hasPrefix($0) } || r.count > 40
+        }) else { return nil }
+        return rad.count > 140 ? String(rad.prefix(140)) + "…" : rad
+    }
+
     struct Mejl: Identifiable, Hashable, Codable {
         var id: String { meddelandeID.isEmpty ? "\(String(describing: datum))-\(ämne)" : meddelandeID }
         var datum: Date?

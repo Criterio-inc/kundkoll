@@ -58,6 +58,25 @@ struct Kanbanvy: View {
                 }
             }
 
+            if let projekt {
+                let lösa = uppgifter.filter { $0.projektID == nil && $0.läge != .klart }
+                if !lösa.isEmpty {
+                    HStack(spacing: 8) {
+                        Text("\(lösa.count) öppna kort hos \(kund.namn) hör inte till något projekt; de syns på kundens tavla.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Button("Lägg alla i \(projekt.namn)") {
+                            var alla = uppgifter
+                            for i in alla.indices where lösa.contains(where: { $0.id == alla[i].id }) {
+                                alla[i].projekt = projekt.namn; alla[i].projektID = projekt.id
+                            }
+                            try? arkiv.sparaUppgifter(alla, för: kund)
+                            läsOm()
+                        }
+                        .buttonStyle(.link).font(.caption)
+                    }
+                }
+            }
+
             HStack(spacing: 8) {
                 TextField("Lägg till något att göra", text: $ny)
                     .textFieldStyle(.roundedBorder)

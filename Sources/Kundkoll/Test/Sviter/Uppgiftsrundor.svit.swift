@@ -84,3 +84,27 @@ extension Tester {
         }
     }
 }
+
+extension Tester {
+    static func projektUrRundan() {
+        Prov.svit("Kort får projekt ur rundan")
+        let (arkiv, rot) = tillfälligt()
+        defer { try? FileManager.default.removeItem(at: rot) }
+        let kund = try! arkiv.skapaKund(namn: "Acme")
+        let lager = try! arkiv.skapaProjekt(namn: "Nytt lager", hos: kund)
+
+        let svar = #"{"uppgifter":[{"vad":"Beställ hyllor","vem":"jag","när":null,"senast":null,"projekt":"nytt lager"},{"vad":"Ring Bo","vem":"jag","projekt":"Påhittat projekt"},{"vad":"Skicka faktura","vem":"jag","projekt":null}]}"#
+        let tolkade = Uppgiftsletare.tolka(svar)!
+        Prov.lika(tolkade.map(\.projekt), ["nytt lager", "Påhittat projekt", nil], "modellens projektnamn läses in")
+        let knutna = Uppgiftssamling.knyt(tolkade, till: arkiv.projekt(för: kund))
+        Prov.lika(knutna[0].projektID, lager.id, "ett namn som matchar, oavsett versaler, ger kortet projektets id")
+        Prov.lika(knutna[0].projekt, "Nytt lager", "och projektets riktiga stavning")
+        Prov.kolla(knutna[1].projekt == nil && knutna[1].projektID == nil, "ett påhittat projekt tas bort")
+        Prov.kolla(knutna[2].projektID == nil, "utan projekt förblir kortet kundens")
+
+        Prov.lika(Mailen.förhandsrad("Hej Pär,\n\nKan du skicka offerten?\n\nMvh"), "Kan du skicka offerten?",
+                  "förhandsraden hoppar över hälsningen")
+        Prov.lika(Mailen.förhandsrad("> citerat\n"), nil, "citat räknas inte")
+        Prov.kolla(Mailen.förhandsrad(String(repeating: "x", count: 200))!.hasSuffix("…"), "långa rader kapas")
+    }
+}

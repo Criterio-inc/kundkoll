@@ -5,6 +5,9 @@ import AppKit
 struct Anteckningslista: View {
     let mapp: URL
     var rubrik = "Anteckningar"
+    /// Projektens anteckningsmappar, när listan står hos kunden: de visas
+    /// också, märkta med projektet. Nya anteckningar hamnar i `mapp`.
+    var projektmappar: [(namn: String, mapp: URL)] = []
 
     @EnvironmentObject private var arkiv: Arkivet
     @State private var anteckningar: [Anteckning] = []
@@ -46,7 +49,7 @@ struct Anteckningslista: View {
             }
         }
         .sheet(item: $öppen) { a in
-            Anteckningsvy(anteckning: a, mapp: mapp, vidÄndring: läsOm)
+            Anteckningsvy(anteckning: a, mapp: a.fil.deletingLastPathComponent(), vidÄndring: läsOm)
         }
         .sheet(isPresented: $visaNy) { nyttBlad }
         .onAppear(perform: läsOm)
@@ -64,6 +67,7 @@ struct Anteckningslista: View {
                 .foregroundStyle(.secondary)
             }
             Spacer()
+            if let p = projektnamn(a) { Märke(text: p, ikon: "folder") }
             if !a.bilder.isEmpty {
                 Label("\(a.bilder.count)", systemImage: "photo")
                     .font(.caption)
@@ -99,5 +103,13 @@ struct Anteckningslista: View {
         öppen = ny
     }
 
-    private func läsOm() { anteckningar = arkiv.anteckningar(i: mapp) }
+    private func läsOm() {
+        anteckningar = (arkiv.anteckningar(i: mapp) + projektmappar.flatMap { arkiv.anteckningar(i: $0.mapp) })
+            .sorted { $0.ändrad > $1.ändrad }
+    }
+
+    /// Projektet en anteckning ligger i, när listan står hos kunden.
+    private func projektnamn(_ a: Anteckning) -> String? {
+        projektmappar.first { a.fil.standardizedFileURL.path.hasPrefix($0.mapp.standardizedFileURL.path + "/") }?.namn
+    }
 }

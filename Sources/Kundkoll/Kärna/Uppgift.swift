@@ -217,9 +217,17 @@ actor Uppgiftsletare {
     ///
     /// Mötena behöver inte gå den här vägen: deras åtaganden står redan i
     /// sammanfattningen.
-    func leta(i text: String, sammanhang: String, kund: String,
+    func leta(i text: String, sammanhang: String, kund: String, projekt: [String] = [],
               datum: Date = Date(), automatiskt: Bool = false) async throws -> [Uppgift] {
         guard text.count > 60 else { return [] }
+
+        // Kundens projekt, så att kortet kan hamna på rätt tavla direkt.
+        let projektdel = projekt.isEmpty ? "" : """
+
+        Kunden har projekten: \(projekt.map { "«\($0)»" }.joined(separator: ", ")). \
+        "projekt" är projektets namn exakt som det står här när texten tydligt \
+        gäller det projektet, annars null.
+        """
 
         let dag: String = {
             let f = DateFormatter()
@@ -234,8 +242,9 @@ actor Uppgiftsletare {
         saker att återkomma om. Svara som JSON:
 
         {"uppgifter": [{"vad": "…", "vem": "namn eller null", \
-        "när": "som det stod, eller null", "senast": "ÅÅÅÅ-MM-DD eller null"}]}
-
+        "när": "som det stod, eller null", "senast": "ÅÅÅÅ-MM-DD eller null", \
+        "projekt": "namn eller null"}]}
+        \(projektdel)
         Den som läser det här heter \(Inställningar.användarnamn). När det är \
         \(Inställningar.användarnamn) som ska göra något, skriv "jag" som vem. \
         När någon annan lovat något, skriv den personens namn: det är sådant \
@@ -286,6 +295,7 @@ actor Uppgiftsletare {
         struct Rå: Decodable {
             struct U: Decodable {
                 let vad: String; let vem: String?; let när: String?; let senast: String?
+                let projekt: String?
             }
             let uppgifter: [U]?
         }
@@ -293,7 +303,7 @@ actor Uppgiftsletare {
         return (rå.uppgifter ?? [])
             .filter { $0.vad.count > 5 }
             .map { Uppgift(vad: Modellsvar.utanVäntaPå($0.vad), vem: tomSomNil($0.vem), när: tomSomNil($0.när),
-                           senast: Uppgift.dag(tomSomNil($0.senast))) }
+                           senast: Uppgift.dag(tomSomNil($0.senast)), projekt: tomSomNil($0.projekt)) }
     }
 
     private static func tomSomNil(_ s: String?) -> String? { Modellsvar.tomSomNil(s) }

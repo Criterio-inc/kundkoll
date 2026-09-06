@@ -37,6 +37,7 @@ enum Tester {
         obsidian()
         omindexering()
         palett()
+        projektUrRundan()
         riktning()
         röster()
         ström()

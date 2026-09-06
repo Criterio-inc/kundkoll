@@ -179,6 +179,7 @@ enum Uppgiftssamling {
 
         let letare = Uppgiftsletare(chatt: val.map { Chatt(val: $0) } ?? Chatt())
         utfall.modell = letare.etikett
+        let projekt = Arkivet.shared.projekt(för: kund)
         for (i, m) in att.enumerated() {
             framsteg?(i + 1, att.count)
             let text = "Ämne: \(m.ämne)\nFrån: \(m.avsändarnamn)\n\n\(m.text)"
@@ -187,7 +188,7 @@ enum Uppgiftssamling {
                 u = try await letare.leta(
                     i: text,
                     sammanhang: m.skickat ? "ett mejl jag skickat" : "ett mejl jag fått",
-                    kund: kund.namn,
+                    kund: kund.namn, projekt: projekt.map(\.namn),
                     datum: m.datum ?? Date(),
                     automatiskt: !alla)
             } catch Uppgiftsletare.Fel.otolkbart {
@@ -200,9 +201,10 @@ enum Uppgiftssamling {
                 return utfall
             }
             utfall.genomgångna += 1
-            var uppgifter = u.map {
+            var uppgifter = knyt(u, till: projekt).map {
                 Uppgift(vad: $0.vad, vem: $0.vem, när: $0.när, senast: $0.senast,
-                        ursprung: .mejl, källtitel: m.ämne, skapad: m.datum ?? Date())
+                        ursprung: .mejl, källtitel: m.ämne,
+                        projekt: $0.projekt, projektID: $0.projektID, skapad: m.datum ?? Date())
             }
             if alla {
                 let gamla = uppgifter.filter { ($0.senast ?? .distantFuture) < Date().addingTimeInterval(-Self.historiskGräns) }
@@ -219,6 +221,22 @@ enum Uppgiftssamling {
             spara(rundor, kund)
         }
         return utfall
+    }
+
+    /// Modellens «projekt» är ett namn; det som gäller är id:t. Ett namn
+    /// som inte är något av kundens projekt tas bort, så ett påhittat
+    /// projekt inte fastnar på kortet.
+    static func knyt(_ uppgifter: [Uppgift], till projekt: [Projekt]) -> [Uppgift] {
+        uppgifter.map { u in
+            var k = u
+            if let namn = u.projekt,
+               let p = projekt.first(where: { $0.namn.compare(namn, options: .caseInsensitive) == .orderedSame }) {
+                k.projekt = p.namn; k.projektID = p.id
+            } else {
+                k.projekt = nil; k.projektID = nil
+            }
+            return k
+        }
     }
 
     // MARK: - Anteckningar
@@ -256,23 +274,26 @@ enum Uppgiftssamling {
 
         let letare = Uppgiftsletare()
         utfall.modell = letare.etikett
+        let alla = Arkivet.shared.projekt(för: kund)
+        let iProjekt = Arkivet.shared.projekt(innehållande: anteckning.fil, hos: kund)
         let u: [Uppgift]
         do {
             u = try await letare.leta(
                 i: text, sammanhang: "en anteckning jag skrivit",
-                kund: kund.namn, datum: anteckning.ändrad, automatiskt: true)
+                kund: kund.namn, projekt: iProjekt == nil ? alla.map(\.namn) : [],
+                datum: anteckning.ändrad, automatiskt: true)
         } catch {
             utfall.fel = error.localizedDescription
             return utfall
         }
         utfall.genomgångna = 1
         // En anteckning i ett projekts mapp hör till projektet, och då ska
-        // kortet också göra det.
-        let projekt = Arkivet.shared.projekt(innehållande: anteckning.fil, hos: kund)
-        let uppgifter = u.map {
+        // kortet också göra det. På kundnivå får modellens val gälla.
+        let uppgifter = knyt(u, till: alla).map {
             Uppgift(vad: $0.vad, vem: $0.vem, när: $0.när, senast: $0.senast,
                     ursprung: .anteckning, källa: nyckel,
-                    källtitel: anteckning.titel, projekt: projekt?.namn, projektID: projekt?.id,
+                    källtitel: anteckning.titel,
+                    projekt: iProjekt?.namn ?? $0.projekt, projektID: iProjekt?.id ?? $0.projektID,
                     skapad: anteckning.ändrad)
         }
         let före = Arkivet.shared.uppgifter(för: kund).count

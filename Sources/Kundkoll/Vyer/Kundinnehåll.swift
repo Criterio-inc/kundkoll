@@ -94,7 +94,10 @@ struct Kundinnehåll: View {
                     case .översikt: översikt
                     case .attGöra: Kanbanvy(kund: kund)
                     case .inspelningar: inspelningsflik
-                    case .anteckningar: Anteckningslista(mapp: kund.anteckningsmapp)
+                    case .anteckningar:
+                        // Kundens flik visar allt: även projektens anteckningar, märkta.
+                        Anteckningslista(mapp: kund.anteckningsmapp,
+                                         projektmappar: projekt.map { ($0.namn, $0.anteckningsmapp) })
                     case .mail: mailflik
                     }
                 }
@@ -590,14 +593,18 @@ struct Kundinnehåll: View {
                                         .font(.caption)
                                         .foregroundStyle(m.skickat ? Color.blue : Color.secondary)
                                         .frame(width: 12)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(m.ämne).lineLimit(1)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(m.ämne).lineLimit(2)
+                                            .fixedSize(horizontal: false, vertical: true)
                                         Text("\(m.skickat ? "Du" : m.avsändarnamn) · \(m.datum.map(DateFormatter.klocka.string) ?? m.datumText)")
                                             .font(.caption).foregroundStyle(.secondary)
+                                        if let rad = Mailen.förhandsrad(m.text) {
+                                            Text(rad).font(.caption).foregroundStyle(.tertiary).lineLimit(1)
+                                        }
                                     }
                                     Spacer()
                                 }
-                                .padding(.horizontal, 12).padding(.vertical, 9)
+                                .padding(.horizontal, 12).padding(.vertical, 11)
                                 .contentShape(.rect)
                             }
                             .buttonStyle(.plain)
