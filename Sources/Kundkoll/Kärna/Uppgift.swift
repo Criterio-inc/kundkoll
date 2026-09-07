@@ -222,11 +222,16 @@ actor Uppgiftsletare {
         guard text.count > 60 else { return [] }
 
         // Kundens projekt, så att kortet kan hamna på rätt tavla direkt.
+        // Uppmätt: «när texten tydligt gäller projektet, annars null» fick
+        // qwen3 att svara med tom lista för allt som inte nämnde projektet
+        // vid namn. Fältet får därför beskrivas som en etikett på varje
+        // uppgift, inte som ett villkor för att ta med den.
         let projektdel = projekt.isEmpty ? "" : """
 
-        Kunden har projekten: \(projekt.map { "«\($0)»" }.joined(separator: ", ")). \
-        "projekt" är projektets namn exakt som det står här när texten tydligt \
-        gäller det projektet, annars null.
+        Fältet "projekt" är bara en etikett och avgör inte vad som tas med. \
+        Kundens projekt heter \(projekt.map { "«\($0)»" }.joined(separator: ", ")). \
+        Skriv namnet exakt så när uppgiften hör till det projektet, annars null. \
+        Ta med alla uppgifter oavsett projekt.
         """
 
         let dag: String = {

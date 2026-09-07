@@ -14,6 +14,7 @@ struct Briefingvy: View {
 
     @State private var brief: Briefing?
     @State private var redigerad: Uppgift?
+    @State private var öppnadAnteckning: Anteckning?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -29,6 +30,7 @@ struct Briefingvy: View {
                         }
                         if let p = brief.projekt, let bild = brief.lägesbild { läget(p, bild) }
                         if let m = brief.senaste { senast(m) }
+                        if let r = brief.reflektion { reflektion(r) }
                         if !brief.väntarUtanSvar.isEmpty { väntarPå(brief.väntarUtanSvar) }
                         if !brief.öppnaUppgifter.isEmpty { åtaganden(brief.öppnaUppgifter) }
                         if !brief.mejlSedanSist.isEmpty { mejl(brief.mejlSedanSist) }
@@ -55,6 +57,9 @@ struct Briefingvy: View {
         }
         .frame(width: 560, height: 540)
         .onAppear { brief = Briefing.bygg(för: kund, möte: möte, arkiv: arkiv) }
+        .sheet(item: $öppnadAnteckning) { a in
+            Anteckningsvy(anteckning: a, mapp: a.fil.deletingLastPathComponent(), vidÄndring: {})
+        }
         .sheet(item: $redigerad) { u in
             Uppgiftsredigering(uppgift: u, kund: kund,
                                projekt: arkiv.projekt(för: kund)) {
@@ -100,6 +105,24 @@ struct Briefingvy: View {
             }
             Markdowntext(text: bild.text)
                 .font(.callout)
+        }
+        .padding(12)
+        .kort()
+    }
+
+    /// Det du själv sa på hemvägen efter förra mötet.
+    private func reflektion(_ a: Anteckning) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("I dina egna ord · \(DateFormatter.dag.string(from: a.ändrad))")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Button("Öppna") { öppnadAnteckning = a }.buttonStyle(.link)
+            }
+            Text(a.utdrag.isEmpty ? a.titel : a.utdrag)
+                .font(.callout)
+                .lineLimit(6)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(12)
         .kort()

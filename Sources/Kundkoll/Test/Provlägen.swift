@@ -77,13 +77,17 @@ enum Provlägen {
                  vad: "skriver en lägesbild för ett projekt, skarpt") { a in
             try await läget(kund: a[0], projekt: a[1])
         },
+        Provläge("--sammanfatta", "<inspelningsmapp>", minst: 1,
+                 vad: "skriver mötets sammanfattning på nytt ur transkriptet, som knappen i mötesvyn") { a in
+            try await sammanfatta(mapp: a[0])
+        },
         Provläge("--prov-diktat", "<ljudfil>", minst: 1,
                  vad: "hela diktatkedjan mot ett tillfälligt arkiv med kunderna Acme och Beta") { a in
             try await diktat(fil: a[0])
         },
-        Provläge("--prov-uppgifter", "<textfil>", minst: 1,
+        Provläge("--prov-uppgifter", "<textfil> [projektnamn …]", minst: 1,
                  vad: "uppgiftsletaren på en text, med modellens råsvar om inget hittas") { a in
-            try await uppgifter(fil: a[0])
+            try await uppgifter(fil: a[0], projekt: Array(a.dropFirst()))
         },
     ]
 
@@ -137,6 +141,31 @@ enum Provlägen {
         return Prov.sammanfatta()
     }
 
+    /// Samma sak som «Sammanfatta mötet» i mötesvyn, från terminalen: för
+    /// ett möte vars sammanfattning föll, utan att skriva om transkriptet.
+    @MainActor
+    static func sammanfatta(mapp väg: String) async throws -> Int32 {
+        let mapp = URL(fileURLWithPath: väg)
+        guard var inspelning = Arkivet.shared.inspelning(i: mapp),
+              let kund = Arkivet.shared.kund(innehållande: mapp)
+        else { throw Enkeltfel("Hittar ingen läsbar inspelning i \(mapp.path)") }
+        print("Modell: \(Modellval.läs().etikett) · \(inspelning.yttranden.count) rader")
+        let t0 = Date()
+        let förra = Uppgiftssamling.förra(för: inspelning, mapp: mapp)
+        let s = try await Sammanfattare().skriv(för: inspelning, kund: kund.namn, automatiskt: true, förra: förra)
+        inspelning.sammanfattning = s
+        try Arkivet.shared.spara(inspelning, i: mapp)
+        Uppgiftssamling.frånMöte(s, inspelning: inspelning, mapp: mapp)
+        print(String(format: "Klart på %.0f s", Date().timeIntervalSince(t0)))
+        print("\n\(s.kärna)\n")
+        for b in s.beslut { print("  beslut: \(b)") }
+        for å in s.åtaganden { print("  åtagande: \(å.vad)\(å.vem.map { " — \($0)" } ?? "")\(å.när.map { " (\($0))" } ?? "")") }
+        for f in s.öppet { print("  öppet: \(f)") }
+        Prov.svit("Sammanfattning skarpt")
+        Prov.kolla(!s.kärna.isEmpty, "modellen skrev en kärna")
+        return Prov.sammanfatta()
+    }
+
     /// Ett diktat genom whisper och modellen, mot ett tillfälligt arkiv så
     /// att inga riktiga kunder får påhittade reflektioner.
     @MainActor
@@ -166,14 +195,14 @@ enum Provlägen {
     /// Kör uppgiftsletaren på en textfil och skriver ut vad modellen svarade,
     /// eller felet: det som rundan i appen annars döljer.
     @MainActor
-    static func uppgifter(fil: String) async throws -> Int32 {
+    static func uppgifter(fil: String, projekt: [String] = []) async throws -> Int32 {
         let text = try String(contentsOfFile: fil, encoding: .utf8)
         print("Modell: \(Modellval.läs().etikett)")
         let t0 = Date()
         let letare = Uppgiftsletare()
-        let u = try await letare.leta(i: text, sammanhang: "ett mejl jag fått", kund: "Provkunden")
+        let u = try await letare.leta(i: text, sammanhang: "ett mejl jag fått", kund: "Provkunden", projekt: projekt)
         print(String(format: "%d uppgifter på %.1f s", u.count, Date().timeIntervalSince(t0)))
-        for x in u { print("  · \(x.vad)\(x.vem.map { " — \($0)" } ?? "")\(x.när.map { " (\($0))" } ?? "")") }
+        for x in u { print("  · \(x.vad)\(x.vem.map { " — \($0)" } ?? "")\(x.när.map { " (\($0))" } ?? "")\(x.projekt.map { " [\($0)]" } ?? "")") }
         if u.isEmpty { print("Råsvar:\n\(await letare.senasteSvar)") }
         return 0
     }

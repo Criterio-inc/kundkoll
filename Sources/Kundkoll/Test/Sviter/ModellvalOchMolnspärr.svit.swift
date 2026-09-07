@@ -50,3 +50,31 @@ extension Tester {
         }
     }
 }
+
+extension Tester {
+    static func modellfel() {
+        Prov.svit("Modell som inte svarar")
+        let sen = Chatt.lokaltFel(URLError(.timedOut), värd: "127.0.0.1")
+        if case .svararInte = sen {} else { Prov.kolla(false, "en timeout är «svarade inte i tid», inte «inte igång»") }
+        Prov.kolla(sen.localizedDescription.contains("svarade inte i tid"), "och säger det: \(sen.localizedDescription)")
+        let borta = Chatt.lokaltFel(URLError(.cannotConnectToHost), värd: "127.0.0.1")
+        if case .nårInteLokal = borta {} else { Prov.kolla(false, "ingen lyssnare är «når ingen modell»") }
+        Prov.kolla(sen.övergående && borta.övergående, "båda är värda ett nytt försök")
+        Prov.kolla(!Chatt.Fel.tomtSvar.övergående && !Chatt.Fel.kräverLokal(.anthropic).övergående,
+                   "ett tomt svar eller molnspärren är det inte")
+    }
+}
+
+extension Tester {
+    static func långaMöten() {
+        Prov.svit("Långa möten i delar")
+        let rader = (1...400).map { "[00:\(String(format: "%02d", $0 % 60)):00] Jag: rad \($0) med lite text i sig." }
+        let text = rader.joined(separator: "\n")
+        let delar = Sammanfattare.dela(text, storlek: 3000)
+        Prov.kolla(delar.count > 3, "ett långt transkript blir flera delar (\(delar.count))")
+        Prov.kolla(delar.allSatisfy { $0.count <= 3000 }, "ingen del är större än storleken")
+        Prov.lika(delar.joined(separator: "\n"), text, "ihopsatta är delarna hela texten, delad vid radbrytningar")
+        Prov.lika(Sammanfattare.dela("kort", storlek: 3000), ["kort"], "en kort text är en del")
+        Prov.kolla(Chatt.Uppdrag.utdrag.maxTokens <= 2500, "utdraget lämnar plats åt transkriptet i Ollamas fönster")
+    }
+}

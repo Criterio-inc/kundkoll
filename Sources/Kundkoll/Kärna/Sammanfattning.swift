@@ -101,6 +101,47 @@ actor Sammanfattare {
     /// tre timmar lång inspelning inte spränger fönstret.
     private let maxTecken = 60_000
 
+    /// En lokal modell hos Ollama har 8 192 tokens som standardfönster, och
+    /// ett möte på 50 minuter är ungefär 10 000. Längre transkript än så här
+    /// går i delar: stödanteckningar per del, sedan sammanfattningen ur dem.
+    static let delstorlekLokalt = 12_000
+
+    /// Delar texten vid radbrytningar i bitar om högst `storlek` tecken.
+    static func dela(_ text: String, storlek: Int) -> [String] {
+        guard text.count > storlek else { return [text] }
+        var delar: [String] = []
+        var aktuell = ""
+        for rad in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            if aktuell.count + rad.count + 1 > storlek, !aktuell.isEmpty {
+                delar.append(aktuell)
+                aktuell = ""
+            }
+            aktuell += (aktuell.isEmpty ? "" : "\n") + rad
+        }
+        if !aktuell.isEmpty { delar.append(aktuell) }
+        return delar
+    }
+
+    /// Stödanteckningar ur en del av transkriptet, i klartext.
+    private func anteckna(_ del: String, nummer: Int, av antal: Int, kund: String,
+                          inspelning: Inspelning, automatiskt: Bool) async throws -> String {
+        let uppdrag = """
+        Här är del \(nummer) av \(antal) av transkriptet från ett möte med kunden \(kund). \
+        Den som spelade in heter \(Inställningar.användarnamn) och talar som «Jag».
+
+        Skriv stödanteckningar för just den här delen, i punktform på svenska: \
+        vad som sades i sak, det som bestämdes, det någon lovade att göra (vem, \
+        vad, när, med den mening det sades i, ordagrant), och frågor som lämnades \
+        obesvarade. Ta bara med sådant som verkligen sades. Ingen inledning, inget \
+        JSON, bara punkterna.
+
+        \(del)
+        """
+        return try await chatt.fråga(uppdrag, om: kund, projekt: inspelning.projekt,
+                                     träffar: [], historik: [], automatiskt: automatiskt,
+                                     uppdrag: .utdrag).text
+    }
+
     /// Det förra mötet i serien lämnade efter sig: öppna kort på tavlan och
     /// obesvarade frågor. Skickas med så att modellen kan säga vilka som
     /// verkar avklarade respektive besvarade i det här mötet.
@@ -123,6 +164,24 @@ actor Sammanfattare {
             // Slutet av ett möte bär besluten; början bär sammanhanget.
             let halva = maxTecken / 2
             text = String(text.prefix(halva)) + "\n\n[…]\n\n" + String(text.suffix(halva))
+        }
+        let transkript = text
+
+        // Lokalt får bara en bit av mötet plats i fönstret. Då går det i
+        // delar: anteckningar per del, och sammanfattningen skrivs ur dem.
+        var underlagsrubrik = "Transkript:"
+        var belägg = transkript
+        if !chatt.lämnarDatorn, text.count > Self.delstorlekLokalt {
+            let delar = Self.dela(text, storlek: Self.delstorlekLokalt)
+            var anteckningar: [String] = []
+            for (i, del) in delar.enumerated() {
+                anteckningar.append("Del \(i + 1) av \(delar.count):\n"
+                                    + (try await anteckna(del, nummer: i + 1, av: delar.count, kund: kund,
+                                                          inspelning: inspelning, automatiskt: automatiskt)))
+            }
+            text = anteckningar.joined(separator: "\n\n")
+            underlagsrubrik = "Stödanteckningar från mötet, del för del (skrivna ur transkriptet):"
+            belägg = transkript + "\n" + text
         }
 
         let dag: String = {
@@ -157,14 +216,14 @@ actor Sammanfattare {
         påhittat beslut. Skriv på svenska, kort och konkret, utan artigheter.
         Svara med enbart JSON.
         \(Self.förradel(förra))
-        Transkript:
+        \(underlagsrubrik)
         \(text)
         """
 
         let svar = try await chatt.fråga(uppdrag, om: kund, projekt: inspelning.projekt,
                                          träffar: [], historik: [], automatiskt: automatiskt,
                                          uppdrag: .utdrag)
-        guard var tolkad = Self.tolka(svar.text, förra: förra, transkript: text) else { throw Fel.otolkbart }
+        guard var tolkad = Self.tolka(svar.text, förra: förra, transkript: belägg) else { throw Fel.otolkbart }
         tolkad.modell = chatt.etikett
         return tolkad
     }

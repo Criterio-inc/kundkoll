@@ -82,7 +82,16 @@ enum Diktat {
 
     // MARK: - Spara
 
-    static func titel(_ dag: Date) -> String { "Reflektion \(DateFormatter.kortdag.string(from: dag))" }
+    /// «Reflektion 7 sep», utan punkten: den blev «Reflektion 7 sep..md».
+    static func titel(_ dag: Date) -> String {
+        "Reflektion " + DateFormatter.kortdag.string(from: dag).trimmingCharacters(in: CharacterSet(charactersIn: "."))
+    }
+
+    /// Där reflektionen sparas hos kunden: i det enda projektet när det
+    /// bara finns ett, annars hos kunden.
+    static func anteckningsmapp(för kund: Kund, arkiv: Arkivet) -> URL {
+        arkiv.standardprojekt(för: kund)?.anteckningsmapp ?? kund.anteckningsmapp
+    }
 
     /// Anteckningen «Reflektion <dag>» i mappen: ny, eller påfylld med en
     /// tidsrubrik när dagen redan har en. Två diktat samma kväll blir en sida.
@@ -108,6 +117,8 @@ enum Diktat {
         var kunder: [String] = []
         var åtaganden = 0
         var egen = false
+        /// Letaren gick inte att köra på någon del; syns i kvittot.
+        var letarfel: String?
     }
 
     /// Ljudfil → text → delar → anteckningar → åtaganden.
@@ -141,9 +152,10 @@ enum Diktat {
         var utfall = Utfall()
         for del in delar {
             if let namn = del.kund, let kund = kunder.first(where: { $0.namn == namn }) {
-                let a = try spara(del.text, i: kund.anteckningsmapp, dag: dag, arkiv: arkiv)
+                let a = try spara(del.text, i: anteckningsmapp(för: kund, arkiv: arkiv), dag: dag, arkiv: arkiv)
                 let u = await Uppgiftssamling.frånAnteckning(a, kund: kund)
                 utfall.åtaganden += u.nya
+                if let fel = u.fel { utfall.letarfel = fel }
                 if !utfall.kunder.contains(namn) { utfall.kunder.append(namn) }
             } else {
                 _ = try spara(del.text, i: arkiv.rot.appending(path: "Reflektioner"), dag: dag, arkiv: arkiv)
@@ -213,6 +225,7 @@ final class Diktatvakt: ObservableObject {
                 klara = k
                 let vilka = u.kunder.isEmpty ? "ingen kund, sparad som egen dagbok" : u.kunder.joined(separator: ", ")
                 let rad = "\(vilka)" + (u.åtaganden > 0 ? " · \(u.åtaganden) nya på tavlan" : "")
+                    + (u.letarfel.map { " · letaren: \($0)" } ?? "")
                 jobb?.klart(rad)
                 Notiser.skicka(titel: "Reflektionen är på plats", text: rad, kund: u.kunder.first)
             } catch {

@@ -303,23 +303,36 @@ final class Inspelningssession: ObservableObject {
             // Det man vill ha ur ett möte är sällan transkriptet utan vad det
             // landade i. Sammanfattningen skrivs sist, när talarna är kända.
             var sammanfattningsfel: String?
-            do {
-                let underlag = uppdaterad
-                let förra = await MainActor.run { Uppgiftssamling.förra(för: underlag, mapp: mapp) }
-                let s = try await Sammanfattare().skriv(för: uppdaterad, kund: uppdaterad.kund,
-                                                        automatiskt: true, förra: förra)
-                uppdaterad.sammanfattning = s
-                let inspelning = uppdaterad
-                await MainActor.run {
-                    try? Arkivet.shared.spara(inspelning, i: mapp)
-                    // Mötets åtaganden hamnar på tavlan. De är redan
-                    // utplockade av sammanfattningen, så ingen extra runda
-                    // behövs här.
-                    Uppgiftssamling.frånMöte(s, inspelning: inspelning, mapp: mapp)
+            // Modellen är ofta borta just när mötet slutar: Teams, whisper och
+            // insikterna har trängt ut den, och den laddas om i minuter. Ett
+            // övergående fel får tre försök med en och en halv minut emellan.
+            var försök = 0
+            while true {
+                do {
+                    let underlag = uppdaterad
+                    let förra = await MainActor.run { Uppgiftssamling.förra(för: underlag, mapp: mapp) }
+                    let s = try await Sammanfattare().skriv(för: uppdaterad, kund: uppdaterad.kund,
+                                                            automatiskt: true, förra: förra)
+                    uppdaterad.sammanfattning = s
+                    let inspelning = uppdaterad
+                    await MainActor.run {
+                        try? Arkivet.shared.spara(inspelning, i: mapp)
+                        // Mötets åtaganden hamnar på tavlan. De är redan
+                        // utplockade av sammanfattningen, så ingen extra runda
+                        // behövs här.
+                        Uppgiftssamling.frånMöte(s, inspelning: inspelning, mapp: mapp)
+                    }
+                    break
+                } catch let fel as Chatt.Fel where fel.övergående && försök < 3 {
+                    försök += 1
+                    Logg.fel("Sammanfattning av «\(i.titel)», försök \(försök): \(fel.localizedDescription)", i: "Inspelningssession")
+                    jobb?.steg("modellen svarade inte, nytt försök om en stund (\(försök) av 3)")
+                    try? await Task.sleep(for: .seconds(90))
+                } catch {
+                    sammanfattningsfel = error.localizedDescription
+                    Logg.fel("Sammanfattning av «\(i.titel)»: \(error.localizedDescription)", i: "Inspelningssession")
+                    break
                 }
-            } catch {
-                sammanfattningsfel = error.localizedDescription
-                Logg.fel("Sammanfattning av «\(i.titel)»: \(error.localizedDescription)", i: "Inspelningssession")
             }
             let klar = uppdaterad
             let fel = sammanfattningsfel

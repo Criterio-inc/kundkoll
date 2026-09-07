@@ -110,7 +110,10 @@ actor Chatt {
     /// ryms inte i chattens två tusen tokens.
     enum Uppdrag {
         case chatt, utdrag
-        var maxTokens: Int { self == .chatt ? 2000 : 6000 }
+        /// 6 000 för utdrag åt upp Ollamas fönster (8 192 som standard): av
+        /// ett 50-minutersmöte kom bara slutet med i sammanfattningen.
+        /// 2 500 räcker för en sammanfattning med många åtaganden.
+        var maxTokens: Int { self == .chatt ? 2000 : 2500 }
         /// Ett utdrag ska svara likadant varje gång; uppmätt 2026-09-04
         /// svarade qwen3:8b med prosa i stället för JSON på ett mejl som
         /// gav en lista vid nästa försök.
@@ -131,8 +134,12 @@ actor Chatt {
     init(val: Modellval = .läs()) {
         self.val = val
         let k = URLSessionConfiguration.ephemeral
-        // En lokal modell på en vanlig laptop kan tänka länge.
-        k.timeoutIntervalForRequest = 300
+        // En lokal modell på en vanlig laptop kan tänka länge. Fem minuter
+        // räckte inte för ett 50-minutersmöte på en belastad dator: appen
+        // avbröt medan modellen fortfarande skrev, och det såg ut som att
+        // Ollama kraschat. Uppmätt 2026-09-07.
+        k.timeoutIntervalForRequest = 900
+        k.timeoutIntervalForResource = 1800
         session = URLSession(configuration: k)
     }
 
@@ -207,7 +214,9 @@ actor Chatt {
             (data, svar) = try await session.data(for: r)
         } catch {
             // En lokal modell som inte är igång är det vanligaste felet här.
-            if val.leverantör == .lokal { throw Fel.nårInteLokal(url.host ?? "") }
+            // Men under ett möte på en fullbelastad dator är det oftast en
+            // modell som svarar för långsamt: den ska inte kallas avstängd.
+            if val.leverantör == .lokal { throw Self.lokaltFel(error, värd: url.host ?? "") }
             throw error
         }
         guard let http = svar as? HTTPURLResponse else { throw Fel.ingetSvar }
@@ -230,7 +239,7 @@ actor Chatt {
         do {
             (rader, svar) = try await session.bytes(for: r)
         } catch {
-            if val.leverantör == .lokal { throw Fel.nårInteLokal(url.host ?? "") }
+            if val.leverantör == .lokal { throw Self.lokaltFel(error, värd: url.host ?? "") }
             throw error
         }
         guard let http = svar as? HTTPURLResponse else { throw Fel.ingetSvar }
@@ -396,10 +405,24 @@ actor Chatt {
             ?? "okänt fel"
     }
 
+    /// Skiljer «ingen lyssnar» från «svarade inte i tid».
+    nonisolated static func lokaltFel(_ error: Error, värd: String) -> Fel {
+        if let u = error as? URLError, u.code == .timedOut { return .svararInte(värd) }
+        return .nårInteLokal(värd)
+    }
+
     enum Fel: LocalizedError {
         case ingenNyckel(Leverantör), ingetSvar, tomtSvar, trasigAdress
-        case nårInteLokal(String), frånTjänsten(Int, String)
+        case nårInteLokal(String), svararInte(String), frånTjänsten(Int, String)
         case kräverLokal(Leverantör)
+
+        /// Fel som går över av sig själva: värt ett nytt försök om en stund.
+        var övergående: Bool {
+            switch self {
+            case .nårInteLokal, .svararInte: true
+            default: false
+            }
+        }
         var errorDescription: String? {
             switch self {
             case .kräverLokal(let l):
@@ -411,6 +434,8 @@ actor Chatt {
             case .trasigAdress: "Adressen till modellen går inte att tolka."
             case .nårInteLokal(let värd):
                 "Når ingen modell på \(värd). Är Ollama eller LM Studio igång?"
+            case .svararInte(let värd):
+                "Modellen på \(värd) svarade inte i tid. Datorn är hårt belastad eller modellen laddas om; det brukar gå över."
             case .frånTjänsten(let kod, let text): "Modellen svarade \(kod): \(text)"
             }
         }

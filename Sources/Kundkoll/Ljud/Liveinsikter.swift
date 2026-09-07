@@ -46,6 +46,12 @@ final class Liveinsikter: ObservableObject {
     private var obehandlade: [Yttrande] = []
     private var jobb: Task<Void, Never>?
     private var väckare: Timer?
+    /// Insikterna kostar en modell på flera gigabyte bredvid whisper och
+    /// Teams. När datorn får ont om minne pausas de, inspelningen inte:
+    /// uppmätt 2026-09-07 lade en 50-minuters inspelning datorn i 20 GB
+    /// växlingsfil och modellen försvann under mötet.
+    private var minnesvakt: DispatchSourceMemoryPressure?
+    @Published private(set) var pausadAvMinne = false
 
     /// Så mycket text ska ha samlats innan det är värt att granska. Ett par
     /// meningar räcker sällan för att avgöra om något behöver slås upp.
@@ -78,6 +84,21 @@ final class Liveinsikter: ObservableObject {
         väckare = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.pröva() }
         }
+        minnesvakt?.cancel()
+        let vakt = DispatchSource.makeMemoryPressureSource(eventMask: [.warning, .critical, .normal], queue: .main)
+        vakt.setEventHandler { [weak self, weak vakt] in
+            guard let self, let vakt else { return }
+            let läge = vakt.data
+            if läge.contains(.critical) {
+                pausadAvMinne = true
+                varning = "Insikterna pausade: datorn har ont om minne. Inspelningen påverkas inte."
+            } else if läge.contains(.normal), pausadAvMinne {
+                pausadAvMinne = false
+                if varning?.hasPrefix("Insikterna pausade") == true { varning = nil }
+            }
+        }
+        vakt.resume()
+        minnesvakt = vakt
 
         Task {
             bank = try? Kunskapsbank(kund: kund)
@@ -92,6 +113,9 @@ final class Liveinsikter: ObservableObject {
         lyssnar = false
         väckare?.invalidate()
         väckare = nil
+        minnesvakt?.cancel()
+        minnesvakt = nil
+        pausadAvMinne = false
         jobb?.cancel()
         jobb = nil
     }
@@ -111,7 +135,7 @@ final class Liveinsikter: ObservableObject {
     /// nästa rad upp långt efter att den har gått ut, och då granskas det
     /// som sades först när någon råkar säga något mer.
     func pröva() {
-        guard lyssnar, på, !obehandlade.isEmpty, jobb == nil else { return }
+        guard lyssnar, på, !pausadAvMinne, !obehandlade.isEmpty, jobb == nil else { return }
         let text = obehandlade.map(\.text).joined(separator: " ")
         guard Self.dagsAttGranska(tecken: text.count,
                                   väntat: Date().timeIntervalSince(samladeSedan)) else { return }

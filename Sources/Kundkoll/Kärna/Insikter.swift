@@ -79,7 +79,9 @@ actor Insikter {
     var tillgänglig: Bool {
         get async {
             var r = URLRequest(url: adress.deletingLastPathComponent().appending(path: "tags"))
-            r.timeoutInterval = 2
+            // Två sekunder räckte inte på en belastad dator: Ollama lever men
+            // hinner inte svara, och då stod det «starta Ollama» fast den var igång.
+            r.timeoutInterval = 8
             return (try? await session.data(for: r)) != nil
         }
     }

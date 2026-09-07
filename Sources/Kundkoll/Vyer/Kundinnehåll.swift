@@ -209,6 +209,20 @@ struct Kundinnehåll: View {
                         }
                         .buttonStyle(.plain)
                     }
+                    if let r = b.reflektion {
+                        Button { flik = .anteckningar } label: {
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "quote.opening").foregroundStyle(.secondary).frame(width: 14)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("\(r.titel), i dina egna ord")
+                                    Text(r.utdrag).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                                }
+                                Spacer()
+                            }
+                            .contentShape(.rect)
+                        }
+                        .buttonStyle(.plain)
+                    }
                     let öppna = b.öppnaUppgifter
                     if !öppna.isEmpty {
                         let sena = öppna.filter(\.försenad).count

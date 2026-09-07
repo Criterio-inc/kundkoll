@@ -40,15 +40,21 @@ extension Tester {
         do {   // sparas som Reflektion <dag>, och fylls på samma dag
             let dag = Uppgift.dag("2026-09-07")!.addingTimeInterval(17 * 3600 + 20 * 60)
             let a = try! Diktat.spara("Mötet med Erik gick bra.", i: borås.anteckningsmapp, dag: dag, arkiv: arkiv)
-            Prov.lika(a.titel, "Reflektion 7 sep.", "rubriken är dagen")
-            Prov.kolla(a.text.hasPrefix("# Reflektion 7 sep.") && a.text.contains("Mötet med Erik gick bra."), "texten står i noten")
+            Prov.lika(a.titel, "Reflektion 7 sep", "rubriken är dagen, utan punkt som skulle gett «sep..md»")
+            Prov.kolla(a.text.hasPrefix("# Reflektion 7 sep") && a.text.contains("Mötet med Erik gick bra."), "texten står i noten")
             let b = try! Diktat.spara("Glömde fråga om budgeten.", i: borås.anteckningsmapp, dag: dag.addingTimeInterval(3600), arkiv: arkiv)
             Prov.lika(b.fil, a.fil, "ett andra diktat samma dag går in i samma not")
             Prov.kolla(b.text.contains("Mötet med Erik") && b.text.contains("## 18:20") && b.text.contains("Glömde fråga"),
                        "med en tidsrubrik före det nya")
             Prov.lika(arkiv.anteckningar(i: borås.anteckningsmapp).count, 1, "en anteckning hos kunden")
             let kundsida = (try? String(contentsOf: borås.mapp.appending(path: "Borås stad.md"), encoding: .utf8)) ?? ""
-            Prov.kolla(kundsida.contains("Reflektion 7 sep."), "och kundsidan i Obsidian länkar till den")
+            Prov.kolla(kundsida.contains("Reflektion 7 sep"), "och kundsidan i Obsidian länkar till den")
+            Prov.lika(Diktat.anteckningsmapp(för: borås, arkiv: arkiv), borås.anteckningsmapp, "utan projekt sparas hos kunden")
+            let uppdrag = try! arkiv.skapaProjekt(namn: "M365", hos: borås)
+            Prov.lika(Diktat.anteckningsmapp(för: borås, arkiv: arkiv).resolvingSymlinksInPath().path,
+                      uppdrag.anteckningsmapp.resolvingSymlinksInPath().path, "med ett enda projekt sparas i projektet")
+            let brief = Briefing.bygg(för: borås, möte: nil, arkiv: arkiv)
+            Prov.lika(brief.reflektion?.titel, "Reflektion 7 sep", "briefen tar med senaste reflektionen")
         }
     }
 }

@@ -33,6 +33,8 @@ enum Tester {
         mail()
         minVecka()
         modellvalOchMolnspärr()
+        modellfel()
+        långaMöten()
         möteskopplingar()
         mötesserier()
         mötesuppgifter()

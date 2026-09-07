@@ -23,6 +23,8 @@ struct Briefing {
     /// förra mötet i serien ligger i. Med projektets lägesbild, om den finns.
     var projekt: Projekt?
     var lägesbild: Lägesbild?
+    /// Den senaste reflektionen sedan förra mötet, i ens egna ord.
+    var reflektion: Anteckning?
 
     var tom: Bool {
         senaste == nil && öppnaUppgifter.isEmpty && mejlSedanSist.isEmpty
@@ -103,6 +105,12 @@ struct Briefing {
             arkiv.möteskopplingar(för: kund)[m.id].flatMap { id in projekt.first { $0.id == id } }
         } ?? b.senaste.flatMap { arkiv.projekt(innehållande: $0.mapp, hos: kund) }
         b.lägesbild = b.projekt.flatMap { Läget.läs(kund: kund, projekt: $0) }
+        // Reflektioner på hemvägen: den senaste efter förra mötet, var den än ligger.
+        let sedan = b.senaste?.inspelning.inledd ?? .distantPast
+        let mappar = [kund.anteckningsmapp] + projekt.map(\.anteckningsmapp)
+        b.reflektion = mappar.flatMap { arkiv.anteckningar(i: $0) }
+            .filter { $0.titel.hasPrefix("Reflektion") && $0.ändrad > sedan }
+            .max { $0.ändrad < $1.ändrad }
         return b
     }
 }
