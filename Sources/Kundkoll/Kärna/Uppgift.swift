@@ -197,13 +197,23 @@ struct Uppgift: Codable, Hashable, Identifiable {
     static let småord: Set<String> = [
         "och", "att", "med", "till", "för", "den", "det", "som", "ett", "en", "på", "av",
         "om", "vi", "ni", "de", "är", "ska", "kan", "the", "and", "to", "for", "of", "in",
+        "ta", "få", "ha", "se", "gå", "upp", "ut", "kort",
+    ]
+
+    /// Ord som betyder samma sak på tavlan. «Boka in tid med Linnea» och
+    /// «Ta en kort avstämning med Linnea» är ett åtagande, inte två.
+    static let synonymer: [String: String] = [
+        "boka": "möte", "bokning": "möte", "tid": "möte", "möte": "möte", "mötet": "möte",
+        "avstämning": "möte", "avstämma": "möte", "stämma": "möte", "träff": "möte",
+        "träffa": "möte", "träffas": "möte", "prata": "möte", "samtal": "möte", "sitta": "möte",
+        "skicka": "skick", "sända": "skick", "maila": "skick", "mejla": "skick",
     ]
 
     static func stammar(_ text: String) -> Set<String> {
         Set(text.lowercased()
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
             .filter { $0.count >= 2 && !småord.contains($0) }
-            .map { String($0.prefix(5)) })
+            .map { synonymer[$0] ?? String($0.prefix(5)) })
     }
 }
 
@@ -246,7 +256,7 @@ actor Uppgiftsletare {
         Plocka ut sådant som någon ska göra — åtaganden, utlovade leveranser, \
         saker att återkomma om. Svara som JSON:
 
-        {"uppgifter": [{"vad": "…", "vem": "namn eller null", \
+        {"uppgifter": [{"vad": "…", "vem": "jag eller ett namn", \
         "när": "som det stod, eller null", "senast": "ÅÅÅÅ-MM-DD eller null", \
         "projekt": "namn eller null"}]}
         \(projektdel)
@@ -256,7 +266,9 @@ actor Uppgiftsletare {
         \(Inställningar.användarnamn) väntar på. Observera: i ett mejl som \
         \(Inställningar.användarnamn) fått är «jag» i texten avsändaren, inte \
         \(Inställningar.användarnamn); det avsändaren lovar får avsändarens namn. "vad" är det personen ska \
-        göra eller leverera, aldrig "vänta på …".
+        göra eller leverera, aldrig "vänta på …". "vem" ska alltid vara satt: \
+        något alla mottagare ombeds göra är "jag" när \(Inställningar.användarnamn) är \
+        mottagare; gäller det bara andra, utelämna uppgiften.
 
         "senast" är sista dagen som ett riktigt datum, räknat från \(dag) — \
         "före fredag" blir fredagens datum. Går det inte att räkna ut, null.

@@ -89,6 +89,7 @@ struct Transkriptvy: View {
                            extraUnderlag: förraSomUnderlag)
                     .id(inspelning.id)
                     .frame(width: 400)
+                    .clipped()
             }
         }
         .frame(height: 660)
@@ -169,6 +170,15 @@ struct Transkriptvy: View {
                 Image(systemName: "bubble.left.and.text.bubble.right")
             }
             .help(visaChatt ? "Dölj chatten" : "Fråga om mötet")
+            // Stäng ska gå att nå även när något nedtill inte syns, och med Esc.
+            Button {
+                stäng()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+            }
+            .buttonStyle(.borderless)
+            .keyboardShortcut(.cancelAction)
+            .help("Stäng")
         }
         .padding(16)
     }

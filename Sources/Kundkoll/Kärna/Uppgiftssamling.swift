@@ -160,8 +160,42 @@ enum Uppgiftssamling {
         var hoppade = 0
     }
 
-    /// Äldre än så här är ett passerat datum historia, inte en försening.
-    static let historiskGräns: TimeInterval = 14 * 86400
+    /// I den retroaktiva rundan är ett passerat datum historia, inte en
+    /// försening: mejlet lästes för länge sedan och det som skulle ske har
+    /// skett eller runnit ut. Förut gällde fjorton dagars marginal, och
+    /// tavlan fylldes med «före 4/9» när rundan gick den 7:e.
+    static func historisk(_ u: Uppgift, idag: Date = Date()) -> Bool {
+        guard let senast = u.senast else { return false }
+        return senast < Calendar.current.startOfDay(for: idag)
+    }
+
+    /// Kort utan person. Ur ett mejl jag fått är det avsändaren som ber
+    /// mig: «jag». Ur ett mejl jag skickat gäller det andra: stryks. Ur
+    /// en egen anteckning är det mitt.
+    static func medVem(_ uppgifter: [Uppgift], skickat: Bool) -> [Uppgift] {
+        uppgifter.compactMap { u in
+            guard u.vem == nil else { return u }
+            if skickat { return nil }
+            var k = u; k.vem = "jag"; return k
+        }
+    }
+
+    /// Tar bort det en tidigare runda lade på tavlan, så att rundan kan gå
+    /// om med en annan modell. Kort i Pågår eller med påminnelse har någon
+    /// rört och får stå kvar. Bokföringen för slaget nollställs.
+    static func börjaOm(_ ursprung: Uppgift.Ursprung, för kund: Kund) throws -> Int {
+        let alla = Arkivet.shared.uppgifter(för: kund)
+        let kvar = alla.filter { !($0.ursprung == ursprung && $0.läge != .pågår && $0.påminnelse == nil) }
+        try Arkivet.shared.sparaUppgifter(kvar, för: kund)
+        var r = rundor(kund)
+        switch ursprung {
+        case .mejl: r.mejl = []
+        case .anteckning: r.anteckningar = [:]
+        default: break
+        }
+        spara(r, kund)
+        return alla.count - kvar.count
+    }
 
     /// `val` styr vilken modell som används. Utan val tas appens: automatiken
     /// (inte `alla`) tvingas då till datorn av `Chatt`, och en retroaktiv
@@ -201,13 +235,13 @@ enum Uppgiftssamling {
                 return utfall
             }
             utfall.genomgångna += 1
-            var uppgifter = knyt(u, till: projekt).map {
+            var uppgifter = knyt(medVem(u, skickat: m.skickat), till: projekt).map {
                 Uppgift(vad: $0.vad, vem: $0.vem, när: $0.när, senast: $0.senast,
                         ursprung: .mejl, källtitel: m.ämne,
                         projekt: $0.projekt, projektID: $0.projektID, skapad: m.datum ?? Date())
             }
             if alla {
-                let gamla = uppgifter.filter { ($0.senast ?? .distantFuture) < Date().addingTimeInterval(-Self.historiskGräns) }
+                let gamla = uppgifter.filter { historisk($0) }
                 uppgifter.removeAll { gamla.map(\.id).contains($0.id) }
                 try? Arkivet.shared.läggTillKlara(gamla, för: kund)
                 utfall.historiska += gamla.count
@@ -293,7 +327,7 @@ enum Uppgiftssamling {
         utfall.genomgångna = 1
         // En anteckning i ett projekts mapp hör till projektet, och då ska
         // kortet också göra det. På kundnivå får modellens val gälla.
-        let uppgifter = knyt(u, till: alla).map {
+        let uppgifter = knyt(medVem(u, skickat: false), till: alla).map {
             Uppgift(vad: $0.vad, vem: $0.vem, när: $0.när, senast: $0.senast,
                     ursprung: .anteckning, källa: nyckel,
                     källtitel: anteckning.titel,

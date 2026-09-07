@@ -18,6 +18,21 @@ extension Tester {
             Prov.lika(gammal.datum, iso, "en cache utan datum får det ur texten")
         }
 
+        do {   // den retroaktiva rundan: passerat datum är historia, kort utan person
+            let idag = Date()
+            Prov.kolla(Uppgiftssamling.historisk(Uppgift(vad: "Svara", senast: idag.addingTimeInterval(-86400)), idag: idag),
+                       "i går är historia")
+            Prov.kolla(!Uppgiftssamling.historisk(Uppgift(vad: "Svara", senast: idag), idag: idag),
+                       "i dag är det inte")
+            Prov.kolla(!Uppgiftssamling.historisk(Uppgift(vad: "Svara"), idag: idag),
+                       "utan datum är det inte")
+            let utan = [Uppgift(vad: "Läsa direktivet"), Uppgift(vad: "Svara Erik", vem: "Erik")]
+            Prov.lika(Uppgiftssamling.medVem(utan, skickat: false).map(\.vem), ["jag", "Erik"],
+                      "ur ett mottaget mejl är det utan person mitt")
+            Prov.lika(Uppgiftssamling.medVem(utan, skickat: true).map(\.vad), ["Svara Erik"],
+                      "ur ett skickat mejl stryks det utan person")
+        }
+
         do {   // dubblettspärren
             Prov.kolla(!Uppgift(vad: "Boka möte med Anna").liknar(Uppgift(vad: "Boka möte med Bo")),
                        "olika korta namn är olika åtaganden")
@@ -28,6 +43,10 @@ extension Tester {
             let igår = Date().addingTimeInterval(-86400), omMånad = Date().addingTimeInterval(30 * 86400)
             Prov.kolla(!Uppgift(vad: "Skicka underlag", senast: igår).liknar(Uppgift(vad: "Skicka underlag", senast: omMånad)),
                        "samma text en månad isär är olika")
+            Prov.kolla(Uppgift(vad: "Boka in tid med Linnea", vem: "jag").liknar(Uppgift(vad: "Ta en kort avstämning med Linnea", vem: "Pär Levander")),
+                       "boka tid och avstämning med samma person är ett åtagande")
+            Prov.kolla(!Uppgift(vad: "Boka in tid med Linnea").liknar(Uppgift(vad: "Ta en kort avstämning med Erik")),
+                       "men med olika personer är det två")
             let rot = FileManager.default.temporaryDirectory
                 .appending(path: "kundkoll-test-\(UUID().uuidString)")
             defer { try? FileManager.default.removeItem(at: rot) }

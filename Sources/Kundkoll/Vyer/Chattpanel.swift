@@ -76,7 +76,10 @@ struct Chattpanel: View {
                     }
                 }
                 .menuStyle(.borderlessButton)
-                .fixedSize()
+                // Bara på höjden: med .fixedSize() tog en lång mötestitel sin
+                // fulla bredd, panelen blev bredare än sina 400 punkter och
+                // lade sig över vänsterspaltens Stäng-knapp i mötesbladet.
+                .fixedSize(horizontal: false, vertical: true)
 
                 if förbereder { ProgressView().controlSize(.small) }
                 Spacer()

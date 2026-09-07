@@ -77,13 +77,13 @@ enum Provlägen {
                  vad: "skriver en lägesbild för ett projekt, skarpt") { a in
             try await läget(kund: a[0], projekt: a[1])
         },
-        Provläge("--mejlrunda", "<kund>", minst: 1,
-                 vad: "letar åtaganden i alla kundens sparade mejl med vald modell, som menyn «Leta åtaganden i alla mejl»") { a in
-            try await mejlrunda(kund: a[0])
+        Provläge("--mejlrunda", "<kund> [--om]", minst: 1,
+                 vad: "letar åtaganden i alla kundens sparade mejl med vald modell, som menyn «Leta åtaganden i alla mejl»; --om tar först bort förra rundans kort") { a in
+            try await mejlrunda(kund: a[0], om: a.contains("--om"))
         },
-        Provläge("--anteckningsrunda", "<kund>", minst: 1,
-                 vad: "letar åtaganden i kundens och projektens anteckningar som ändrats sedan sist") { a in
-            try await anteckningsrunda(kund: a[0])
+        Provläge("--anteckningsrunda", "<kund> [--om]", minst: 1,
+                 vad: "letar åtaganden i kundens och projektens anteckningar som ändrats sedan sist; --om tar först bort förra rundans kort") { a in
+            try await anteckningsrunda(kund: a[0], om: a.contains("--om"))
         },
         Provläge("--lägesbild", "<kund>", minst: 1,
                  vad: "skriver om lägesbilden för kundens enda projekt med vald modell") { a in
@@ -163,8 +163,9 @@ enum Provlägen {
 
     /// Mejlrundan över allt sparat, som menyn i mejlfliken. Modellen är den valda.
     @MainActor
-    static func mejlrunda(kund namn: String) async throws -> Int32 {
+    static func mejlrunda(kund namn: String, om: Bool = false) async throws -> Int32 {
         let kund = try kunden(namn)
+        if om { print("Tog bort \(try Uppgiftssamling.börjaOm(.mejl, för: kund)) kort ur förra mejlrundan") }
         let mejl = Arkivet.shared.mailcache(för: kund)?.mejl ?? []
         print("Modell: \(Modellval.läs().etikett) · \(mejl.count) mejl sparade")
         let t0 = Date()
@@ -179,8 +180,9 @@ enum Provlägen {
 
     /// Anteckningsrundan över kundens och projektens anteckningar.
     @MainActor
-    static func anteckningsrunda(kund namn: String) async throws -> Int32 {
+    static func anteckningsrunda(kund namn: String, om: Bool = false) async throws -> Int32 {
         let kund = try kunden(namn)
+        if om { print("Tog bort \(try Uppgiftssamling.börjaOm(.anteckning, för: kund)) kort ur förra anteckningsrundan") }
         let arkiv = Arkivet.shared
         var mappar = [kund.anteckningsmapp]
         mappar += arkiv.projekt(för: kund).map(\.anteckningsmapp)
