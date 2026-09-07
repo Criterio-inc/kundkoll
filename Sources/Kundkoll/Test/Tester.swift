@@ -35,6 +35,7 @@ enum Tester {
         minVecka()
         modellvalOchMolnspärr()
         modellfel()
+        molnspärrenÄrEnInställning()
         långaMöten()
         möteskopplingar()
         mötesserier()

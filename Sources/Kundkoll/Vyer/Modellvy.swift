@@ -27,6 +27,7 @@ struct Modellvy: View {
     @State private var delaRöster = Inställningar.delaRöstprofiler
     @State private var användarnamn = UserDefaults.standard.string(forKey: "kundkoll.användarnamn") ?? ""
     @State private var diktatPå = Inställningar.diktatPå
+    @State private var automatikFårLämna = Inställningar.automatikFårLämnaDatorn
     @State private var diktatmapp = Inställningar.diktatmapp
     /// Modellerna Ollama faktiskt har, så att ingen behöver gissa ett namn.
     @State private var ollamaModeller: [String] = []
@@ -68,14 +69,15 @@ struct Modellvy: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text("Valet gäller chatten, sammanfattningen efter möten, åtaganden ur mejl "
-                         + "och anteckningar, lägesbilden och svaren på insikter under samtal. "
-                         + "Det som sker av sig självt körs bara på datorn: med ett moln valt "
-                         + "stannar automatiken tills du byter tillbaka, och det du själv "
-                         + "startar går till molnet.")
+                    Text(regeltext)
                         .font(.caption)
                         .foregroundStyle(val.leverantör == .lokal ? Color.secondary : Color.orange)
                         .fixedSize(horizontal: false, vertical: true)
+
+                    if val.leverantör != .lokal {
+                        Toggle("Automatiken får använda molnmodellen", isOn: $automatikFårLämna)
+                            .help("Sammanfattningen efter ett möte, åtaganden ur nya mejl och anteckningar, lägesbilden och diktaten skickas då till \(val.leverantör.namn) utan att du trycker. Avslaget betyder att bara det du själv startar lämnar datorn.")
+                    }
 
                     if val.leverantör != .azure {
                         fält("Modell") {
@@ -302,6 +304,17 @@ struct Modellvy: View {
         .onAppear(perform: läsNyckel)
     }
 
+    /// Vad valet gäller, och vad som händer med det som sker av sig självt.
+    private var regeltext: String {
+        let grund = "Valet gäller chatten, sammanfattningen efter möten, åtaganden ur mejl "
+            + "och anteckningar, lägesbilden och svaren på insikter under samtal. "
+        if automatikFårLämna {
+            return grund + "Med ett moln valt går även det som sker av sig självt dit; kvittona i arbetsraden säger när material lämnade datorn."
+        }
+        return grund + "Det som sker av sig självt körs bara på datorn: med ett moln valt "
+            + "stannar automatiken tills du byter tillbaka, och det du själv startar går till molnet."
+    }
+
     /// En knapp som fyller i adressen för en känd lokal server.
     private func förval(_ namn: String, port: Int, modell: String?) -> some View {
         let adress = "http://127.0.0.1:\(port)/v1/chat/completions"
@@ -370,6 +383,7 @@ struct Modellvy: View {
 
     private func spara() {
         Inställningar.diktatPå = diktatPå
+        Inställningar.automatikFårLämnaDatorn = automatikFårLämna
         Inställningar.diktatmapp = diktatmapp
         Diktatvakt.delad.starta()
         sparaNyckel()

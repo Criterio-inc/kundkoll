@@ -24,7 +24,9 @@ enum Logg {
     static func fel(_ text: String, i var_: String) {
         guard !tyst else { return }
         let rad = "\(stämpel.string(from: Date())) [\(var_)] \(text)\n"
-        kö.async {
+        // Synkront: ett provläge avslutar processen direkt efter felet, och
+        // en asynkron skrivning hann aldrig till filen.
+        kö.sync {
             guard let data = rad.data(using: .utf8) else { return }
             if let h = try? FileHandle(forWritingTo: fil) {
                 h.seekToEndOfFile(); h.write(data); try? h.close()

@@ -172,10 +172,13 @@ actor Chatt {
                vidDelta: (@Sendable (String) -> Void)? = nil) async throws -> Svar {
         // Det som sker av sig självt (letaren på nya mejl och anteckningar,
         // sammanfattningen efter ett möte, lägesbilden, insikternas svar)
-        // får aldrig lämna datorn: att öppna en kund är inte ett val att
-        // skicka tio mejl till ett moln. Det Pär startar själv får gå dit,
-        // och då står det vid knappen.
-        if automatiskt && val.lämnarDatorn { throw Fel.kräverLokal(val.leverantör) }
+        // lämnar inte datorn utan ett uttryckligt val: att öppna en kund är
+        // inte ett val att skicka tio mejl till ett moln. Valet finns under
+        // Inställningar («Automatiken får använda molnmodellen»), avslaget
+        // från början; Pär slog på det 2026-09-07 efter att ha jämfört
+        // sammanfattningar: kvalitet före suveränitet. Det Pär startar själv
+        // får alltid gå dit, och då står det vid knappen.
+        if Self.spärras(automatiskt: automatiskt, val: val) { throw Fel.kräverLokal(val.leverantör) }
         guard let url = val.url else { throw Fel.trasigAdress }
         let nyckel = Nyckelring.förLeverantör(val.leverantör)
         if val.leverantör.behöverNyckel && nyckel == nil { throw Fel.ingenNyckel(val.leverantör) }
@@ -195,7 +198,7 @@ actor Chatt {
         r.setValue("application/json", forHTTPHeaderField: "Content-Type")
         r.httpBody = try kropp(system: system, tidigare: Array(tidigare), fråga: text,
                                ström: vidDelta != nil, maxTokens: uppdrag.maxTokens,
-                               temperatur: uppdrag.temperatur)
+                               temperatur: uppdrag.temperatur, uppdrag: uppdrag)
 
         switch val.leverantör {
         case .anthropic:
@@ -235,7 +238,11 @@ actor Chatt {
         let innehåll = val.leverantör.talarAnthropic
             ? Self.läsAnthropic(data)
             : Self.läsOpenAI(data)
-        guard let innehåll, !innehåll.isEmpty else { throw Fel.tomtSvar }
+        guard let innehåll, !innehåll.isEmpty else {
+            // Ett tomt svar är nästan alltid en form vi inte känner igen; kroppen i loggen säger vilken.
+            Logg.fel("Tomt svar från \(val.etikett): \(String(data: data.prefix(600), encoding: .utf8) ?? "?")", i: "Chatt")
+            throw Fel.tomtSvar
+        }
 
         return Svar(text: innehåll, hänvisningar: Self.använda(i: innehåll, av: träffar))
     }
@@ -304,7 +311,7 @@ actor Chatt {
 
     private func kropp(system: String, tidigare: [Meddelande], fråga: String,
                        ström: Bool = false, maxTokens: Int = 2000,
-                       temperatur: Double? = nil) throws -> Data {
+                       temperatur: Double? = nil, uppdrag: Uppdrag = .chatt) throws -> Data {
         var turer: [[String: String]] = []
         for m in tidigare {
             turer.append(["role": m.roll == .människa ? "user" : "assistant", "content": m.text])
@@ -313,14 +320,19 @@ actor Chatt {
 
         if val.leverantör.talarAnthropic {
             // Anthropic har systemtexten som eget fält, inte som ett meddelande.
+            // Claude 5 tänker som standard, och tänkandets tokens räknas mot
+            // max_tokens: med 2 500 åt tänkandet upp allt och svaret kom utan
+            // textblock. Därför ett högt tak (taket kostar inget, bara det
+            // som används) och låg ansträngning för utdrag, som ska vara
+            // formsäkra snarare än djupa. temperature avvisas av Claude 5.
             var kropp: [String: Any] = [
                 "model": val.modell,
-                "max_tokens": maxTokens,
+                "max_tokens": 16000,
                 "system": system,
                 "messages": turer,
             ]
             if ström { kropp["stream"] = true }
-            if let temperatur { kropp["temperature"] = temperatur }
+            if uppdrag != .chatt { kropp["output_config"] = ["effort": "low"] }
             return try JSONSerialization.data(withJSONObject: kropp)
         }
 
@@ -413,6 +425,11 @@ actor Chatt {
             ?? "okänt fel"
     }
 
+    /// Om ett automatiskt jobb ska stoppas för att modellen lämnar datorn.
+    nonisolated static func spärras(automatiskt: Bool, val: Modellval) -> Bool {
+        automatiskt && val.lämnarDatorn && !Inställningar.automatikFårLämnaDatorn
+    }
+
     /// Skiljer «ingen lyssnar» från «svarade inte i tid».
     nonisolated static func lokaltFel(_ error: Error, värd: String) -> Fel {
         if let u = error as? URLError, u.code == .timedOut { return .svararInte(värd) }
@@ -434,7 +451,7 @@ actor Chatt {
         var errorDescription: String? {
             switch self {
             case .kräverLokal(let l):
-                "Det som sker av sig självt körs bara på datorn. Vald modell är \(l.namn): välj Lokal modell under Inställningar, eller starta jobbet själv."
+                "Det som sker av sig självt körs bara på datorn. Vald modell är \(l.namn): välj Lokal modell under Inställningar, slå på «Automatiken får använda molnmodellen», eller starta jobbet själv."
             case .ingenNyckel(let l):
                 "Ingen API-nyckel för \(l.namn). Lägg in den under Critero-kundkoll → API-nyckel."
             case .ingetSvar: "Fick inget svar från modellen."

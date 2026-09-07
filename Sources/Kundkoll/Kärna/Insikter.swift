@@ -141,6 +141,15 @@ actor Insikter {
 
 /// Inställningar som gäller hela appen.
 enum Inställningar {
+    /// Om det som sker av sig självt (sammanfattning efter möte, letaren på
+    /// mejl och anteckningar, lägesbild, diktat) får gå till en vald
+    /// molnmodell. Avslaget från början: kundmaterial lämnar inte datorn utan
+    /// ett uttryckligt val. Kvittona säger fortfarande när något lämnade.
+    static var automatikFårLämnaDatorn: Bool {
+        get { UserDefaults.standard.bool(forKey: "kundkoll.automatikFårLämnaDatorn") }
+        set { UserDefaults.standard.set(newValue, forKey: "kundkoll.automatikFårLämnaDatorn") }
+    }
+
     /// Mappen med diktat från hemvägen. Tomt betyder Diktat/ bredvid kunderna.
     static var diktatmapp: URL? {
         get {

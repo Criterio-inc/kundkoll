@@ -41,6 +41,11 @@ extension Tester {
                 sem.wait()
                 return text
             }
+            // Inställningen läses ur appens UserDefaults; provet gäller spärren
+            // med inställningen avslagen, oavsett vad användaren valt.
+            let förut = Inställningar.automatikFårLämnaDatorn
+            Inställningar.automatikFårLämnaDatorn = false
+            defer { Inställningar.automatikFårLämnaDatorn = förut }
             let moln = felText(Modellval(leverantör: .anthropic))
             Prov.kolla(moln.contains("körs bara på datorn"),
                        "ett automatiskt uppdrag mot ett moln stoppas innan något skickas: \(moln.prefix(60))")
@@ -52,6 +57,22 @@ extension Tester {
 }
 
 extension Tester {
+    static func molnspärrenÄrEnInställning() {
+        Prov.svit("Automatiken och molnet")
+        let förut = Inställningar.automatikFårLämnaDatorn
+        defer { Inställningar.automatikFårLämnaDatorn = förut }
+        var moln = Modellval(); moln.leverantör = .anthropic; moln.modell = "claude-sonnet-5"
+        Prov.kolla(moln.lämnarDatorn, "Anthropic lämnar datorn")
+        Inställningar.automatikFårLämnaDatorn = false
+        Prov.kolla(Chatt.spärras(automatiskt: true, val: moln), "avslaget: automatiken spärras mot molnet")
+        Prov.kolla(!Chatt.spärras(automatiskt: false, val: moln), "men det man startar själv går")
+        Inställningar.automatikFårLämnaDatorn = true
+        Prov.kolla(!Chatt.spärras(automatiskt: true, val: moln), "påslaget: automatiken får gå till molnet")
+        var lokal = Modellval(); lokal.leverantör = .lokal
+        Inställningar.automatikFårLämnaDatorn = false
+        Prov.kolla(!Chatt.spärras(automatiskt: true, val: lokal), "lokalt spärras aldrig")
+    }
+
     static func modellfel() {
         Prov.svit("Modell som inte svarar")
         let sen = Chatt.lokaltFel(URLError(.timedOut), värd: "127.0.0.1")
