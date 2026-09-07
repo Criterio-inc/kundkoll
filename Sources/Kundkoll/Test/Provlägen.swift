@@ -77,6 +77,18 @@ enum Provlägen {
                  vad: "skriver en lägesbild för ett projekt, skarpt") { a in
             try await läget(kund: a[0], projekt: a[1])
         },
+        Provläge("--mejlrunda", "<kund>", minst: 1,
+                 vad: "letar åtaganden i alla kundens sparade mejl med vald modell, som menyn «Leta åtaganden i alla mejl»") { a in
+            try await mejlrunda(kund: a[0])
+        },
+        Provläge("--anteckningsrunda", "<kund>", minst: 1,
+                 vad: "letar åtaganden i kundens och projektens anteckningar som ändrats sedan sist") { a in
+            try await anteckningsrunda(kund: a[0])
+        },
+        Provläge("--lägesbild", "<kund>", minst: 1,
+                 vad: "skriver om lägesbilden för kundens enda projekt med vald modell") { a in
+            try await lägesbild(kund: a[0])
+        },
         Provläge("--sammanfatta", "<inspelningsmapp>", minst: 1,
                  vad: "skriver mötets sammanfattning på nytt ur transkriptet, som knappen i mötesvyn") { a in
             try await sammanfatta(mapp: a[0])
@@ -139,6 +151,65 @@ enum Provlägen {
         Prov.svit("Lägesbilden skarpt")
         Prov.kolla(!bild.text.isEmpty, "modellen skrev en lägesbild")
         return Prov.sammanfatta()
+    }
+
+    @MainActor
+    static func kunden(_ namn: String) throws -> Kund {
+        guard let kund = Arkivet.shared.kunder.first(where: { $0.namn == namn }) else {
+            throw Enkeltfel("Hittar ingen kund som heter «\(namn)». Kunder: \(Arkivet.shared.kunder.map(\.namn).joined(separator: ", "))")
+        }
+        return kund
+    }
+
+    /// Mejlrundan över allt sparat, som menyn i mejlfliken. Modellen är den valda.
+    @MainActor
+    static func mejlrunda(kund namn: String) async throws -> Int32 {
+        let kund = try kunden(namn)
+        let mejl = Arkivet.shared.mailcache(för: kund)?.mejl ?? []
+        print("Modell: \(Modellval.läs().etikett) · \(mejl.count) mejl sparade")
+        let t0 = Date()
+        let u = await Uppgiftssamling.frånMejl(mejl, kund: kund, alla: true) { i, n in
+            print("  mejl \(i) av \(n)")
+        }
+        print(String(format: "Klart på %.0f s: %d genomgångna, %d nya på tavlan, %d gamla i Klart, %d hoppade%@",
+                     Date().timeIntervalSince(t0), u.genomgångna, u.nya, u.historiska, u.hoppade,
+                     u.fel.map { " · fel: \($0)" } ?? ""))
+        return u.fel == nil ? 0 : 1
+    }
+
+    /// Anteckningsrundan över kundens och projektens anteckningar.
+    @MainActor
+    static func anteckningsrunda(kund namn: String) async throws -> Int32 {
+        let kund = try kunden(namn)
+        let arkiv = Arkivet.shared
+        var mappar = [kund.anteckningsmapp]
+        mappar += arkiv.projekt(för: kund).map(\.anteckningsmapp)
+        let noter = mappar.flatMap { arkiv.anteckningar(i: $0) }
+        print("Modell: \(Modellval.läs().etikett) · \(noter.count) anteckningar")
+        var nya = 0, fel = 0
+        for a in noter {
+            let u = await Uppgiftssamling.frånAnteckning(a, kund: kund)
+            print("  \(a.titel): \(u.genomgångna == 0 ? "oförändrad" : "\(u.nya) nya")\(u.fel.map { " · fel: \($0)" } ?? "")")
+            nya += u.nya
+            if u.fel != nil { fel += 1 }
+        }
+        print("Klart: \(nya) nya på tavlan")
+        return fel == 0 ? 0 : 1
+    }
+
+    /// Lägesbilden för kundens enda projekt, skriven och sparad.
+    @MainActor
+    static func lägesbild(kund namn: String) async throws -> Int32 {
+        let kund = try kunden(namn)
+        guard let projekt = Arkivet.shared.standardprojekt(för: kund) else {
+            throw Enkeltfel("«\(namn)» har inte exakt ett projekt.")
+        }
+        print("Modell: \(Modellval.läs().etikett) · projekt \(projekt.namn)")
+        let t0 = Date()
+        let bild = try await Läget.skriv(kund: kund, projekt: projekt, automatiskt: true)
+        print(String(format: "Klart på %.0f s (%@)", Date().timeIntervalSince(t0), bild.modell ?? "okänd modell"))
+        print("\n\(bild.text)\n")
+        return 0
     }
 
     /// Samma sak som «Sammanfatta mötet» i mötesvyn, från terminalen: för
