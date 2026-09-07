@@ -23,6 +23,11 @@ enum Modellsvar {
         guard let s else { return nil }
         let t = s.trimmingCharacters(in: .whitespaces)
         guard !t.isEmpty, t.lowercased() != "null" else { return nil }
+        // Modellen skriver ibland av mallen: «som det stod, eller null»,
+        // «namn eller null», «ÅÅÅÅ-MM-DD eller null». Det är inget värde.
+        let l = t.lowercased()
+        if l.contains("eller null") || l.hasPrefix("som det stod") || l.hasPrefix("som det sades")
+            || l.contains("åååå") { return nil }
         return t
     }
 

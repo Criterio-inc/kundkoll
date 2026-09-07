@@ -33,6 +33,7 @@ final class Arkivet: ObservableObject {
         kunder = mappar(i: rot)
             .map { Kund(namn: $0.lastPathComponent, mapp: $0) }
             .sorted { $0.namn.localizedStandardCompare($1.namn) == .orderedAscending }
+        for kund in kunder { uppdateraÖversikter(för: kund) }
     }
 
     func projekt(för kund: Kund) -> [Projekt] {
@@ -210,6 +211,7 @@ final class Arkivet: ObservableObject {
             try fm.createDirectory(at: m, withIntermediateDirectories: true)
         }
         try skrivOmSaknas(mapp.appending(path: "\(namn).md"), projektöversikt(namn, kund: kund.namn))
+        uppdateraÖversikter(för: kund)
         return p
     }
 
@@ -411,12 +413,19 @@ final class Arkivet: ObservableObject {
                 ändrat = true
             }
             if let r = relativ(u[i].källa, i: kund) { u[i].källa = r; ändrat = true }
+            // «som det stod, eller null»: mallens ord som modellen skrev av.
+            if let n = u[i].när, Modellsvar.tomSomNil(n) == nil { u[i].när = nil; ändrat = true }
+            if let v = u[i].vem, Modellsvar.tomSomNil(v) == nil { u[i].vem = nil; ändrat = true }
             if let r = följMed(källa: u[i].källa, till: projekt.first { $0.id == u[i].projektID }, bland: projekt) {
                 u[i].källa = r
                 ändrat = true
             }
         }
-        if ändrat { try? skrivUppgifter(u, för: kund) }
+        if ändrat {
+            try? skrivUppgifter(u, för: kund)
+            // Noten i Obsidian ska visa det städade, inte vänta på nästa sparning.
+            try? skrivUppgiftsnot(u, hos: kund)
+        }
         return u
     }
 
@@ -506,7 +515,20 @@ final class Arkivet: ObservableObject {
     }
 
     /// Tavlan som markdown, så att den syns i Obsidian.
+    /// Källan som Obsidian-länk när den är en anteckning eller ett möte i
+    /// valvet; ett mejl blir bara sin ämnesrad.
+    private func källänk(_ u: Uppgift, hos kund: Kund) -> String? {
+        guard let titel = u.källtitel else { return nil }
+        guard let källa = u.källa, !källa.hasPrefix("/") else { return titel }
+        switch u.ursprung {
+        case .anteckning: return "[[\(källa.hasSuffix(".md") ? String(källa.dropLast(3)) : källa)|\(titel)]]"
+        case .möte: return "[[\(källa)/Transkript|\(titel)]]"
+        default: return titel
+        }
+    }
+
     private func skrivUppgiftsnot(_ uppgifter: [Uppgift], hos kund: Kund) throws {
+        let flera = projekt(för: kund).count > 1
         var text = """
         ---
         typ: uppgifter
@@ -525,12 +547,14 @@ final class Arkivet: ObservableObject {
             for u in ivarje.sorted(by: { $0.skapad < $1.skapad }) {
                 let vem = u.vem.map { "**\($0)** " } ?? ""
                 let när = u.när.map { " *(\($0))*" } ?? ""
-                let varifrån = u.källtitel.map { " — \($0)" } ?? ""
-                text += "- [\(läge == .klart ? "x" : " ")] \(vem)\(u.vad)\(när)\(varifrån)\n"
+                let varifrån = källänk(u, hos: kund).map { " — \($0)" } ?? ""
+                let projekt = flera && u.projekt != nil ? " · \(u.projekt!)" : ""
+                text += "- [\(läge == .klart ? "x" : " ")] \(vem)\(u.vad)\(när)\(varifrån)\(projekt)\n"
             }
         }
         try text.write(to: kund.mapp.appending(path: "Att göra.md"),
                        atomically: true, encoding: .utf8)
+        uppdateraÖversikter(för: kund)
     }
 
     // MARK: - Kunskapsbanken
@@ -635,6 +659,7 @@ final class Arkivet: ObservableObject {
 
     func spara(_ anteckning: Anteckning) throws {
         try anteckning.text.write(to: anteckning.fil, atomically: true, encoding: .utf8)
+        if let kund = kund(innehållande: anteckning.fil) { uppdateraÖversikter(för: kund) }
     }
 
     /// Anteckningen som den ligger på disk just nu.
@@ -687,6 +712,7 @@ final class Arkivet: ObservableObject {
 
     func taBort(_ anteckning: Anteckning) throws {
         try fm.removeItem(at: anteckning.fil)
+        if let kund = kund(innehållande: anteckning.fil) { uppdateraÖversikter(för: kund) }
     }
 
     /// Byter namn på anteckningen och därmed på filen.
@@ -726,6 +752,7 @@ final class Arkivet: ObservableObject {
         let data = try JSONEncoder.kundkoll.encode(kontakter)
         try data.write(to: kund.kontaktmapp.appending(path: "kontakter.json"), options: .atomic)
         for k in kontakter { try skrivKontaktnot(k, hos: kund) }
+        uppdateraÖversikter(för: kund)
     }
 
     @discardableResult
@@ -1121,6 +1148,7 @@ final class Arkivet: ObservableObject {
         try markdown(för: inspelning, mapp: mapp)
             .write(to: mapp.appending(path: "Transkript.md"), atomically: true, encoding: .utf8)
         sparningar += 1
+        if let kund = kund(innehållande: mapp) { uppdateraÖversikter(för: kund) }
     }
 
     private func markdown(för i: Inspelning, mapp: URL) -> String {
@@ -1183,6 +1211,142 @@ final class Arkivet: ObservableObject {
     private func skrivOmSaknas(_ url: URL, _ innehåll: String) throws {
         guard !fm.fileExists(atPath: url.path) else { return }
         try innehåll.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    // MARK: - Översikterna i Obsidian
+
+    /// Kundens och projektens sidor i valvet hade rubriker som aldrig fylldes
+    /// på: «Projekt», «Kontakter», «Anteckningar» stod tomma sedan sidan
+    /// skapades. Nu underhåller appen ett block mellan två markörer med
+    /// länkar till det som finns; allt utanför markörerna är ens eget och
+    /// rörs aldrig.
+    static let blockstart = "<!-- kundkoll:start -->"
+    static let blockslut = "<!-- kundkoll:slut -->"
+
+    func uppdateraÖversikter(för kund: Kund) {
+        let projekt = projekt(för: kund)
+        try? skrivBlock(kundblock(kund, projekt: projekt), i: kund.mapp.appending(path: "\(kund.namn).md"),
+                        mall: kundöversikt(kund.namn))
+        for p in projekt {
+            try? skrivBlock(projektblock(p, hos: kund), i: p.mapp.appending(path: "\(p.namn).md"),
+                            mall: projektöversikt(p.namn, kund: kund.namn))
+        }
+    }
+
+    /// En Obsidian-länk till en fil i valvet, med visningsnamn. Sökvägen
+    /// relativt kundmappen gör länken entydig även när flera möten har en
+    /// Transkript.md.
+    func länk(till url: URL, i kund: Kund, namn: String) -> String {
+        var väg = relativ(url, i: kund)
+        if väg.hasSuffix(".md") { väg = String(väg.dropLast(3)) }
+        return "[[\(väg)|\(namn)]]"
+    }
+
+    private func kundblock(_ kund: Kund, projekt: [Projekt]) -> String {
+        var ut: [String] = []
+        ut.append("## Projekt")
+        if projekt.isEmpty { ut.append("Inga projekt än.") }
+        for p in projekt {
+            var rad = "- " + länk(till: p.mapp.appending(path: "\(p.namn).md"), i: kund, namn: p.namn)
+            let läget = p.mapp.appending(path: "Läget.md")
+            if fm.fileExists(atPath: läget.path) { rad += " · " + länk(till: läget, i: kund, namn: "Läget") }
+            ut.append(rad)
+        }
+        ut.append("")
+        ut.append("## Kontakter")
+        let kontakter = kontakter(för: kund)
+        if kontakter.isEmpty { ut.append("Inga kontakter än.") }
+        for k in kontakter {
+            let not = kund.kontaktmapp.appending(path: "\(städa(k.namn)).md")
+            let roll = k.roll.map { " · \($0)" } ?? ""
+            ut.append("- " + (fm.fileExists(atPath: not.path) ? länk(till: not, i: kund, namn: k.namn) : k.namn) + roll)
+        }
+        ut.append("")
+        ut.append("## Anteckningar")
+        var noter = anteckningar(i: kund.anteckningsmapp).map { ($0, nil as String?) }
+        for p in projekt { noter += anteckningar(i: p.anteckningsmapp).map { ($0, p.namn) } }
+        noter.sort { $0.0.ändrad > $1.0.ändrad }
+        if noter.isEmpty { ut.append("Inga anteckningar än.") }
+        for (a, p) in noter.prefix(30) {
+            ut.append("- " + länk(till: a.fil, i: kund, namn: a.titel) + " · \(DateFormatter.kortdag.string(from: a.ändrad))"
+                      + (p.map { " · \($0)" } ?? ""))
+        }
+        ut.append("")
+        ut.append("## Möten")
+        let möten = inspelningar(för: kund)
+        if möten.isEmpty { ut.append("Inga möten än.") }
+        for m in möten.prefix(15) {
+            let transkript = m.mapp.appending(path: "Transkript.md")
+            ut.append("- " + länk(till: transkript, i: kund, namn: m.inspelning.titel)
+                      + " · \(DateFormatter.kortdag.string(from: m.inspelning.inledd))"
+                      + (m.inspelning.projekt.map { " · \($0)" } ?? ""))
+        }
+        ut.append("")
+        let kort = uppgifter(för: kund)
+        let öppna = kort.filter { $0.läge == .attGöra }.count, pågår = kort.filter { $0.läge == .pågår }.count
+        if !kort.isEmpty || fm.fileExists(atPath: kund.mapp.appending(path: "Att göra.md").path) {
+            ut.append("## Att göra")
+            ut.append("[[Att göra]] · \(öppna) att göra, \(pågår) pågår, \(kort.count - öppna - pågår) klara")
+            ut.append("")
+        }
+        if fm.fileExists(atPath: kund.mailmapp.appending(path: "Mail.md").path) {
+            ut.append("## Mail")
+            ut.append(länk(till: kund.mailmapp.appending(path: "Mail.md"), i: kund, namn: "Mail") + " · det appen hämtat, med bilagor")
+            ut.append("")
+        }
+        return ut.joined(separator: "\n")
+    }
+
+    private func projektblock(_ p: Projekt, hos kund: Kund) -> String {
+        var ut: [String] = []
+        let läget = p.mapp.appending(path: "Läget.md")
+        if fm.fileExists(atPath: läget.path) {
+            ut.append("## Läget")
+            ut.append(länk(till: läget, i: kund, namn: "Läget just nu") + " · skrivs om av appen när underlaget ändras")
+            ut.append("")
+        }
+        ut.append("## Möten")
+        let möten = inspelningar(för: kund).filter { p.innehåller($0.mapp) }
+        if möten.isEmpty { ut.append("Inga möten än.") }
+        for m in möten.prefix(20) {
+            ut.append("- " + länk(till: m.mapp.appending(path: "Transkript.md"), i: kund, namn: m.inspelning.titel)
+                      + " · \(DateFormatter.kortdag.string(from: m.inspelning.inledd))")
+        }
+        ut.append("")
+        ut.append("## Anteckningar")
+        let noter = anteckningar(i: p.anteckningsmapp)
+        if noter.isEmpty { ut.append("Inga anteckningar än.") }
+        for a in noter.prefix(30) {
+            ut.append("- " + länk(till: a.fil, i: kund, namn: a.titel) + " · \(DateFormatter.kortdag.string(from: a.ändrad))")
+        }
+        ut.append("")
+        let kort = uppgifter(för: kund).filter { $0.projektID == p.id }
+        if !kort.isEmpty {
+            let öppna = kort.filter { $0.läge != .klart }.count
+            ut.append("## Att göra")
+            ut.append("[[Att göra]] · \(öppna) öppna, \(kort.count - öppna) klara i det här projektet")
+            ut.append("")
+        }
+        return ut.joined(separator: "\n")
+    }
+
+    /// Byter blocket mellan markörerna, eller lägger till det: i mallen på
+    /// rätt plats när sidan är orörd, annars sist så att inget eget flyttas.
+    private func skrivBlock(_ block: String, i url: URL, mall: String) throws {
+        let inramat = "\(Self.blockstart)\n\(block)\n\(Self.blockslut)"
+        let befintlig = (try? String(contentsOf: url, encoding: .utf8)) ?? mall
+        let ny: String
+        if let s = befintlig.range(of: Self.blockstart), let e = befintlig.range(of: Self.blockslut), s.lowerBound < e.upperBound {
+            ny = befintlig.replacingCharacters(in: s.lowerBound..<e.upperBound, with: inramat)
+        } else if befintlig == mall {
+            // Orörd mall: rubrikerna som stod tomma ersätts av blocket.
+            let huvud = mall.components(separatedBy: "\n## ").first ?? mall
+            ny = huvud.trimmingCharacters(in: .newlines) + "\n\n" + inramat + "\n"
+        } else {
+            ny = befintlig.trimmingCharacters(in: .newlines) + "\n\n" + inramat + "\n"
+        }
+        guard ny != befintlig else { return }
+        try ny.write(to: url, atomically: true, encoding: .utf8)
     }
 
     private func kundöversikt(_ namn: String) -> String {

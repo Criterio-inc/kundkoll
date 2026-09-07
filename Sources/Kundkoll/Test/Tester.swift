@@ -37,6 +37,7 @@ enum Tester {
         mötesuppgifter()
         namnbyte()
         obsidian()
+        obsidianSpegling()
         omindexering()
         palett()
         projektUrRundan()
