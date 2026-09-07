@@ -183,6 +183,18 @@ gissas ur «vem» (tomt, «jag» eller ditt namn är ditt) och går att sätta f
 på kortet. Ett väntat åtagande som passerat sitt datum utan att personen mejlat
 sedan dess tas upp i briefen inför nästa möte och i «Sedan sist».
 
+## Reflektioner på hemvägen
+
+Diktera i Röstmemon på telefonen och lägg filen i mappen `Diktat` bredvid
+kunderna (via Filer-appen om Dokument ligger i iCloud, annars AirDrop). Appen
+ser filen, skriver rent den på datorn, låter modellen dela upp den per kund
+och sparar «Reflektion <dag>» som anteckning hos varje kund den nämner.
+Åtaganden hamnar på tavlan, reflektionen finns i kunskapsbanken och i
+briefen inför nästa möte. Det som inte gäller någon kund blir en egen
+dagbok i `Reflektioner/`. Två diktat samma dag går in i samma not. Mappen
+väljs under Inställningar › Röster och insikter. Uppmätt: ett diktat på en
+halv minut är på plats efter en halv minut, lokalt.
+
 ## Söka
 
 ⇧⌘F söker i allt material hos alla kunder samtidigt — transkript,

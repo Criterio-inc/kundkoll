@@ -77,6 +77,10 @@ enum Provlägen {
                  vad: "skriver en lägesbild för ett projekt, skarpt") { a in
             try await läget(kund: a[0], projekt: a[1])
         },
+        Provläge("--prov-diktat", "<ljudfil>", minst: 1,
+                 vad: "hela diktatkedjan mot ett tillfälligt arkiv med kunderna Acme och Beta") { a in
+            try await diktat(fil: a[0])
+        },
         Provläge("--prov-uppgifter", "<textfil>", minst: 1,
                  vad: "uppgiftsletaren på en text, med modellens råsvar om inget hittas") { a in
             try await uppgifter(fil: a[0])
@@ -130,6 +134,32 @@ enum Provlägen {
         print(bild.text)
         Prov.svit("Lägesbilden skarpt")
         Prov.kolla(!bild.text.isEmpty, "modellen skrev en lägesbild")
+        return Prov.sammanfatta()
+    }
+
+    /// Ett diktat genom whisper och modellen, mot ett tillfälligt arkiv så
+    /// att inga riktiga kunder får påhittade reflektioner.
+    @MainActor
+    static func diktat(fil: String) async throws -> Int32 {
+        let rot = FileManager.default.temporaryDirectory.appending(path: "kundkoll-diktat-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: rot) }
+        let arkiv = Arkivet(rot: rot)
+        let acme = try arkiv.skapaKund(namn: "Acme")
+        let beta = try arkiv.skapaKund(namn: "Beta")
+        print("Modell: \(Modellval.läs().etikett)")
+        let t0 = Date()
+        let u = try await Diktat.behandla(URL(fileURLWithPath: fil), arkiv: arkiv) { print("  \($0)") }
+        print(String(format: "Klart på %.0f s · kunder: %@ · %d åtaganden · egen dagbok: %@",
+                     Date().timeIntervalSince(t0), u.kunder.joined(separator: ", "), u.åtaganden, u.egen ? "ja" : "nej"))
+        for kund in [acme, beta] {
+            for a in arkiv.anteckningar(i: kund.anteckningsmapp) {
+                print("\n— \(kund.namn) / \(a.titel):\n\(a.text)")
+            }
+            for k in arkiv.uppgifter(för: kund) { print("  · kort hos \(kund.namn): \(k.vad)") }
+        }
+        for a in arkiv.anteckningar(i: rot.appending(path: "Reflektioner")) { print("\n— Egen dagbok / \(a.titel):\n\(a.text)") }
+        Prov.svit("Diktat skarpt")
+        Prov.kolla(!u.kunder.isEmpty || u.egen, "något sparades")
         return Prov.sammanfatta()
     }
 

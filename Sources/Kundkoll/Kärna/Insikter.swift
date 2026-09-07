@@ -136,6 +136,22 @@ actor Insikter {
 
 /// Inställningar som gäller hela appen.
 enum Inställningar {
+    /// Mappen med diktat från hemvägen. Tomt betyder Diktat/ bredvid kunderna.
+    static var diktatmapp: URL? {
+        get {
+            guard let väg = UserDefaults.standard.string(forKey: "kundkoll.diktatmapp"), !väg.isEmpty else { return nil }
+            return URL(fileURLWithPath: väg)
+        }
+        set { UserDefaults.standard.set(newValue?.path ?? "", forKey: "kundkoll.diktatmapp") }
+    }
+
+    /// Bevakningen av diktatmappen. På från början: mappen är tom tills man
+    /// lägger något i den.
+    static var diktatPå: Bool {
+        get { UserDefaults.standard.object(forKey: "kundkoll.diktatPå") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "kundkoll.diktatPå") }
+    }
+
     /// Namnet modellen tilltalar dig med i chatten. Tomt betyder kontots
     /// namn i macOS, så en färsk installation fungerar utan att något ställs in.
     static var användarnamn: String {

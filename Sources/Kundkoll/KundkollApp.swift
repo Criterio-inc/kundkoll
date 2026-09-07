@@ -105,6 +105,8 @@ struct Kundkoll: App {
                 .frame(minWidth: 900, minHeight: 560)
                 .task {
                     Notiser.startaMottagning()
+                    // Reflektioner dikterade på hemvägen: mappen bevakas.
+                    Diktatvakt.delad.starta()
                     // Kalendern frågas direkt: mötena är det första man vill
                     // se. Kontakter och Mail frågas först när de används.
                     if kalender.behörighet == .notDetermined {

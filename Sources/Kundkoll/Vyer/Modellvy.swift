@@ -26,6 +26,8 @@ struct Modellvy: View {
     @State private var insiktsmodell = Inställningar.insiktsmodell
     @State private var delaRöster = Inställningar.delaRöstprofiler
     @State private var användarnamn = UserDefaults.standard.string(forKey: "kundkoll.användarnamn") ?? ""
+    @State private var diktatPå = Inställningar.diktatPå
+    @State private var diktatmapp = Inställningar.diktatmapp
     /// Modellerna Ollama faktiskt har, så att ingen behöver gissa ett namn.
     @State private var ollamaModeller: [String] = []
     @State private var transkribering = Transkriberingsval.läs()
@@ -232,6 +234,32 @@ struct Modellvy: View {
                     Toggle("Känn igen röster mellan kunder", isOn: $delaRöster)
                         .help("Av som standard: röstprofiler ligger hos kunden, och samma person kan förekomma i flera kundärenden utan att man vill koppla ihop dem.")
 
+                    fält("Reflektioner på hemvägen") {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Toggle("Bevaka en mapp med diktat", isOn: $diktatPå)
+                            HStack(spacing: 8) {
+                                Text((diktatmapp ?? Diktat.mapp()).path.replacingOccurrences(
+                                    of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~"))
+                                    .font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                                Button("Välj mapp …") {
+                                    let panel = NSOpenPanel()
+                                    panel.canChooseDirectories = true; panel.canChooseFiles = false
+                                    panel.message = "Mappen där diktaten från telefonen hamnar"
+                                    if panel.runModal() == .OK, let url = panel.url { diktatmapp = url }
+                                }
+                                .buttonStyle(.link).font(.caption)
+                                if diktatmapp != nil {
+                                    Button("Standard") { diktatmapp = nil }.buttonStyle(.link).font(.caption)
+                                }
+                            }
+                            .disabled(!diktatPå)
+                            Text("Diktera i Röstmemon på telefonen och lägg filen i mappen, till exempel via iCloud Drive eller AirDrop. Appen skriver rent den på datorn, delar upp den per kund och sparar «Reflektion <dag>» hos varje kund den nämner; åtaganden hamnar på tavlan. Det som inte gäller någon kund blir en egen dagbok i Reflektioner.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
                     fält("Ditt namn") {
                         VStack(alignment: .leading, spacing: 6) {
                             TextField(NSFullUserName(), text: $användarnamn)
@@ -341,6 +369,9 @@ struct Modellvy: View {
     }
 
     private func spara() {
+        Inställningar.diktatPå = diktatPå
+        Inställningar.diktatmapp = diktatmapp
+        Diktatvakt.delad.starta()
         sparaNyckel()
         val.spara()
         transkribering.spara()

@@ -15,7 +15,7 @@ final class Arbeten: ObservableObject {
 
     enum Slag: String, Codable, CaseIterable {
         case mejlhämtning, uppgiftsrunda, anteckningsrunda, lägesbild
-        case indexering, görKlart, efterbearbetning
+        case indexering, görKlart, efterbearbetning, diktat
 
         var namn: String {
             switch self {
@@ -26,6 +26,7 @@ final class Arbeten: ObservableObject {
             case .indexering: "Läser in dokument"
             case .görKlart: "Gör inspelning klar"
             case .efterbearbetning: "Skriver rent mötet"
+            case .diktat: "Skriver rent diktat"
             }
         }
     }
