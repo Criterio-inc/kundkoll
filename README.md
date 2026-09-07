@@ -27,8 +27,11 @@ Alla fyra etapper är klara.
 
 ## Layout
 
-Kunder och deras projekt ligger som träd i sidopanelen. Innehållet har flikar —
-översikt, inspelningar, anteckningar, mejl — i stället för en lång rulle.
+Kunder och deras projekt ligger som träd i sidopanelen. Varje kund har en
+färg som följer med till uppdraget och kundbrickan; högerklicka på kunden för
+att välja den. Orange betyder en enda sak i appen: material lämnar datorn.
+Innehållet har flikar, översikt, inspelningar, anteckningar, mejl, i stället
+för en lång rulle.
 Chatten är en panel som fälls ut till höger och följer det som är valt.
 
 Inspelningen har ett **eget fönster**, som går att lägga bredvid Teams eller på
