@@ -109,11 +109,19 @@ actor Chatt {
     /// svarar med JSON, och får en större budget: tjugo åtaganden med fält
     /// ryms inte i chattens två tusen tokens.
     enum Uppdrag {
-        case chatt, utdrag
+        case chatt, utdrag, delanteckning
         /// 6 000 för utdrag åt upp Ollamas fönster (8 192 som standard): av
         /// ett 50-minutersmöte kom bara slutet med i sammanfattningen.
-        /// 2 500 räcker för en sammanfattning med många åtaganden.
-        var maxTokens: Int { self == .chatt ? 2000 : 2500 }
+        /// 2 500 räcker för en sammanfattning med många åtaganden. En
+        /// delanteckning ska vara kort: uppmätt skrev qwen3 1 600 tokens om
+        /// en fjärdedel av ett möte i 4,5 tokens per sekund, sex minuter per del.
+        var maxTokens: Int {
+            switch self {
+            case .chatt: 2000
+            case .utdrag: 2500
+            case .delanteckning: 700
+            }
+        }
         /// Ett utdrag ska svara likadant varje gång; uppmätt 2026-09-04
         /// svarade qwen3:8b med prosa i stället för JSON på ett mejl som
         /// gav en lista vid nästa försök.

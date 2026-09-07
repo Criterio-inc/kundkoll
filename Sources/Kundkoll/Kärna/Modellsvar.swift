@@ -28,6 +28,8 @@ enum Modellsvar {
         let l = t.lowercased()
         if l.contains("eller null") || l.hasPrefix("som det stod") || l.hasPrefix("som det sades")
             || l.contains("åååå") { return nil }
+        // «inte angivet», «ej angivet», «okänt»: modellens sätt att säga null.
+        if ["inte angivet", "ej angivet", "inte angiven", "okänt", "okänd", "oklart", "ingen", "inget", "n/a", "-"].contains(l) { return nil }
         return t
     }
 

@@ -129,17 +129,17 @@ actor Sammanfattare {
         Här är del \(nummer) av \(antal) av transkriptet från ett möte med kunden \(kund). \
         Den som spelade in heter \(Inställningar.användarnamn) och talar som «Jag».
 
-        Skriv stödanteckningar för just den här delen, i punktform på svenska: \
-        vad som sades i sak, det som bestämdes, det någon lovade att göra (vem, \
-        vad, när, med den mening det sades i, ordagrant), och frågor som lämnades \
-        obesvarade. Ta bara med sådant som verkligen sades. Ingen inledning, inget \
-        JSON, bara punkterna.
+        Skriv stödanteckningar för just den här delen, högst tolv korta punkter \
+        på svenska: det som bestämdes, det någon lovade att göra (vem, vad, när, \
+        med meningen det sades i, ordagrant), frågor som lämnades obesvarade, och \
+        sist en punkt om vad delen i sak handlade om. Ta bara med sådant som \
+        verkligen sades. Ingen inledning, inget JSON, bara punkterna.
 
         \(del)
         """
         return try await chatt.fråga(uppdrag, om: kund, projekt: inspelning.projekt,
                                      träffar: [], historik: [], automatiskt: automatiskt,
-                                     uppdrag: .utdrag).text
+                                     uppdrag: .delanteckning).text
     }
 
     /// Det förra mötet i serien lämnade efter sig: öppna kort på tavlan och
