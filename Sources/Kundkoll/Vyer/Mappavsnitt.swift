@@ -31,14 +31,14 @@ struct Mappavsnitt: View {
                     Label("\(iMolnet) filer ligger kvar i molnet och kan inte läsas. Högerklicka mappen i Finder och välj «Behåll alltid på den här enheten».",
                           systemImage: "icloud.and.arrow.down")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Stil.väntar)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 if let dokumentfel {
                     Label("Någon fil gick inte att läsa: \(dokumentfel)",
                           systemImage: "exclamationmark.triangle")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Stil.fel)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 mapplista
@@ -66,7 +66,7 @@ struct Mappavsnitt: View {
             ForEach(Array(kopplade.enumerated()), id: \.element.id) { i, k in
                 HStack(spacing: 10) {
                     Image(systemName: k.finns ? "folder" : "questionmark.folder")
-                        .foregroundStyle(k.finns ? Color.secondary : Color.orange)
+                        .foregroundStyle(k.finns ? Color.secondary : Stil.fel)
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
                             Text(k.visatNamn)
@@ -77,7 +77,7 @@ struct Mappavsnitt: View {
                         }
                         Text(k.finns ? k.väg : "Mappen finns inte längre")
                             .font(.caption)
-                            .foregroundStyle(k.finns ? Color.secondary : Color.orange)
+                            .foregroundStyle(k.finns ? Color.secondary : Stil.fel)
                             .lineLimit(1)
                             .truncationMode(.head)
                     }

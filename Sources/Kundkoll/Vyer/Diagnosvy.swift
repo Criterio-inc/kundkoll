@@ -77,13 +77,13 @@ struct Diagnosvy: View {
         }
         return Text(text)
             .font(.caption)
-            .foregroundStyle(saknas == 0 ? Color.secondary : Color.orange)
+            .foregroundStyle(saknas == 0 ? Color.secondary : Stil.fel)
     }
 
     private func färg(_ läge: Diagnos.Läge) -> Color {
         switch läge {
-        case .ok: .green
-        case .saknas: .orange
+        case .ok: Stil.klart
+        case .saknas: Stil.fel
         case .frivilligt: .gray
         }
     }

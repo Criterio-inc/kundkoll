@@ -5,6 +5,17 @@ extension Tester {
         Prov.svit("Arkivet")
         let fm = FileManager.default
 
+        do {   // kundens färg: stabil ur namnet, vald i sidopanelen
+            Prov.lika(Kundfärg.för(namn: "Borås stad"), Kundfärg.för(namn: "Borås stad"), "samma namn ger samma färg")
+            let (arkiv, rot) = tillfälligt()
+            defer { try? fm.removeItem(at: rot) }
+            let kund = try! arkiv.skapaKund(namn: "Acme")
+            Prov.lika(arkiv.färg(för: kund), Kundfärg.för(namn: "Acme"), "utan val gäller namnets färg")
+            try! arkiv.sättFärg(.plommon, för: kund)
+            Prov.lika(arkiv.färg(för: kund), .plommon, "den valda färgen läses tillbaka")
+            Prov.kolla(!Kundfärg.allCases.contains { $0.namn.isEmpty }, "alla toner har namn")
+        }
+
         do {   // mappstruktur och vault
             let (arkiv, rot) = tillfälligt()
             defer { try? fm.removeItem(at: rot) }

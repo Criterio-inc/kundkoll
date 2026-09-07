@@ -54,7 +54,7 @@ struct Inspelningsrad: View {
 
     private var nivåer: some View {
         HStack(spacing: 8) {
-            mätare(session.nivåJag, .blue)
+            mätare(session.nivåJag, Stil.accent)
             mätare(session.nivåMotpart, .purple)
         }
     }

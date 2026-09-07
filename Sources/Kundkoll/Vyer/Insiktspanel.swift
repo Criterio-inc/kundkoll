@@ -29,7 +29,7 @@ struct Insiktspanel: View {
             if let varning = insikter.varning {
                 Label(varning, systemImage: "exclamationmark.triangle")
                     .font(.caption)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Stil.fel)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(14)
             }
@@ -84,7 +84,7 @@ struct Insiktspanel: View {
             } else if let fel = i.fel {
                 Text(fel)
                     .font(.caption)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Stil.fel)
                     .fixedSize(horizontal: false, vertical: true)
             } else if let svar = i.svar {
                 Markdowntext(text: svar)

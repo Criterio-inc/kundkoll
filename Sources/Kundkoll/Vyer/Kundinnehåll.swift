@@ -234,7 +234,7 @@ struct Kundinnehåll: View {
                                 Image(systemName: "checklist").foregroundStyle(.secondary).frame(width: 14)
                                 Text("\(öppna.count) öppna på tavlan" + (sena > 0 ? ", \(sena) försenade" : "")
                                      + (väntar > 0 ? " · \(väntar) jag väntar på utan att de hört av sig" : ""))
-                                    .foregroundStyle(sena > 0 ? Color.orange : Color.primary)
+                                    .foregroundStyle(sena > 0 ? Stil.sen : Color.primary)
                                 Spacer()
                             }
                             .contentShape(.rect)
@@ -262,7 +262,7 @@ struct Kundinnehåll: View {
                     ForEach(Array(kvitton)) { k in
                         HStack(spacing: 8) {
                             Image(systemName: k.föll ? "exclamationmark.triangle" : "gearshape.2")
-                                .foregroundStyle(k.föll ? Color.orange : Color.secondary).frame(width: 14)
+                                .foregroundStyle(k.föll ? Stil.fel : Color.secondary).frame(width: 14)
                             Text("\(k.titel) · \(k.rad)")
                                 .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                             Spacer()
@@ -349,7 +349,7 @@ struct Kundinnehåll: View {
                             .menuStyle(.borderlessButton)
                             .fixedSize()
                             .foregroundStyle(möteskopplingar[m.id] == nil
-                                             ? Color.secondary : Color.accentColor)
+                                             ? Color.secondary : Stil.accent)
                             .help("Välj vilket projekt mötet hör till")
                         }
                         if let länk = m.möteslänk {
@@ -491,7 +491,7 @@ struct Kundinnehåll: View {
                 ForEach(Array(ofullständiga.enumerated()), id: \.offset) { i, rad in
                     HStack(spacing: 12) {
                         Image(systemName: "exclamationmark.triangle")
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(Stil.fel)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(rad.mapp.lastPathComponent).lineLimit(1)
                             Text("\(rad.storlek / 1_000_000) MB ljud")
@@ -503,7 +503,7 @@ struct Kundinnehåll: View {
                             Text(slutförsteg).font(.caption).foregroundStyle(.secondary)
                         } else {
                             if let fel = slutförfel[rad.mapp] {
-                                Text(fel).font(.caption).foregroundStyle(.orange)
+                                Text(fel).font(.caption).foregroundStyle(Stil.fel)
                                     .lineLimit(2).frame(maxWidth: 260)
                             }
                             Button("Gör klart") { görKlart(rad.mapp) }
@@ -521,7 +521,7 @@ struct Kundinnehåll: View {
                     if i < ofullständiga.count - 1 { Divider() }
                 }
             }
-            .background(.orange.opacity(0.08), in: .rect(cornerRadius: 8))
+            .background(Stil.fel.opacity(0.06), in: .rect(cornerRadius: 8))
         }
         .confirmationDialog(
             "Flytta den påbörjade inspelningen till papperskorgen?",
@@ -597,7 +597,7 @@ struct Kundinnehåll: View {
                 }
             case .fel(let text):
                 Label(text, systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Stil.fel)
                     .fixedSize(horizontal: false, vertical: true)
             case .klar:
                 if mejl.isEmpty {
@@ -609,7 +609,7 @@ struct Kundinnehåll: View {
                                 HStack(spacing: 12) {
                                     Image(systemName: m.skickat ? "arrow.up" : "arrow.down")
                                         .font(.caption)
-                                        .foregroundStyle(m.skickat ? Color.blue : Color.secondary)
+                                        .foregroundStyle(m.skickat ? Stil.accent : Color.secondary)
                                         .frame(width: 12)
                                     VStack(alignment: .leading, spacing: 3) {
                                         Text(m.ämne).lineLimit(2)
@@ -653,7 +653,7 @@ struct Kundinnehåll: View {
                                 .font(.caption).foregroundStyle(.secondary)
                         } else if let k = arbeten.senasteKvitto(.uppgiftsrunda, kund: kund) {
                             Text(k.rad).font(.caption)
-                                .foregroundStyle(k.föll ? Color.orange : Color.secondary)
+                                .foregroundStyle(k.föll ? Stil.fel : Color.secondary)
                                 .lineLimit(2)
                         }
                     }
@@ -679,7 +679,7 @@ struct Kundinnehåll: View {
                     } label: {
                         HStack(spacing: 10) {
                             Image(systemName: b.text?.isEmpty == false ? "doc.text.magnifyingglass" : "doc")
-                                .foregroundStyle(b.text?.isEmpty == false ? Color.accentColor : Color.secondary)
+                                .foregroundStyle(b.text?.isEmpty == false ? Stil.accent : Color.secondary)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(b.namn).lineLimit(1)
                                 HStack(spacing: 6) {
@@ -734,7 +734,7 @@ struct Kundinnehåll: View {
             if !delar.isEmpty {
                 Text(delar.joined(separator: " · "))
                     .font(.caption)
-                    .foregroundStyle(mejlvarning == nil ? Color.secondary : Color.orange)
+                    .foregroundStyle(mejlvarning == nil ? Color.secondary : Stil.fel)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -1035,9 +1035,9 @@ struct Inspelningslista: View {
                     if !namn.isEmpty { Text("· \(namn.joined(separator: ", "))").lineLimit(1) }
                     if let steg = pågår(mapp) {
                         ProgressView().controlSize(.mini)
-                        Text(steg).foregroundStyle(.orange)
+                        Text(steg).foregroundStyle(Stil.pågår)
                     } else if !i.efterbearbetad {
-                        Märke(text: "live", färg: .orange)
+                        Märke(text: "live", färg: Stil.live)
                     }
                 }
                 .font(.caption)

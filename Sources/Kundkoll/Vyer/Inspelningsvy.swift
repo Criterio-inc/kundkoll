@@ -79,7 +79,7 @@ struct Inspelningsvy: View {
                 }
                 if mikrofoner.isEmpty {
                     Text("Ingen mikrofon hittades. Anslut en, eller tillåt appen under Systeminställningar → Mikrofon.")
-                        .font(.caption).foregroundStyle(.orange)
+                        .font(.caption).foregroundStyle(Stil.fel)
                 }
             }
             .formStyle(.grouped)
@@ -94,7 +94,7 @@ struct Inspelningsvy: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Label(text, systemImage: "exclamationmark.triangle")
                         .font(.callout)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Stil.fel)
                         .fixedSize(horizontal: false, vertical: true)
                     if let länk = Self.inställningslänk(för: text) {
                         Button("Öppna Systeminställningar") { NSWorkspace.shared.open(länk) }
@@ -141,7 +141,7 @@ struct Inspelningsvy: View {
                     .font(.title3.monospacedDigit())
                 Text(session.titel).foregroundStyle(.secondary).lineLimit(1)
                 Spacer()
-                mätare("Jag", session.nivåJag, .blue)
+                mätare("Jag", session.nivåJag, Stil.accent)
                 mätare("Motpart", session.nivåMotpart, .purple)
             }
             .padding(.horizontal, 16).padding(.vertical, 12)
@@ -205,7 +205,7 @@ struct Inspelningsvy: View {
             HStack(spacing: 6) {
                 Text(y.röst.etikett)
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(y.röst == .jag ? Color.blue : Color.purple)
+                    .foregroundStyle(y.röst == .jag ? Stil.accent : Color.purple)
                 Text(y.tidsstämpel)
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.tertiary)
@@ -226,7 +226,7 @@ struct Inspelningsvy: View {
             Text(mapp.lastPathComponent).font(.callout).foregroundStyle(.secondary)
             if let varning = session.varning {
                 Label(varning, systemImage: "exclamationmark.triangle")
-                    .font(.callout).foregroundStyle(.orange)
+                    .font(.callout).foregroundStyle(Stil.fel)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: 420)
             }

@@ -122,7 +122,7 @@ struct Transkriptvy: View {
             }
             Spacer()
             if !inspelning.efterbearbetad {
-                Märke(text: "live", färg: .orange)
+                Märke(text: "live", färg: Stil.live)
             }
             // Knappen ska finnas även när uppdelningen inte gav några
             // grupper — det är ju precis då man vill köra om den med ett
@@ -264,7 +264,7 @@ struct Transkriptvy: View {
                           : "\(kvarSedanSist) åtaganden därifrån är fortfarande öppna")
                          + (föreslagna > 0 ? ", \(föreslagna) verkar klara enligt det här mötet: se tavlan" : ""))
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Stil.väntar)
                 }
             }
             .padding(12)
@@ -327,7 +327,7 @@ struct Transkriptvy: View {
                             }
                             .buttonStyle(.plain)
                             .foregroundStyle(spelare.spelar == y.id
-                                             ? Color.accentColor : Color.secondary)
+                                             ? Stil.accent : Color.secondary)
                             .opacity(spelare.spelar == y.id || hovrad == y.id ? 1 : 0)
                             .help("Hör vad som faktiskt sades")
                         }
@@ -338,7 +338,7 @@ struct Transkriptvy: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(6)
                     .background(spelare.spelar == y.id
-                                ? Color.accentColor.opacity(0.08) : Color.clear,
+                                ? Stil.accent.opacity(0.08) : Color.clear,
                                 in: .rect(cornerRadius: 6))
                     .onHover { över in hovrad = över ? y.id : (hovrad == y.id ? nil : hovrad) }
                 }
@@ -534,8 +534,8 @@ struct Transkriptvy: View {
 
     /// Egen färg per röst, så att man ser talarbyten utan att läsa namnen.
     private func färg(_ y: Yttrande) -> Color {
-        guard y.röst == .motpart || inspelning.enspårig else { return .blue }
-        let paletten: [Color] = [.purple, .orange, .teal, .pink, .indigo, .brown]
+        guard y.röst == .motpart || inspelning.enspårig else { return Stil.accent }
+        let paletten: [Color] = [.purple, .teal, .pink, .indigo, .brown, .mint]
         guard let g = y.röstgrupp else { return .purple }
         return paletten[g % paletten.count]
     }

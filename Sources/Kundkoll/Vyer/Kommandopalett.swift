@@ -128,7 +128,7 @@ struct Kommandopalett: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(markerad ? Color.accentColor : .clear, in: .rect(cornerRadius: 6))
+        .background(markerad ? Stil.accent : .clear, in: .rect(cornerRadius: 6))
         .foregroundStyle(markerad ? .white : .primary)
         .contentShape(.rect)
     }

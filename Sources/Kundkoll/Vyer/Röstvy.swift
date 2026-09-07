@@ -74,7 +74,7 @@ struct Röstvy: View {
                     if grupperarOm { ProgressView().controlSize(.small) }
                 }
                 if let omfel {
-                    Text(omfel).font(.caption).foregroundStyle(.orange)
+                    Text(omfel).font(.caption).foregroundStyle(Stil.fel)
                 }
             }
             .padding(16)

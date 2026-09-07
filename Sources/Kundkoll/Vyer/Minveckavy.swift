@@ -35,8 +35,8 @@ struct Minveckavy: View {
                         .foregroundStyle(.secondary)
                 }
                 HStack(alignment: .top, spacing: 24) {
-                    spalt("Jag ska", mina, tom: "Inget jag ska göra hos någon kund. Skönt.")
-                    spalt("Jag väntar på", väntade, tom: "Inget jag väntar på från någon.")
+                    spalt("Jag ska", Stil.accent, mina, tom: "Inget jag ska göra hos någon kund. Skönt.")
+                    spalt("Jag väntar på", Stil.väntar, väntade, tom: "Inget jag väntar på från någon.")
                 }
             }
             .padding(20)
@@ -67,11 +67,14 @@ struct Minveckavy: View {
     }
 
     /// En spalt: rubrik, sedan grupperna försenat, veckan, senare, utan datum.
-    private func spalt(_ rubrik: String, _ urval: [(kund: Kund, uppgift: Uppgift)],
+    private func spalt(_ rubrik: String, _ färg: Color, _ urval: [(kund: Kund, uppgift: Uppgift)],
                        tom: String) -> some View {
         let grupperade = Self.grupperade(urval)
         return VStack(alignment: .leading, spacing: 16) {
-            Text(rubrik).font(.title3.weight(.semibold))
+            HStack(spacing: 8) {
+                Circle().fill(färg).frame(width: 8, height: 8)
+                Text(rubrik).font(.title3.weight(.semibold))
+            }
             if urval.isEmpty {
                 Text(tom).foregroundStyle(.secondary)
             }
@@ -90,7 +93,7 @@ struct Minveckavy: View {
             HStack(spacing: 6) {
                 Text(grupp.rawValue)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(grupp == .försenat ? Color.red : Color.primary)
+                    .foregroundStyle(grupp == .försenat ? Stil.sen : Color.primary)
                 Text("\(ivarje.count)")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
@@ -137,7 +140,7 @@ struct Minveckavy: View {
             if let senast = u.senast {
                 Text(DateFormatter.kortdag.string(from: senast))
                     .font(.caption.monospacedDigit())
-                    .foregroundStyle(u.försenad ? Color.red : Color.secondary)
+                    .foregroundStyle(u.försenad ? Stil.sen : Color.secondary)
             } else if let när = u.när {
                 Text(när).font(.caption).foregroundStyle(.secondary)
             }

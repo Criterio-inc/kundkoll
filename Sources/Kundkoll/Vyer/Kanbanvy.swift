@@ -117,7 +117,9 @@ struct Kanbanvy: View {
         let visade = läge == .klart && !visaAllaKlara ? Array(ivarje.prefix(Self.synligaKlara)) : ivarje
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
+                Circle().fill(Stil.färg(läge)).frame(width: 7, height: 7)
                 Text(läge.namn).font(.subheadline.weight(.semibold))
+                    .foregroundStyle(läge == .attGöra ? Color.primary : Stil.färg(läge))
                 Text("\(ivarje.count)")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)

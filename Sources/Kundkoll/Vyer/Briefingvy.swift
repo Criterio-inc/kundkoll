@@ -171,12 +171,12 @@ struct Briefingvy: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Väntar på, utan att de hört av sig · \(uppgifter.count)")
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.orange)
+                .foregroundStyle(Stil.väntar)
             ForEach(uppgifter.prefix(6)) { u in
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Image(systemName: "hourglass")
                         .font(.system(size: 10))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Stil.väntar)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(u.vad)
                             .font(.callout)

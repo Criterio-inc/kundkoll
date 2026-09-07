@@ -104,7 +104,7 @@ struct Chattpanel: View {
                                      : "Svarar med \(chatt.etikett)",
                   systemImage: chatt.lämnarDatorn ? "lock.open" : "lock")
                 .font(.caption)
-                .foregroundStyle(chatt.lämnarDatorn ? Color.orange : Color.secondary)
+                .foregroundStyle(chatt.lämnarDatorn ? Stil.moln : Color.secondary)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 8)
             Divider()
@@ -174,7 +174,7 @@ struct Chattpanel: View {
                 Divider()
                 HStack(spacing: 8) {
                     Label(fel, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(Stil.fel)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer()
                     if fel.contains("API-nyckel") || fel.contains("Ollama") || fel.contains("adressen") {
@@ -200,7 +200,7 @@ struct Chattpanel: View {
                 } label: {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.title2)
-                        .foregroundStyle(kanSkicka ? Color.accentColor : Color.secondary.opacity(0.5))
+                        .foregroundStyle(kanSkicka ? Stil.accent : Color.secondary.opacity(0.5))
                 }
                 .buttonStyle(.plain)
                 .disabled(!kanSkicka)
@@ -259,7 +259,7 @@ struct Chattpanel: View {
                     .textSelection(.enabled)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 9)
-                    .background(Color.accentColor, in: .rect(cornerRadius: 16))
+                    .background(Stil.accent, in: .rect(cornerRadius: 16))
                     .foregroundStyle(.white)
             }
         } else {

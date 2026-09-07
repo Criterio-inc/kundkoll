@@ -135,7 +135,7 @@ struct Projektinnehåll: View {
                         if Läget.gammal(lägesbild, kund: kund, projekt: projekt, arkiv: arkiv) {
                             Text("· underlaget har ändrats")
                                 .font(.caption)
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(Stil.väntar)
                         }
                         Button("Skriv om") { skrivLäget() }
                             .buttonStyle(.link)

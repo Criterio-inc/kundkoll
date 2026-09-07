@@ -76,6 +76,7 @@ struct Huvudvy: View {
             }
             .toolbar { verktyg }
         }
+        .tint(Stil.accent)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 0) {
                 if session.pågår || session.efterbearbetar {
@@ -164,8 +165,9 @@ struct Huvudvy: View {
 
     /// Kundens rad: sigillet gör att samma kund ser likadan ut överallt.
     private func kundrad(_ kund: Kund) -> some View {
-        HStack(spacing: 8) {
-            Sigill(namn: kund.namn, sida: 22)
+        let färg = arkiv.färg(för: kund)
+        return HStack(spacing: 8) {
+            Sigill(namn: kund.namn, färg: färg.färg, sida: 22)
             Text(kund.namn)
             // Något pågår hos kunden, även när man står hos en annan.
             if arbeten.pågår(hos: kund) {
@@ -174,6 +176,22 @@ struct Huvudvy: View {
             }
         }
         .padding(.vertical, 2)
+        .contextMenu {
+            Menu("Färg") {
+                ForEach(Kundfärg.allCases) { f in
+                    Button {
+                        try? arkiv.sättFärg(f, för: kund)
+                        arkiv.läsOm()
+                    } label: {
+                        Label {
+                            Text(f == färg ? "\(f.namn)  ✓" : f.namn)
+                        } icon: {
+                            Image(nsImage: f.bricka)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// Bokar briefingnotiser för alla kundmatchade möten den närmaste veckan.
@@ -209,7 +227,7 @@ struct Huvudvy: View {
             if Komigång.visasISidopanelen(arkiv: arkiv) {
                 let steg = Komigång.steg(arkiv: arkiv)
                 HStack {
-                    Label("Kom igång", systemImage: "flag")
+                    Label("Kom igång", systemImage: "sparkles")
                     Spacer()
                     Text("\(steg.filter(\.klar).count) av \(steg.count)")
                         .font(.caption.monospacedDigit())
@@ -217,7 +235,7 @@ struct Huvudvy: View {
                 }
                 .tag(Val.komIgång)
             }
-            Label("Min vecka", systemImage: "calendar.badge.checkmark")
+            Label("Min vecka", systemImage: "calendar")
                 .tag(Val.minVecka)
             ForEach(arkiv.kunder) { kund in
                 let projekt = arkiv.projekt(för: kund)
@@ -226,8 +244,14 @@ struct Huvudvy: View {
                 } else {
                     DisclosureGroup(isExpanded: bindning(för: kund)) {
                         ForEach(projekt) { p in
-                            Label(p.namn, systemImage: "folder")
-                                .tag(Val.projekt(p))
+                            // Uppdraget bär kundens färg, så det syns vad som hör ihop.
+                            Label {
+                                Text(p.namn)
+                            } icon: {
+                                Image(systemName: "briefcase.fill")
+                                    .foregroundStyle(arkiv.färg(för: kund).färg)
+                            }
+                            .tag(Val.projekt(p))
                         }
                     } label: {
                         kundrad(kund).tag(Val.kund(kund))

@@ -12,7 +12,7 @@ struct Arbetsrad: View {
         ForEach(arbeten.fel) { k in
             HStack(spacing: 10) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Stil.fel)
                 Text("\(k.kund): \(k.titel) — \(k.fel ?? "")")
                     .lineLimit(1).foregroundStyle(.secondary)
                     .help(k.fel ?? "")
@@ -29,7 +29,7 @@ struct Arbetsrad: View {
             VStack(spacing: 0) {
                 HStack(spacing: 10) {
                     Image(systemName: första.lämnarDatorn ? "icloud.and.arrow.up" : "gearshape.2")
-                        .foregroundStyle(första.lämnarDatorn ? Color.orange : Color.accentColor)
+                        .foregroundStyle(första.lämnarDatorn ? Stil.moln : Stil.accent)
                     Text(arbeten.beskrivning ?? "")
                         .lineLimit(1)
                         .foregroundStyle(.secondary)

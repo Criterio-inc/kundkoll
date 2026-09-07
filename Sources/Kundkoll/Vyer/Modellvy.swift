@@ -71,7 +71,7 @@ struct Modellvy: View {
 
                     Text(regeltext)
                         .font(.caption)
-                        .foregroundStyle(val.leverantör == .lokal ? Color.secondary : Color.orange)
+                        .foregroundStyle(val.leverantör == .lokal ? Color.secondary : Stil.moln)
                         .fixedSize(horizontal: false, vertical: true)
 
                     if val.leverantör != .lokal {
@@ -145,7 +145,7 @@ struct Modellvy: View {
                         Label("Adressen pekar utanför den här datorn. Materialet lämnar den.",
                               systemImage: "lock.open")
                             .font(.callout)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(Stil.moln)
                     }
                   }
 
@@ -163,7 +163,7 @@ struct Modellvy: View {
 
                             Text(transkribering.motor.beskrivning)
                                 .font(.caption)
-                                .foregroundStyle(transkribering.motor.lokal ? Color.secondary : Color.orange)
+                                .foregroundStyle(transkribering.motor.lokal ? Color.secondary : Stil.moln)
                                 .fixedSize(horizontal: false, vertical: true)
 
                             if transkribering.motor == .whisperCpp {
@@ -197,7 +197,7 @@ struct Modellvy: View {
                                !(transkribering.motor == .elevenlabs && !elevenNyckel.isEmpty) {
                                 Label(brist, systemImage: "exclamationmark.triangle")
                                     .font(.caption)
-                                    .foregroundStyle(.orange)
+                                    .foregroundStyle(Stil.fel)
                             }
                         }
                     }
@@ -280,7 +280,7 @@ struct Modellvy: View {
                     if let meddelande {
                         Text(meddelande)
                             .font(.callout)
-                            .foregroundStyle(meddelande.hasPrefix("Fungerar") ? .green : .orange)
+                            .foregroundStyle(meddelande.hasPrefix("Fungerar") ? Stil.klart : Stil.fel)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -325,7 +325,7 @@ struct Modellvy: View {
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
-        .tint(val.adress == adress ? Color.accentColor : Color.secondary)
+        .tint(val.adress == adress ? Stil.accent : Color.secondary)
     }
 
     /// Frågar Ollama vilka modeller som finns i stället för att gissa på en

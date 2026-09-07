@@ -66,7 +66,7 @@ struct Kontaktredigering: View {
                 Divider()
                 Label(m.text, systemImage: m.fel ? "exclamationmark.triangle" : "checkmark.circle")
                     .font(.callout)
-                    .foregroundStyle(m.fel ? .orange : .green)
+                    .foregroundStyle(m.fel ? Stil.fel : Stil.klart)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(16)

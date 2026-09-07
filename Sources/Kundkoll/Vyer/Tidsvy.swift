@@ -129,7 +129,7 @@ struct Tidsvy: View {
                     if p.pausad {
                         Text("Pausat — datorn har sovit")
                             .font(.caption)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(Stil.väntar)
                     } else {
                         Text("Räknar sedan \(DateFormatter.klocka.string(from: p.start))")
                             .font(.caption)
@@ -283,7 +283,7 @@ struct Tidursrad: View {
         if let p = tidur.pågående {
             HStack(spacing: 10) {
                 Image(systemName: p.pausad ? "pause.circle.fill" : "clock.fill")
-                    .foregroundStyle(p.pausad ? Color.orange : Color.accentColor)
+                    .foregroundStyle(p.pausad ? Stil.väntar : Stil.accent)
                 TimelineView(.periodic(from: .now, by: 1)) { _ in
                     Text(Tidspost.längdtext(p.gången()))
                         .font(.callout.monospacedDigit().weight(.medium))
@@ -316,7 +316,7 @@ struct Importrad: View {
         if let fel = kö.fel {
             HStack(spacing: 10) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Stil.fel)
                 Text(fel).lineLimit(1).foregroundStyle(.secondary)
                 Spacer()
                 Button("OK") { kö.stängFel() }
@@ -330,7 +330,7 @@ struct Importrad: View {
         if let jobb = kö.aktuell {
             HStack(spacing: 10) {
                 Image(systemName: "arrow.down.circle.fill")
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Stil.accent)
                 Text("\(jobb.titel) — \(kö.steg)")
                     .lineLimit(1)
                     .foregroundStyle(.secondary)

@@ -467,6 +467,29 @@ final class Arkivet: ObservableObject {
     /// samma möte som fortfarande står orörda under Att göra tas bort, och
     /// de nya läggs till. Kort som flyttats eller bockats av lämnas kvar.
     @discardableResult
+    // MARK: - Kundens färg
+
+    private func kundfil(_ kund: Kund) -> URL { kund.mapp.appending(path: ".kundkoll/kund.json") }
+
+    private struct Kunduppgifter: Codable { var färg: Kundfärg? }
+
+    /// Kundens valda färg, annars den namnet ger.
+    func färg(för kund: Kund) -> Kundfärg {
+        if let data = try? Data(contentsOf: kundfil(kund)),
+           let k = try? JSONDecoder().decode(Kunduppgifter.self, from: data),
+           let färg = k.färg { return färg }
+        return Kundfärg.för(namn: kund.namn)
+    }
+
+    func sättFärg(_ färg: Kundfärg, för kund: Kund) throws {
+        let fil = kundfil(kund)
+        try FileManager.default.createDirectory(at: fil.deletingLastPathComponent(), withIntermediateDirectories: true)
+        var k = (try? Data(contentsOf: fil)).flatMap { try? JSONDecoder().decode(Kunduppgifter.self, from: $0) }
+            ?? Kunduppgifter()
+        k.färg = färg
+        try JSONEncoder().encode(k).write(to: fil, options: .atomic)
+    }
+
     func ersätt(kort nya: [Uppgift], ur mapp: URL, för kund: Kund) throws -> [Uppgift] {
         let kvar = uppgifter(för: kund).filter {
             !($0.ursprung == .möte && $0.kommer(ur: mapp) && $0.läge == .attGöra)
