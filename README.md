@@ -257,6 +257,12 @@ Claude Code, Ollama och modellerna, och behörigheterna, och säger vad som
 saknas och hur det ordnas. Samma kontroller som `scripts/installera.sh
 --kontrollera`, utan terminal.
 
+Standardmodellen lokalt är qwen3.5:4b. Uppmätt 2026-09-07 på ett riktigt
+möte på 50 minuter, samma prompt: qwen3.5:4b sammanfattade på 12 minuter med
+namn på vem som lovat vad, qwen3:8b på 16,5 minuter med bara «jag» som person
+och vagare åtaganden. Insikterna under samtal kör qwen3:4b, som tar 2,5 GB
+bredvid Teams och whisper. Loggarna ligger i `docs/matningar/`.
+
 Modellen väljs under Inställningar (⌘,) och kan köras hos OpenRouter,
 Anthropic, OpenAI, Azure eller lokalt (Ollama, LM Studio, MLX). Valet gäller
 allt som går till en modell: chatten, sammanfattningen efter möten, åtaganden

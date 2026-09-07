@@ -1,0 +1,56 @@
+=== qwen3.5:4b strängare prompt, start 12:16
+Modell: Lokalt · qwen3.5:4b · 744 rader · torrkörning, sparas inte
+Klart på 713 s
+
+Mötet handlade om säkerhetsprotokoll för M360-plattformen, gallring av e-postlådor, införande av MFA, planering av workshops och hantering av osäkerhet kring personalbyten i juristfunktionen.
+
+  beslut: Ingen ny nämndbeslut krävs för plattformen om underlaget är godkänt av forvaltningscheferna.
+  beslut: Att göra-listan måste vara ordentlig och tydlig kopplat till lokalförsörjningsförvaltningen och revisionskontoret.
+  beslut: MFA (Multi-Faktor Autentisering) måste införas för nivå 2- och nivå 3-informationssäkerhet, vilket är ett E5-behov.
+  beslut: Det avtalades att ses IRL på onsdag.
+  åtagande: Kontakta Rickard (den lilla råttan) för att få svar på hans frågor. — Filip Cergic (idag på jobbet)
+  åtagande: Boka in ett möte med Linnea. — Pär Levander (imorgon)
+  åtagande: Var klar i huvudet och ha läst igenom materialet inför imorgons mötet. — Filip Cergic (inför imorgons möte)
+  åtagande: Boka en tid med Anna Kjellberg för att lyssna på hennes syn på datasuveränitet och molnfrågan. — Pär Levander (att boka in)
+  åtagande: Visa ett dokument om hur man ska göra gallring på Chalmers. — Filip Cergic (inte specificerat)
+  åtagande: Hjälp till i projektet om det blir något som faktiskt stipulerar regelsättning. — Dan Holfve (om det blir något)
+  åtagande: Låsa in sidorna i projektet och göra det så granulärt som möjligt. — Pär Levander (nu)
+  åtagande: Hjälp till med utbildningsdelen för de två gänget som ska gå igång i vecka 47. — Johan Cergic (vecka 47)
+  åtagande: Ta hand om utbildningsdelen själv under veckan och sedan lämna över det till Johan. — Pär Levander (under veckan)
+  åtagande: Träffas med förvaltningscheferna på fredag och sedan genomföra workshops under veckan. — Pär Levander (fredag och under veckan)
+  åtagande: Ta upp frågorna kring Google Workspace och den domän Johanna Ulveström har satt på måndag. — Pär Levander (måndag)
+  öppet: Vem är DSO:n som började men glömdes namnet på?
+  öppet: Hur ska sign-offen gå till för den nionde?
+
+[1mSammanfattning skarpt[0m
+  [32m✓[0m modellen skrev en kärna
+
+[32m1 test godkända.[0m
+=== slut 12:28
+=== qwen3:8b strängare prompt, start 12:28
+Modell: Lokalt · qwen3:8b · 744 rader · torrkörning, sparas inte
+Klart på 994 s
+
+Mötet gick ut på att ta beslut om hur DSO:n ska hantera personuppgifts- och dataskyddsgranskningen samt planering av migreringen. Det finns ett behov av styrning för informationshantering i e-post och funktionsbrevlådor. Utbildning, informationshantering och datasuveränitet var centrala teman.
+
+  beslut: Cathrine Löfqvist är en ny intressent på listan
+  beslut: MFA är nödvändigt för att hantera nivå-2-information och det är ett E5-behov för nivå-3
+  beslut: Lokalförsörjningsförvaltningen och Revisionskontoret ska gå igång vecka 47, reservvecka
+  åtagande: boka upp en person — jag (i mötet)
+  åtagande: försöka få tag i Rickard — jag (i mötet)
+  åtagande: förbereda workshopen till den nionde — jag (i mötet)
+  åtagande: boka tid med statsjuristen — jag (i mötet)
+  åtagande: ta det med Johan — jag (i mötet)
+  åtagande: lägga till tidplan med beroenden — jag (i mötet)
+  åtagande: kika på frågorna kring informationshantering och HUBs-klustret — jag (i mötet)
+  öppet: Hur ska sign-offen gå till?
+  öppet: Hur ska information och kommunikation skötas med förvaltningen?
+  öppet: Vad ska utbildningarna innehålla för att stödja migreringen?
+  öppet: Hur ska säkerhet och protokoll för M360-plattformen hanteras?
+  öppet: Hur ska lämplighetsbedömningarna göra för hela plattformen och per informationsmängd?
+
+[1mSammanfattning skarpt[0m
+  [32m✓[0m modellen skrev en kärna
+
+[32m1 test godkända.[0m
+=== slut 12:44

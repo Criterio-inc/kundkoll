@@ -30,7 +30,10 @@ actor Insikter {
     /// qwen3:8b var den enda som inte gav ett enda falskt larm. Ett falskt larm
     /// är värre än ett missat: en assistent som avbryter mötet med påhittade
     /// frågor blir avstängd, en som missar en fråga stör ingen.
-    static let standardmodell = "qwen3:8b"
+    /// Uppmätt 2026-09-07 på 13 facitfall: qwen3:4b, qwen3.5:4b och qwen3:8b
+    /// alla 13/13 utan falska larm; 4b snabbast och 2,5 GB, vilket avgör på
+    /// en dator med 16 GB där Teams och whisper också ska få plats.
+    static let standardmodell = "qwen3:4b"
 
     private let modell: String
     private let adress: URL

@@ -253,7 +253,9 @@ actor Uppgiftsletare {
         Den som läser det här heter \(Inställningar.användarnamn). När det är \
         \(Inställningar.användarnamn) som ska göra något, skriv "jag" som vem. \
         När någon annan lovat något, skriv den personens namn: det är sådant \
-        \(Inställningar.användarnamn) väntar på. "vad" är det personen ska \
+        \(Inställningar.användarnamn) väntar på. Observera: i ett mejl som \
+        \(Inställningar.användarnamn) fått är «jag» i texten avsändaren, inte \
+        \(Inställningar.användarnamn); det avsändaren lovar får avsändarens namn. "vad" är det personen ska \
         göra eller leverera, aldrig "vänta på …".
 
         "senast" är sista dagen som ett riktigt datum, räknat från \(dag) — \

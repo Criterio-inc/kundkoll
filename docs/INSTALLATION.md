@@ -35,7 +35,7 @@ swift --version                 # ska vara 6.2 eller nyare
 git clone https://github.com/Criterio-inc/kundkoll ~/Projekt/kundkoll
 cd ~/Projekt/kundkoll
 ./scripts/installera.sh                # whisper.cpp, modeller, Pythonmiljön
-./scripts/installera.sh --med-ollama   # …och Ollama med qwen3:8b + bge-m3
+./scripts/installera.sh --med-ollama   # …och Ollama med qwen3.5:4b, qwen3:4b + bge-m3
 ./scripts/installera.sh --kontrollera  # visar bara vad som finns och saknas
 ```
 
@@ -95,7 +95,7 @@ ljudet datorn, vilket inställningen säger i klartext.
 
 Två funktioner kräver en lokal modellserver:
 
-- **Insikter under samtal** — `qwen3:8b` bedömer om något som sägs behöver
+- **Insikter under samtal** — `qwen3:4b` bedömer om något som sägs behöver
   slås upp. Uppmätt 12 av 12 rätt utan falska larm (`docs/INSIKTER.md`).
 - **Betydelsesökning** — `bge-m3` bäddar in kunskapsbanken lokalt, så att
   chatten hittar «leveranstid» när du frågar om «när det kommer».

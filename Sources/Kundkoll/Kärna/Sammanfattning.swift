@@ -132,8 +132,11 @@ actor Sammanfattare {
         Skriv stödanteckningar för just den här delen, högst tolv korta punkter \
         på svenska: det som bestämdes, det någon lovade att göra (vem, vad, när, \
         med meningen det sades i, ordagrant), frågor som lämnades obesvarade, och \
-        sist en punkt om vad delen i sak handlade om. Ta bara med sådant som \
-        verkligen sades. Ingen inledning, inget JSON, bara punkterna.
+        sist en punkt om vad delen i sak handlade om. Bara sådant som har \
+        betydelse för uppdraget: inga småsaker om mående, fika, tider man är \
+        nåbar eller artigheter. Framgår det vem en röst är, genom tilltal eller \
+        presentation, skriv namnet. Ta bara med sådant som verkligen sades. \
+        Ingen inledning, inget JSON, bara punkterna.
 
         \(del)
         """
@@ -214,7 +217,17 @@ actor Sammanfattare {
 
         Ta bara med sådant som verkligen sades. Hellre en tom lista än ett
         påhittat beslut. Skriv på svenska, kort och konkret, utan artigheter.
-        Svara med enbart JSON.
+
+        Strängt urval. Åtaganden är bara sådant som har betydelse för \
+        uppdraget: leveranser, underlag, möten att boka, saker att återkomma \
+        om, beslut att ta. Hoppa över småsaker och praktiska detaljer om dagen: \
+        mående, vad någon ska dricka, när någon är nåbar, artigheter. Högst tio \
+        åtaganden, de viktigaste. Beslut är bara sådant som faktiskt bestämdes, \
+        aldrig sådant som inte bestämdes. Öppna frågor är frågor som väntar på \
+        svar, inte känslor eller farhågor. Talarna är märkta «Jag» och \
+        «Röst 1», «Röst 2» och så vidare; framgår det av samtalet vem en röst \
+        är, genom att någon tilltalas med namn eller presenterar sig, använd \
+        namnet, annars behåll «Röst N». Svara med enbart JSON.
         \(Self.förradel(förra))
         \(underlagsrubrik)
         \(text)

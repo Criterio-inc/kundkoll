@@ -9,7 +9,7 @@ extension Tester {
             Prov.lika(standard.leverantör, .lokal, "lokalt är standard, inte ett moln")
             Prov.kolla(standard.ärLokalAdress, "standardadressen pekar på datorn")
             Prov.kolla(!standard.lämnarDatorn, "och lämnar den inte")
-            Prov.lika(standard.etikett, "Lokalt · qwen3:8b", "etiketten säger var och vad")
+            Prov.lika(standard.etikett, "Lokalt · qwen3.5:4b", "etiketten säger var och vad")
 
             let ute = Modellval(leverantör: .lokal, modell: "x", adress: "https://api.groq.com/v1/chat/completions")
             Prov.kolla(!ute.ärLokalAdress, "«Lokal modell» med en adress på nätet räknas inte som lokal")

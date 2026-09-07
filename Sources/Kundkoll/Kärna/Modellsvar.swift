@@ -29,7 +29,8 @@ enum Modellsvar {
         if l.contains("eller null") || l.hasPrefix("som det stod") || l.hasPrefix("som det sades")
             || l.contains("åååå") { return nil }
         // «inte angivet», «ej angivet», «okänt»: modellens sätt att säga null.
-        if ["inte angivet", "ej angivet", "inte angiven", "okänt", "okänd", "oklart", "ingen", "inget", "n/a", "-"].contains(l) { return nil }
+        if ["inte angivet", "ej angivet", "inte angiven", "inte specificerat", "ej specificerat", "okänt", "okänd",
+            "oklart", "ingen", "inget", "n/a", "-", "i mötet", "under mötet", "nu"].contains(l) { return nil }
         return t
     }
 

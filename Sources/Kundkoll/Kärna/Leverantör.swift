@@ -57,7 +57,7 @@ enum Leverantör: String, Codable, CaseIterable, Identifiable {
         case .anthropic: "claude-sonnet-5"
         case .openai: "gpt-5"
         case .azure: ""          // distributionen står i adressen
-        case .lokal: "qwen3:8b"
+        case .lokal: "qwen3.5:4b"
         }
     }
 

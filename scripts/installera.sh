@@ -3,7 +3,7 @@
 #
 #   1. whisper.cpp byggt, med KB-Whisper small + medium och Silero-VAD
 #   2. en Pythonmiljö för röstanalysen (torch, speechbrain, pyannote) och MLX
-#   3. frivilligt: Ollama med qwen3:8b (insikter) och bge-m3 (betydelsesökning)
+#   3. frivilligt: Ollama med qwen3.5:4b (efterarbete), qwen3:4b (insikter) och bge-m3 (betydelsesökning)
 #
 #   scripts/installera.sh                 # installerar det som saknas
 #   scripts/installera.sh --med-ollama    # …och Ollama med modeller
@@ -90,7 +90,7 @@ kontrollera() {
     if command -v ollama >/dev/null; then
         ok "ollama"
         if curl -fs http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
-            for m in qwen3 bge-m3; do
+            for m in qwen3.5 qwen3 bge-m3; do
                 if curl -fs http://127.0.0.1:11434/api/tags | grep -q "\"$m"; then ok "modellen $m"; else brist "modellen $m saknas (ollama pull $m)"; fi
             done
         else
@@ -277,7 +277,7 @@ if [ "$MED_OLLAMA" = 1 ]; then
             sleep 1
         done
     fi
-    for m in qwen3:8b bge-m3; do
+    for m in qwen3.5:4b qwen3:4b bge-m3; do
         echo "  ollama pull $m"
         ollama pull "$m"
     done
