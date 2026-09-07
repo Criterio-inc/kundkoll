@@ -65,5 +65,7 @@ extension Tester {
         Prov.lika(arkiv.uppgifter(för: kund).first { $0.vad == "Svara" }?.när, nil,
                   "mallens «som det stod, eller null» rensas bort ur kortet")
         Prov.lika(Modellsvar.tomSomNil("ÅÅÅÅ-MM-DD eller null"), nil, "och ur modellens svar")
+        Prov.lika(Modellsvar.tomSomNil("inte angivet"), nil, "«inte angivet» är inget datum")
+        Prov.lika(Modellsvar.tomSomNil("tisdag"), "tisdag", "men ett riktigt värde står kvar")
     }
 }
