@@ -104,7 +104,9 @@ actor Sammanfattare {
     /// En lokal modell hos Ollama har 8 192 tokens som standardfönster, och
     /// ett möte på 50 minuter är ungefär 10 000. Längre transkript än så här
     /// går i delar: stödanteckningar per del, sedan sammanfattningen ur dem.
-    static let delstorlekLokalt = 12_000
+    /// Går att höja när servern har ett större fönster (`ollama create` med
+    /// `num_ctx`); provläget läser KUNDKOLL_DELSTORLEK.
+    nonisolated(unsafe) static var delstorlekLokalt = 12_000
 
     /// Delar texten vid radbrytningar i bitar om högst `storlek` tecken.
     static func dela(_ text: String, storlek: Int) -> [String] {

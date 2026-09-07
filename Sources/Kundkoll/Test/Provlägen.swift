@@ -154,6 +154,10 @@ enum Provlägen {
         var val = Modellval.läs()
         if let m = ProcessInfo.processInfo.environment["KUNDKOLL_MODELL"], !m.isEmpty { val.modell = m }
         let torrt = ProcessInfo.processInfo.environment["KUNDKOLL_TORRT"] == "1"
+        if let d = ProcessInfo.processInfo.environment["KUNDKOLL_DELSTORLEK"].flatMap(Int.init) {
+            Sammanfattare.delstorlekLokalt = d
+            print("Delstorlek: \(d) tecken")
+        }
         print("Modell: \(val.etikett) · \(inspelning.yttranden.count) rader\(torrt ? " · torrkörning, sparas inte" : "")")
         let t0 = Date()
         let förra = Uppgiftssamling.förra(för: inspelning, mapp: mapp)
