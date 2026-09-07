@@ -123,3 +123,19 @@ extension Tester {
         }
     }
 }
+
+extension Tester {
+    static func egnaMappar() {
+        Prov.svit("Mappar bredvid kunderna som inte är kunder")
+        let (arkiv, rot) = tillfälligt()
+        defer { try? FileManager.default.removeItem(at: rot) }
+        _ = try! arkiv.skapaKund(namn: "Acme")
+        for m in ["Diktat", "Reflektioner"] {
+            try! FileManager.default.createDirectory(at: rot.appending(path: m), withIntermediateDirectories: true)
+        }
+        arkiv.läsOm()
+        Prov.lika(arkiv.kunder.map(\.namn), ["Acme"], "Diktat och Reflektioner blir inte kunder")
+        Prov.kolla(!FileManager.default.fileExists(atPath: rot.appending(path: "Diktat/Diktat.md").path),
+                   "och får ingen kundsida")
+    }
+}

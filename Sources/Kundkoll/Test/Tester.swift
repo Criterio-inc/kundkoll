@@ -16,6 +16,7 @@ enum Tester {
         briefing()
         diagnos()
         diktat()
+        egnaMappar()
         ensamtProjekt()
         förslag()
         indexetFöljerFilerna()

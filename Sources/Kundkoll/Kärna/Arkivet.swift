@@ -29,8 +29,15 @@ final class Arkivet: ObservableObject {
 
     // MARK: - Läsa
 
+    /// Mappar bredvid kunderna som inte är kunder: diktaten från hemvägen
+    /// och den egna dagboken. De ligger i Kunder/ för att synas i Filer på
+    /// telefonen, men får ingen kundsida och inget index. Uppmätt 2026-09-07:
+    /// «Diktat» dök upp som kund i sidopanelen med egen översikt och index.
+    nonisolated static let egnaMappar: Set<String> = ["Diktat", "Reflektioner"]
+
     func läsOm() {
         kunder = mappar(i: rot)
+            .filter { !Self.egnaMappar.contains($0.lastPathComponent) }
             .map { Kund(namn: $0.lastPathComponent, mapp: $0) }
             .sorted { $0.namn.localizedStandardCompare($1.namn) == .orderedAscending }
         for kund in kunder { uppdateraÖversikter(för: kund) }

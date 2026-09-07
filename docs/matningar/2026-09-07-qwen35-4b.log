@@ -1,0 +1,60 @@
+=== start 11:47
+--- letare qwen3.5:4b på reflektion.txt
+Modell: Lokalt · qwen3:8b
+Letare: Lokalt · qwen3.5:4b
+3 uppgifter på 28.3 s
+  · Följa och sätta fart på progressen i Filips arbete kring DPIA och lämplighetsbedömningar [Informationshantering i M365]
+  · Säkerställa DSON:s uttalande från förra torsdagen angående beslutsgång [Informationshantering i M365]
+  · Ta kontakt med kommunikatör för att säkerställa sign-off-delarna [Informationshantering i M365]
+--- letare qwen3.5:4b på mejl2.txt
+Modell: Lokalt · qwen3:8b
+Letare: Lokalt · qwen3.5:4b
+2 uppgifter på 13.2 s
+  · skicka ritning på det nya lagret — jag (på fredag)
+  · skicka offerten på pallställen — jag (innan dess)
+--- letare qwen3:4b på mejl2.txt (omkörning)
+Modell: Lokalt · qwen3:8b
+Letare: Lokalt · qwen3:4b
+Gick inte: Modellen svarade med text i stället för den lista appen bad om.
+--- insikter 11:52
+=== qwen3.5:4b ===
+  13/13 rätt · 0 falska larm · 0 missade · median 6.5 s
+=== qwen3:4b ===
+  13/13 rätt · 0 falska larm · 0 missade · median 5.1 s
+=== qwen3:8b ===
+  13/13 rätt · 0 falska larm · 0 missade · median 5.3 s
+  [32m✓[0m minst tre fjärdedelar rätt (13 av 13)
+  [31m✗ svarar inom fem sekunder (median 5.3 s)[0m  Kundkoll/Insiktsprov.swift:68
+--- sammanfattning qwen3.5:4b torrt 11:57
+Modell: Lokalt · qwen3.5:4b · 744 rader · torrkörning, sparas inte
+Klart på 592 s
+
+Mötet med Borås stad täckte säkerhetsbedömningar, migrationsplanering, intressentförändringar samt etablering av styrning för gallring av e-post och funktionsbrevlådor. Diskussionen inkluderade också tekniska frågor kring Google Workspace, domänhantering och behovet av MFA.
+
+  beslut: Det bestämdes att göra en gemensam inventering för alla verksamheter.
+  beslut: Det beslutades inte att göra gemensamma tillsynsbesök med förvaltningen och revisionskontoret.
+  beslut: Projektet ska vara klart för två gänget lokalförsörjningsförvaltningen och Revisionskontoret i vecka 47.
+  beslut: En möte på måndag om Google Workspace och domen blev bestämt.
+  beslut: Ett möte IRL på onsdag blev bestämt.
+  åtagande: springa över och försöka få tag på Rickard — Filip (idag)
+  åtagande: ha tid från 08:00 till 10:30 för ett möte med Linnea — Filip (imorgon)
+  åtagande: ändra tidpunkten om Filip känner sig tung i huvudet — Pär
+  åtagande: uppdatera beslutet efter DSO:n som Victor gjort — Pär
+  åtagande: få till en tid med Erik i veckan för att ta upp frågor — Pär
+  åtagande: förbereda workshopen till den nionde förut — Pär
+  åtagande: boka upp en tid med Anna Kjellberg (statsjurist) för att lyssna på hennes syn på molnfrågan och datasuveränitet — Pär
+  åtagande: försöka redovisa hur skyddsåtgärder ska genomföras systematiskt och iterativt — Pär
+  åtagande: snappa upp information från projektledningsmötet kring utbildningar och ambassadörer — Pär
+  åtagande: gräva i gällande gallringsbeslutet — Dan
+  åtagande: ta fram ett flödesschema (Gantt-schema) och låsa sidorna i projektet — Pär
+  åtagande: dricka mycket Resorb — Filip
+  åtagande: vara tillgänglig fram till halv elva — Philip Cergic
+  åtagande: göra en presentation med förvaltningscheferna på fredag — Pär Levander (fredag)
+  öppet: Filip glömde bort namnet på den nya kollegan (Elin och en ny kollega), vilket Pär inte kunde svara på.
+  öppet: Det finns planer på workshops och möten med förvaltningscheferna under veckan.
+
+[1mSammanfattning skarpt[0m
+  [32m✓[0m modellen skrev en kärna
+
+[32m1 test godkända.[0m
+=== slut 12:07

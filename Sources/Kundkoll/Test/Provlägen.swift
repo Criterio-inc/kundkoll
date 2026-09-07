@@ -149,13 +149,20 @@ enum Provlägen {
         guard var inspelning = Arkivet.shared.inspelning(i: mapp),
               let kund = Arkivet.shared.kund(innehållande: mapp)
         else { throw Enkeltfel("Hittar ingen läsbar inspelning i \(mapp.path)") }
-        print("Modell: \(Modellval.läs().etikett) · \(inspelning.yttranden.count) rader")
+        // KUNDKOLL_MODELL provar en annan lokal modell; KUNDKOLL_TORRT=1 skriver
+        // ut utan att spara, för mätningar mot ett riktigt möte.
+        var val = Modellval.läs()
+        if let m = ProcessInfo.processInfo.environment["KUNDKOLL_MODELL"], !m.isEmpty { val.modell = m }
+        let torrt = ProcessInfo.processInfo.environment["KUNDKOLL_TORRT"] == "1"
+        print("Modell: \(val.etikett) · \(inspelning.yttranden.count) rader\(torrt ? " · torrkörning, sparas inte" : "")")
         let t0 = Date()
         let förra = Uppgiftssamling.förra(för: inspelning, mapp: mapp)
-        let s = try await Sammanfattare().skriv(för: inspelning, kund: kund.namn, automatiskt: true, förra: förra)
-        inspelning.sammanfattning = s
-        try Arkivet.shared.spara(inspelning, i: mapp)
-        Uppgiftssamling.frånMöte(s, inspelning: inspelning, mapp: mapp)
+        let s = try await Sammanfattare(chatt: Chatt(val: val)).skriv(för: inspelning, kund: kund.namn, automatiskt: true, förra: förra)
+        if !torrt {
+            inspelning.sammanfattning = s
+            try Arkivet.shared.spara(inspelning, i: mapp)
+            Uppgiftssamling.frånMöte(s, inspelning: inspelning, mapp: mapp)
+        }
         print(String(format: "Klart på %.0f s", Date().timeIntervalSince(t0)))
         print("\n\(s.kärna)\n")
         for b in s.beslut { print("  beslut: \(b)") }
@@ -199,7 +206,11 @@ enum Provlägen {
         let text = try String(contentsOfFile: fil, encoding: .utf8)
         print("Modell: \(Modellval.läs().etikett)")
         let t0 = Date()
-        let letare = Uppgiftsletare()
+        // KUNDKOLL_MODELL=qwen3:4b provar en annan lokal modell utan att röra inställningen.
+        var val = Modellval.läs()
+        if let m = ProcessInfo.processInfo.environment["KUNDKOLL_MODELL"], !m.isEmpty { val.modell = m }
+        let letare = Uppgiftsletare(chatt: Chatt(val: val))
+        print("Letare: \(val.etikett)")
         let u = try await letare.leta(i: text, sammanhang: "ett mejl jag fått", kund: "Provkunden", projekt: projekt)
         print(String(format: "%d uppgifter på %.1f s", u.count, Date().timeIntervalSince(t0)))
         for x in u { print("  · \(x.vad)\(x.vem.map { " — \($0)" } ?? "")\(x.när.map { " (\($0))" } ?? "")\(x.projekt.map { " [\($0)]" } ?? "")") }
