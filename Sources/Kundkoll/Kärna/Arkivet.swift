@@ -421,11 +421,7 @@ final class Arkivet: ObservableObject {
                 ändrat = true
             }
         }
-        if ändrat {
-            try? skrivUppgifter(u, för: kund)
-            // Noten i Obsidian ska visa det städade, inte vänta på nästa sparning.
-            try? skrivUppgiftsnot(u, hos: kund)
-        }
+        if ändrat { try? skrivUppgifter(u, för: kund) }
         return u
     }
 
@@ -437,6 +433,7 @@ final class Arkivet: ObservableObject {
     func sparaUppgifter(_ uppgifter: [Uppgift], för kund: Kund) throws {
         try skrivUppgifter(uppgifter, för: kund)
         try skrivUppgiftsnot(uppgifter, hos: kund)
+        uppdateraÖversikter(för: kund)
         // Tavlan lyssnar på räknaren: kort som kommer ur en mejlrunda eller
         // ett avslutat möte ska synas utan att man byter flik.
         sparningar += 1
@@ -528,6 +525,11 @@ final class Arkivet: ObservableObject {
     }
 
     private func skrivUppgiftsnot(_ uppgifter: [Uppgift], hos kund: Kund) throws {
+        try uppgiftsnot(uppgifter, hos: kund).write(to: kund.mapp.appending(path: "Att göra.md"),
+                                                  atomically: true, encoding: .utf8)
+    }
+
+    private func uppgiftsnot(_ uppgifter: [Uppgift], hos kund: Kund) -> String {
         let flera = projekt(för: kund).count > 1
         var text = """
         ---
@@ -552,9 +554,7 @@ final class Arkivet: ObservableObject {
                 text += "- [\(läge == .klart ? "x" : " ")] \(vem)\(u.vad)\(när)\(varifrån)\(projekt)\n"
             }
         }
-        try text.write(to: kund.mapp.appending(path: "Att göra.md"),
-                       atomically: true, encoding: .utf8)
-        uppdateraÖversikter(för: kund)
+        return text
     }
 
     // MARK: - Kunskapsbanken
@@ -1225,6 +1225,14 @@ final class Arkivet: ObservableObject {
 
     func uppdateraÖversikter(för kund: Kund) {
         let projekt = projekt(för: kund)
+        // Att göra.md följer med, så att den visar samma sak som tavlan även
+        // när det senaste som hänt var en städning vid inläsning.
+        if fm.fileExists(atPath: uppgiftsfil(kund).path) {
+            let kort = uppgifter(för: kund)
+            let ny = uppgiftsnot(kort, hos: kund)
+            let fil = kund.mapp.appending(path: "Att göra.md")
+            if (try? String(contentsOf: fil, encoding: .utf8)) != ny { try? ny.write(to: fil, atomically: true, encoding: .utf8) }
+        }
         try? skrivBlock(kundblock(kund, projekt: projekt), i: kund.mapp.appending(path: "\(kund.namn).md"),
                         mall: kundöversikt(kund.namn))
         for p in projekt {
