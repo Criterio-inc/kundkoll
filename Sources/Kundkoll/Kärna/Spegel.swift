@@ -166,12 +166,15 @@ enum Spegel {
         for a in arkiv.anteckningar(i: projekt.anteckningsmapp) where a.ändrad > gräns {
             händelser.append((a.ändrad, "Anteckningen «\(a.titel)» skriven eller ändrad"))
         }
-        let visade: Set<Arbeten.Slag> = [.uppgiftsrunda, .anteckningsrunda, .lägesbild, .efterbearbetning, .diktat, .görKlart]
+        // Rundornas kvitton. Mötenas egna rader står redan ovan, och «inget
+        // nytt» är inget som hänt.
+        let visade: Set<Arbeten.Slag> = [.uppgiftsrunda, .anteckningsrunda, .lägesbild, .diktat]
         for k in Arbeten.senasteKvitton(i: kund.mapp, antal: 300)
         where k.klar > gräns && k.fel == nil && visade.contains(k.slag) {
-            var text = k.slag.namn
-            if let r = k.resultat, !r.isEmpty { text += ": \(r)" }
-            if let m = k.modell { text += " (\(m))" }
+            guard let r = k.resultat, !r.isEmpty,
+                  !r.hasPrefix("Inga "), !r.hasPrefix("Inget "), !r.hasPrefix("Oförändrad") else { continue }
+            var text = "\(k.slag.namn): \(r)"
+            if let m = k.modell, !m.isEmpty { text += " (\(m))" }
             händelser.append((k.klar, text))
         }
 
@@ -181,7 +184,7 @@ enum Spegel {
         for h in händelser.sorted(by: { $0.när > $1.när }).prefix(80) {
             let d = veckodag.string(from: h.när)
             if d != dag { ut += "\n## \(d)\n\n"; dag = d }
-            ut += "- \(DateFormatter.klocka.string(from: h.när)) · \(h.text)\n"
+            ut += "- \(DateFormatter.timme.string(from: h.när)) · \(h.text)\n"
         }
         return ut
     }
