@@ -17,7 +17,13 @@ extension Tester {
             Prov.lika(delar[1].kund, nil, "en kund som inte finns blir ingen kund, texten behålls")
             Prov.lika(delar[2].kund, nil, "null är ingen kund")
             Prov.lika(Diktat.tolka("Jag kan inte dela upp det här.", kunder: kunder), nil, "prosa i stället för JSON ger nil")
-            Prov.kolla(Diktat.uppdrag(text: "x", kunder: kunder).contains("«Borås stad», «Landskrona kommun»"),
+            let bild = [Diktat.Kundbild(namn: "Borås stad", projekt: ["Informationshantering i M365"], personer: ["Maria Rangefil"]),
+                        Diktat.Kundbild(namn: "Landskrona kommun")]
+            let u = Diktat.uppdrag(text: "x", kunder: bild)
+            Prov.kolla(u.contains("«Borås stad»: uppdraget «Informationshantering i M365». Personer: Maria Rangefil")
+                       && u.contains("- «Landskrona kommun»") && u.contains("en enda kund"),
+                       "modellen får uppdrag och personer per kund, och regeln om en kund")
+            Prov.kolla(Diktat.uppdrag(text: "x", kunder: kunder).contains("«Borås stad»") && Diktat.uppdrag(text: "x", kunder: kunder).contains("«Landskrona kommun»"),
                        "prompten räknar upp kunderna")
         }
 

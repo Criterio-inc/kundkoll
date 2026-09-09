@@ -45,15 +45,51 @@ enum Diktat {
 
     // MARK: - Dela per kund
 
-    static func uppdrag(text: String, kunder: [String]) -> String {
-        """
-        Här är en reflektion jag dikterat i bilen efter arbetsdagen. Mina kunder \
-        heter: \(kunder.map { "«\($0)»" }.joined(separator: ", ")).
+    /// Det modellen behöver veta om en kund för att känna igen den i en
+    /// reflektion som aldrig nämner kundens namn: uppdragen och personerna.
+    struct Kundbild {
+        var namn: String
+        var projekt: [String] = []
+        var personer: [String] = []
 
-        Dela upp texten i delar efter vilken kund den handlar om. Det som inte \
-        gäller någon av kunderna får "kund": null. Behåll mina formuleringar och \
-        min ordning; ta bara bort talspråkets upprepningar och «eh». Hitta inte \
-        på något. Svara som JSON:
+        var rad: String {
+            var ut = "«\(namn)»"
+            if !projekt.isEmpty { ut += ": uppdraget \(projekt.map { "«\($0)»" }.joined(separator: ", "))" }
+            if !personer.isEmpty { ut += ". Personer: \(personer.prefix(30).joined(separator: ", "))" }
+            return ut
+        }
+    }
+
+    static func kundbilder(arkiv: Arkivet) -> [Kundbild] {
+        arkiv.kunder.map { kund in
+            Kundbild(namn: kund.namn,
+                     projekt: arkiv.projekt(för: kund).map(\.namn),
+                     personer: arkiv.kontakter(för: kund).map(\.namn))
+        }
+    }
+
+    static func uppdrag(text: String, kunder: [String]) -> String {
+        uppdrag(text: text, kunder: kunder.map { Kundbild(namn: $0) })
+    }
+
+    /// En reflektion nämner sällan kundens namn; den nämner människorna och
+    /// det man håller på med. Därför får modellen uppdragen och kontakterna,
+    /// och regeln att en reflektion oftast handlar om en enda kund. Utan det
+    /// hamnade en hel Boråsdag hos Landskrona för att ordet «utbildning» föll.
+    static func uppdrag(text: String, kunder: [Kundbild]) -> String {
+        """
+        Här är en reflektion jag dikterat i bilen efter arbetsdagen. Mina kunder:
+
+        \(kunder.map { "- " + $0.rad }.joined(separator: "\n"))
+
+        Dela upp texten i delar efter vilken kund den handlar om. Kundens namn \
+        nämns sällan: personerna och uppdragen ovan säger vilken kund som avses. \
+        En reflektion handlar oftast om en enda kund, så dela bara när texten \
+        tydligt byter till en annan kund; ett stycke som fortsätter samma dag \
+        och samma människor hör till samma kund. Det som inte gäller någon av \
+        kunderna får "kund": null. Behåll mina formuleringar och min ordning; \
+        ta bara bort talspråkets upprepningar och «eh». Hitta inte på något. \
+        Svara som JSON:
 
         {"delar": [{"kund": "namn exakt som ovan, eller null", "text": "…"}]}
 
@@ -141,7 +177,7 @@ enum Diktat {
         if kunder.isEmpty {
             delar = [Del(kund: nil, text: text)]
         } else {
-            let svar = try await Chatt().fråga(uppdrag(text: text, kunder: kunder.map(\.namn)),
+            let svar = try await Chatt().fråga(uppdrag(text: text, kunder: kundbilder(arkiv: arkiv)),
                                               om: "", projekt: nil, träffar: [], historik: [],
                                               automatiskt: true, uppdrag: .utdrag)
             // Ett svar utan lista är inte skäl att tappa reflektionen: hela
