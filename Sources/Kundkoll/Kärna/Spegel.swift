@@ -94,6 +94,7 @@ enum Spegel {
     static func innehåll(kund: Kund, projekt: Projekt, arkiv: Arkivet) -> [String: String] {
         var filer: [String: String] = [:]
         filer["Om den här mappen.md"] = om(kund: kund, projekt: projekt)
+        filer["Senast.md"] = senast(kund: kund, projekt: projekt, arkiv: arkiv)
         if let bild = Läget.läs(kund: kund, projekt: projekt) {
             filer["Läget.md"] = läget(bild, kund: kund, projekt: projekt)
         }
@@ -120,6 +121,7 @@ enum Spegel {
         Den skrivs om när underlaget ändras, så ändra inte i filerna här: ändringen \
         försvinner vid nästa skrivning. Det som ska ändras ändras i Kundkoll.
 
+        - **Senast.md**: vad som hänt de senaste två veckorna, nyast först. Frågan «vad hände senast?» besvaras här.
         - **Läget.md**: lägesbilden, skriven av modellen ur möten, tavla, mejl och dokument.
         - **Att göra.md**: tavlan. Det jag ska göra, det jag väntar på, det som pågår och det som är klart.
         - **Möten/**: en fil per möte med sammanfattning, beslut, åtaganden och öppna frågor.
@@ -128,6 +130,68 @@ enum Spegel {
         Transkript, ljud och mejl följer inte med. De är arbetsmaterial och stannar på datorn.
         """
     }
+
+    /// Vad som hänt, nyast först: möten som sammanfattats, rundor som lagt
+    /// kort på tavlan, lägesbilder, anteckningar som ändrats och kort som
+    /// bockats klara. Bara tidpunkter ur underlaget, aldrig «nu», så att
+    /// filen bara skrivs om när något faktiskt hänt.
+    static let senastFönster: TimeInterval = 14 * 86400
+
+    private static func senast(kund: Kund, projekt: Projekt, arkiv: Arkivet,
+                               idag: Date = Date()) -> String {
+        let gräns = idag.addingTimeInterval(-senastFönster)
+        var händelser: [(när: Date, text: String)] = []
+
+        for m in arkiv.inspelningar(för: kund) where projekt.innehåller(m.mapp) {
+            guard let s = m.inspelning.sammanfattning, s.skriven > gräns else { continue }
+            händelser.append((s.skriven,
+                              "Mötet «\(m.inspelning.titel)» (\(DateFormatter.dag.string(from: m.inspelning.inledd))) sammanfattat: "
+                              + "\(s.beslut.count) beslut, \(s.åtaganden.count) åtaganden, \(s.öppet.count) öppna frågor"))
+        }
+        let kort = arkiv.uppgifter(för: kund).filter { $0.projektID == projekt.id }
+        // Kort som flyttats samma minut är en handling, till exempel en
+        // rundas femton historiska kort rakt in i Klart.
+        for läge in [Uppgift.Läge.klart, .pågår] {
+            let flyttade = kort.filter { $0.läge == läge && $0.ändrad > gräns }
+            let perMinut = Dictionary(grouping: flyttade) { Int($0.ändrad.timeIntervalSince1970 / 60) }
+            for grupp in perMinut.values {
+                let när = grupp.map(\.ändrad).max()!
+                if grupp.count == 1 {
+                    händelser.append((när, "\(läge.namn): \(grupp[0].vad)"))
+                } else {
+                    händelser.append((när, "\(grupp.count) kort lagda i \(läge.namn)"))
+                }
+            }
+        }
+        for a in arkiv.anteckningar(i: projekt.anteckningsmapp) where a.ändrad > gräns {
+            händelser.append((a.ändrad, "Anteckningen «\(a.titel)» skriven eller ändrad"))
+        }
+        let visade: Set<Arbeten.Slag> = [.uppgiftsrunda, .anteckningsrunda, .lägesbild, .efterbearbetning, .diktat, .görKlart]
+        for k in Arbeten.senasteKvitton(i: kund.mapp, antal: 300)
+        where k.klar > gräns && k.fel == nil && visade.contains(k.slag) {
+            var text = k.slag.namn
+            if let r = k.resultat, !r.isEmpty { text += ": \(r)" }
+            if let m = k.modell { text += " (\(m))" }
+            händelser.append((k.klar, text))
+        }
+
+        var ut = "# Senast · \(projekt.namn)\n\n*\(kund.namn) · de senaste två veckorna, nyast först. Tider ur Kundkoll.*\n"
+        guard !händelser.isEmpty else { return ut + "\nInget har hänt de senaste två veckorna.\n" }
+        var dag = ""
+        for h in händelser.sorted(by: { $0.när > $1.när }).prefix(80) {
+            let d = veckodag.string(from: h.när)
+            if d != dag { ut += "\n## \(d)\n\n"; dag = d }
+            ut += "- \(DateFormatter.klocka.string(from: h.när)) · \(h.text)\n"
+        }
+        return ut
+    }
+
+    private static let veckodag: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "sv_SE")
+        f.dateFormat = "EEEE d MMMM"
+        return f
+    }()
 
     private static func läget(_ bild: Lägesbild, kund: Kund, projekt: Projekt) -> String {
         """

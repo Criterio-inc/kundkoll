@@ -59,6 +59,10 @@ extension Tester {
         Prov.kolla(!möte.contains("hemligt yttrande"), "men inte transkriptet")
         Prov.kolla(fm.fileExists(atPath: mål.appending(path: "Anteckningar/Plan.md").path), "anteckningen följer med")
         Prov.kolla(fm.fileExists(atPath: mål.appending(path: "Om den här mappen.md").path), "och en förklaring")
+        let senast = (try? String(contentsOf: mål.appending(path: "Senast.md"), encoding: .utf8)) ?? ""
+        Prov.kolla(senast.contains("Mötet «Uppstart»") && senast.contains("1 beslut, 1 åtaganden"),
+                   "Senast.md säger att mötet sammanfattats")
+        Prov.kolla(senast.contains("Anteckningen «Plan»"), "och att anteckningen skrivits")
         Prov.kolla(!fm.fileExists(atPath: mål.appending(path: "Transkript.md").path)
                    && !fm.fileExists(atPath: mål.appending(path: "möte.json").path), "inget råmaterial")
 
