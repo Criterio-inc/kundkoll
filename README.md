@@ -34,6 +34,14 @@ Innehållet har flikar, översikt, inspelningar, anteckningar, mejl, i stället
 för en lång rulle.
 Chatten är en panel som fälls ut till höger och följer det som är valt.
 
+Ett projekt kan ha en **spegel till Cowork**: peka ut mappen ett
+Cowork-projekt läser, till exempel «00 Claude kontext» i kundens OneDrive, på
+projektets översikt. Kundkoll skriver en undermapp Kundkoll där med
+lägesbilden, tavlan, en fil per möte med beslut, åtaganden och öppna frågor,
+och anteckningarna, och skriver om dem när underlaget ändras. Transkript,
+ljud och mejl följer inte med. Kundkoll äger mappen och tar bara bort filer
+den själv skrivit.
+
 Inspelningen har ett **eget fönster**, som går att lägga bredvid Teams eller på
 en andra skärm. Under tiden fungerar resten av appen som vanligt: slå upp vad
 som sades förra gången, skriv en anteckning, fråga chatten. En rad längst ned i

@@ -66,6 +66,7 @@ struct Projektinnehåll: View {
                     case .översikt:
                         lägesavsnitt
                         Mappavsnitt(placering: .projekt(projekt), kund: kund)
+                        Spegelavsnitt(kund: kund, projekt: projekt)
                     case .attGöra: Kanbanvy(kund: kund, projekt: projekt)
                     case .inspelningar: inspelningsflik
                     case .anteckningar: Anteckningslista(mapp: projekt.anteckningsmapp)

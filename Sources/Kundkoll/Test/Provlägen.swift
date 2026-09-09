@@ -85,6 +85,10 @@ enum Provlägen {
                  vad: "letar åtaganden i kundens och projektens anteckningar som ändrats sedan sist; --om tar först bort förra rundans kort") { a in
             try await anteckningsrunda(kund: a[0], om: a.contains("--om"))
         },
+        Provläge("--spegla", "<kund> [mapp]", minst: 1,
+                 vad: "skriver spegeln till Cowork för kundens projekt; med en mapp skrivs dit i stället, utan att valet sparas") { a in
+            try await spegla(kund: a[0], mapp: a.count > 1 ? a[1] : nil)
+        },
         Provläge("--lägesbild", "<kund>", minst: 1,
                  vad: "skriver om lägesbilden för kundens enda projekt med vald modell") { a in
             try await lägesbild(kund: a[0])
@@ -197,6 +201,23 @@ enum Provlägen {
         }
         print("Klart: \(nya) nya på tavlan")
         return fel == 0 ? 0 : 1
+    }
+
+    /// Spegeln till Cowork för kundens projekt.
+    @MainActor
+    static func spegla(kund namn: String, mapp: String?) async throws -> Int32 {
+        let kund = try kunden(namn)
+        let mål = mapp.map { URL(fileURLWithPath: $0) }
+        var någon = false
+        for p in Arkivet.shared.projekt(för: kund) {
+            if let u = try Spegel.skriv(kund: kund, projekt: p, arkiv: .shared, till: mål) {
+                print("\(p.namn): \(u.rad) → \((mål ?? Spegel.mapp(för: p))!.path)")
+                någon = true
+            } else {
+                print("\(p.namn): ingen spegel vald, eller mappen nås inte")
+            }
+        }
+        return någon ? 0 : 1
     }
 
     /// Lägesbilden för kundens enda projekt, skriven och sparad.

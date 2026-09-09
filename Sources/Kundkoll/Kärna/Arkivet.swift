@@ -1268,6 +1268,8 @@ final class Arkivet: ObservableObject {
         for p in projekt {
             try? skrivBlock(projektblock(p, hos: kund), i: p.mapp.appending(path: "\(p.namn).md"),
                             mall: projektöversikt(p.namn, kund: kund.namn))
+            // Spegeln till Cowork följer med, när projektet har en.
+            try? Spegel.skriv(kund: kund, projekt: p, arkiv: self)
         }
     }
 

@@ -151,6 +151,7 @@ enum Läget {
         """
         try? md.write(to: projekt.mapp.appending(path: "Läget.md"),
                       atomically: true, encoding: .utf8)
+        _ = try? await Spegel.skriv(kund: kund, projekt: projekt, arkiv: arkiv)
         return bild
     }
 

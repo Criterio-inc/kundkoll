@@ -48,6 +48,7 @@ enum Tester {
         projektUrRundan()
         riktning()
         röster()
+        spegel()
         ström()
         tavlanRäknarRätt()
         tid()
