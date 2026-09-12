@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!--
+    Kundkolls appikon i ikonfamiljen: ljudvågen (mötet som spelas in) och
+    bocken (åtagandet som blir gjort). Motivet når 82..960 = 86 % av bredden,
+    ljudvågens högsta stapel 62 % av höjden. Den orangea punkten står som
+    punkt efter bocken, 8 % av bredden.
+    Uppsättningen görs av ~/.claude/skills/ikonfamiljen/scripts/gor-ikoner.mjs.
+  -->
+  <rect width="1024" height="1024" fill="#3B7257"/>
+
+  <!-- Ljudvåg: fem staplar med rundade ändar, 9 % breda -->
+  <g fill="#F5F1E6">
+    <rect x="82"  y="412" width="90" height="200" rx="45"/>
+    <rect x="202" y="322" width="90" height="380" rx="45"/>
+    <rect x="322" y="196" width="90" height="632" rx="45"/>
+    <rect x="442" y="292" width="90" height="440" rx="45"/>
+    <rect x="562" y="382" width="90" height="260" rx="45"/>
+  </g>
+
+  <!-- Bock, linje 10 % -->
+  <g fill="none" stroke="#F5F1E6" stroke-width="100" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M700 560 L788 648 L942 430"/>
+  </g>
+
+  <!-- Orange punkt efter bocken -->
+  <circle cx="916" cy="258" r="42" fill="#CC5A3E"/>
+</svg>
